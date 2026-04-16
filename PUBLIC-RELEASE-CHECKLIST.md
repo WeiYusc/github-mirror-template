@@ -15,7 +15,6 @@ GitHub Mirror Template Pack：公开发布前最后检查清单
 - `CHANGELOG.md`
 - `LICENSE`
 - `RELEASE-NOTES.md`
-- `FINAL-HANDOFF.md`
 - `BT-PANEL-DEPLOYMENT-v1.md`
 - `DEPLOY-CHECKLIST.md`
 - `DOMAIN-PLAN.md`

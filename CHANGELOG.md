@@ -22,8 +22,7 @@ First release-ready template pack milestone.
   - `DEPLOY-CHECKLIST.md`
   - `DOMAIN-PLAN.md`
   - `TEMPLATE-VARIABLES.md`
-  - `FINAL-HANDOFF.md`
-- Template renderer: `render-from-base-domain.sh`
+  - Template renderer: `render-from-base-domain.sh`
 - Render validation helper: `validate-rendered-config.sh`
 - Six-domain mirror layout:
   - hub

@@ -11,11 +11,11 @@
 - `release download` 下载链路
 - GitHub 静态资源镜像
 
-当前模板已经过一轮真实环境试部署与现网修正回写，适合继续整理为：
+适用场景包括：
 
-- 可对外发布的模板仓库
-- 可复用的部署说明
-- 可审计的 Nginx 配置骨架
+- 搭建公共只读镜像实验环境
+- 在 Nginx / 宝塔环境中按模板落地多域镜像
+- 基于现有配置骨架继续做审计、裁剪和二次改造
 
 ---
 
@@ -125,7 +125,6 @@ github-mirror-template/
 ├── CHANGELOG.md
 ├── LICENSE
 ├── RELEASE-NOTES.md
-├── FINAL-HANDOFF.md
 ├── BT-PANEL-DEPLOYMENT-v1.md
 ├── DEPLOY-CHECKLIST.md
 ├── DOMAIN-PLAN.md
@@ -176,13 +175,11 @@ github-mirror-template/
 - 避免再申请 `*.github.example.com` 这一层通配符
 - 在宝塔中按 6 个兄弟子域独立建站
 
-> 当前实际试部署采用的是 `flat-siblings`。
-
 ---
 
-# 5. 当前模板已经具备什么
+# 5. 模板包含的内容
 
-当前模板包已经具备：
+模板包包含：
 
 - hub/raw/gist/assets/archive/download 六类站点模板
 - `render-from-base-domain.sh` 渲染脚本
@@ -198,11 +195,11 @@ github-mirror-template/
 
 ---
 
-# 6. 当前模板还不是什么程度
+# 6. 交付形态与使用方式
 
-它目前是：
+它目前的定位是：
 
-> 一套已经过实际试部署验证、但仍然以“手工审计部署”为主的模板包。
+> 一套以“手工审计部署”为主的模板包。
 
 它还不是：
 
@@ -317,12 +314,11 @@ github-mirror-template/
 - `OPERATIONS.md`
 - `FAQ.md`
 
-## 发布与交付
+## 发布相关
 
 - `CHANGELOG.md`
 - `LICENSE`
 - `RELEASE-NOTES.md`
-- `FINAL-HANDOFF.md`
 - `PUBLIC-RELEASE-CHECKLIST.md`
 - `REPO-METADATA-SUGGESTIONS.md`
 
@@ -354,36 +350,6 @@ github-mirror-template/
 5. `OPERATIONS.md`
 6. `FAQ.md`
 7. `RELEASE-NOTES.md`
-8. `FINAL-HANDOFF.md`
+8. `PUBLIC-RELEASE-CHECKLIST.md`
 
----
 
-# 12. 当前状态
-
-当前仓库已经进入 **release-ready template pack** 阶段，意味着：
-
-- 模板主干完整
-- 文档主干完整
-- 发布包装文件已补齐
-- 当前重点应是发布前抛光，而不是继续扩大功能边界
-
-目前已具备：
-
-- 真实环境试部署结果回写
-- warning 清理回写
-- 账号态/写操作提示页分流
-- `flat-siblings` 域名模型支持
-- `CHANGELOG.md`
-- `LICENSE`
-- `RELEASE-NOTES.md`
-- `FINAL-HANDOFF.md`
-- `PUBLIC-RELEASE-CHECKLIST.md`
-- `REPO-METADATA-SUGGESTIONS.md`
-
-如果继续推进，下一步更适合做：
-
-- 仓库级术语/命名统一
-- 最终发布说明润色
-- 公开发布前的最后一轮验收
-
-而不是继续扩大功能范围。
