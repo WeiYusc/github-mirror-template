@@ -12,7 +12,7 @@ Usage:
 
 Example:
   validate-rendered-config.sh \
-    --rendered-dir /root/.openclaw/workspace/research/github-mirror-template/rendered-test
+    --rendered-dir ./rendered/github.example.com
 
 Checks performed:
 - required directories/files exist

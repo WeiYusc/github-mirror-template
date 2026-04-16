@@ -172,7 +172,7 @@ DOWNLOAD_URL=https://download.example.com
 
 ---
 
-# 8. 更贴近真实部署的经验
+# 8. 部署经验补充
 
 如果你的场景更接近下面这些条件：
 
@@ -192,4 +192,4 @@ DOMAIN_MODE=flat-siblings
 
 - `DOMAIN_MODE=flat-siblings` 时，`raw/gist/assets/archive/download` 会从 `BASE_DOMAIN` 去掉首个标签后派生，不是简单拼成 `raw.<BASE_DOMAIN>`。
 - 改变量后应重新渲染，不要直接在已渲染结果里混改。
-- 渲染完成后要继续跑自检，而不是直接投入目标环境。
+- 渲染完成后要继续跑自检，而不是直接投入部署环境。

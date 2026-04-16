@@ -117,7 +117,7 @@ BASE_DOMAIN=github.example.com
 
 通常更推荐 `flat-siblings`。
 
-> 当前实际试部署验证走的是 `flat-siblings`。
+> 常见部署选择会优先使用 `flat-siblings`。
 
 ---
 

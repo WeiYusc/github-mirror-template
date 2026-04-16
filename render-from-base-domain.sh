@@ -26,7 +26,7 @@ Example (nested mode, default):
     --ssl-cert /www/server/panel/vhost/cert/github.example.com/fullchain.pem \
     --ssl-key /www/server/panel/vhost/cert/github.example.com/privkey.pem \
     --error-root /www/wwwroot/github-mirror-errors \
-    --output-dir /root/rendered/github-mirror
+    --output-dir ./rendered/github-mirror
 
 Example (flat sibling mode, for wildcard certificate reuse):
   render-from-base-domain.sh \
@@ -36,7 +36,7 @@ Example (flat sibling mode, for wildcard certificate reuse):
     --ssl-key /etc/ssl/example/privkey.pem \
     --error-root /www/wwwroot/github-mirror-errors \
     --log-dir /www/wwwlogs \
-    --output-dir /root/rendered/github-mirror
+    --output-dir ./rendered/github-mirror
 
 Notes:
 - This script only renders files into an output directory.

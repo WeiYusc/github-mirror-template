@@ -62,8 +62,8 @@ Initial public release milestone.
 
 ### Notes
 
-This milestone represents a **stage-complete delivery** for the current scope:
+This milestone marks the first public release for the current scope:
 
 - core mirror behavior bounded to public readonly usage
 - template and docs brought into alignment
-- project ready for release packaging / publication polishing
+- project ready for further documentation and automation improvements
