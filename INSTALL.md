@@ -98,8 +98,8 @@ DOMAIN_MODE=nested
 例如：
 
 ```text
-SSL_CERT=/www/server/panel/vhost/cert/example.com/fullchain.pem
-SSL_KEY=/www/server/panel/vhost/cert/example.com/privkey.pem
+SSL_CERT=/etc/ssl/example/fullchain.pem
+SSL_KEY=/etc/ssl/example/privkey.pem
 ERROR_ROOT=/www/wwwroot/github-mirror-errors
 LOG_DIR=/www/wwwlogs
 ```
@@ -114,8 +114,8 @@ LOG_DIR=/www/wwwlogs
 ./render-from-base-domain.sh \
   --base-domain github.example.com \
   --domain-mode flat-siblings \
-  --ssl-cert /www/server/panel/vhost/cert/example.com/fullchain.pem \
-  --ssl-key /www/server/panel/vhost/cert/example.com/privkey.pem \
+  --ssl-cert /etc/ssl/example/fullchain.pem \
+  --ssl-key /etc/ssl/example/privkey.pem \
   --error-root /www/wwwroot/github-mirror-errors \
   --log-dir /www/wwwlogs \
   --output-dir ./rendered/github.example.com

@@ -32,8 +32,8 @@ Example (flat sibling mode, for *.example.com wildcard reuse):
   render-from-base-domain.sh \
     --base-domain github.example.com \
     --domain-mode flat-siblings \
-    --ssl-cert /www/server/panel/vhost/cert/example.com/fullchain.pem \
-    --ssl-key /www/server/panel/vhost/cert/example.com/privkey.pem \
+    --ssl-cert /etc/ssl/example/fullchain.pem \
+    --ssl-key /etc/ssl/example/privkey.pem \
     --error-root /www/wwwroot/github-mirror-errors \
     --log-dir /www/wwwlogs \
     --output-dir /root/rendered/github-mirror
