@@ -128,7 +128,7 @@ LOG_DIR=/www/wwwlogs
 
 它不会：
 
-- 修改现网 Nginx
+- 修改目标环境中的 Nginx 配置
 - 自动部署
 - 自动 reload
 

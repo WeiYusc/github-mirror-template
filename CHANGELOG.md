@@ -8,7 +8,7 @@ This project currently follows a simple human-maintained changelog style.
 
 ## [0.1.0] - 2026-04-16
 
-First release-ready template pack milestone.
+Initial public release milestone.
 
 ### Added
 
