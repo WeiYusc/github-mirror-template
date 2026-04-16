@@ -2,8 +2,7 @@
 
 > 目标：在 **不影响服务器现有网站运行** 的前提下，在宝塔/Nginx 环境中部署 GitHub 公共只读镜像。
 >
-> 本文档适用于当前模板目录：
-> `/root/.openclaw/workspace/research/github-mirror-template`
+> 本文档适用于当前项目目录结构。
 
 ---
 
@@ -86,7 +85,7 @@ BASE_DOMAIN=github.example.com
 - `archive.example.com`
 - `download.example.com`
 
-> 如果你已有 `*.example.com` 通配符证书，通常更推荐 `flat-siblings`。
+> 如果已持有 `*.example.com` 通配符证书，通常更推荐 `flat-siblings`。
 
 ---
 
@@ -156,14 +155,14 @@ BASE_DOMAIN=github.example.com
 ## flat-siblings 示例
 
 ```bash
-/root/.openclaw/workspace/research/github-mirror-template/render-from-base-domain.sh \
+./render-from-base-domain.sh \
   --base-domain github.example.com \
   --domain-mode flat-siblings \
   --ssl-cert /etc/ssl/example/fullchain.pem \
   --ssl-key /etc/ssl/example/privkey.pem \
   --error-root /www/wwwroot/github-mirror-errors \
   --log-dir /www/wwwlogs \
-  --output-dir /root/rendered/github-mirror
+  --output-dir ./rendered/github-mirror
 ```
 
 这一步只会：
@@ -181,8 +180,8 @@ BASE_DOMAIN=github.example.com
 ## 渲染后建议马上自检
 
 ```bash
-/root/.openclaw/workspace/research/github-mirror-template/validate-rendered-config.sh \
-  --rendered-dir /root/rendered/github-mirror
+./validate-rendered-config.sh \
+  --rendered-dir ./rendered/github-mirror
 ```
 
 ---
