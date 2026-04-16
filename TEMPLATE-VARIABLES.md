@@ -172,9 +172,9 @@ DOWNLOAD_URL=https://download.example.com
 
 ---
 
-# 8. 当前实际部署经验
+# 8. 更贴近真实部署的经验
 
-如果你的场景和现实部署更接近：
+如果你的场景更接近下面这些条件：
 
 - 已有 `*.example.com` 通配符证书
 - 站点通过宝塔按子域拆开管理
@@ -192,4 +192,4 @@ DOMAIN_MODE=flat-siblings
 
 - `DOMAIN_MODE=flat-siblings` 时，`raw/gist/assets/archive/download` 会从 `BASE_DOMAIN` 去掉首个标签后派生，不是简单拼成 `raw.<BASE_DOMAIN>`。
 - 改变量后应重新渲染，不要直接在已渲染结果里混改。
-- 渲染完成后要继续跑自检，而不是直接上现网。
+- 渲染完成后要继续跑自检，而不是直接投入目标环境。

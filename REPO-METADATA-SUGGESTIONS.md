@@ -113,14 +113,14 @@ A bounded GitHub mirror template pack for public readonly browsing, downloads, a
 
 例如：
 
-- `v0.1.0 - First release-ready template pack milestone`
 - `v0.1.0 - Public-readonly GitHub mirror template pack`
+- `v0.1.0 - Initial public release`
 
 ---
 
-# 9. 当前推荐方案
+# 9. 推荐方案
 
-如果现在就要公开放出去，最稳的一套是：
+如果现在就要公开发布，较稳的一套是：
 
 - 仓库名：保留当前模板仓库命名风格
 - About：使用英文短描述
