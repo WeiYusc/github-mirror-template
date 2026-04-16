@@ -28,7 +28,7 @@ Example (nested mode, default):
     --error-root /www/wwwroot/github-mirror-errors \
     --output-dir /root/rendered/github-mirror
 
-Example (flat sibling mode, for *.example.com wildcard reuse):
+Example (flat sibling mode, for wildcard certificate reuse):
   render-from-base-domain.sh \
     --base-domain github.example.com \
     --domain-mode flat-siblings \
