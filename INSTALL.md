@@ -32,6 +32,8 @@
 - 域名 DNS 控制权
 - 可用 TLS 证书
 - 可修改 Nginx 配置并 reload 的权限
+- `python3`（使用 v0.2 生成器时需要）
+- Python `PyYAML`（使用 v0.2 生成器时需要）
 
 推荐环境：
 
@@ -106,7 +108,56 @@ LOG_DIR=/www/wwwlogs
 
 ---
 
-# 5. 渲染模板
+# 5. 推荐入口：v0.2 声明式生成
+
+如果你不想手工拼一长串参数，推荐优先使用：
+
+- `deploy.example.yaml`
+- `generate-from-config.sh`
+
+## 5.1 最短路径
+
+```bash
+cp deploy.example.yaml deploy.yaml
+
+./generate-from-config.sh --config ./deploy.yaml
+```
+
+> 说明：`generate-from-config.sh` 当前依赖 `python3` 和 Python `PyYAML`。
+
+执行后会在 `dist/<deployment_name>/` 下生成：
+
+- 渲染后的 `conf.d/`
+- 渲染后的 `snippets/`
+- `html/errors/`
+- `RENDERED-VALUES.env`
+- `deploy.resolved.yaml`
+- `DEPLOY-STEPS.md`
+- `DNS-CHECKLIST.md`
+- `RISK-NOTES.md`
+- `SUMMARY.md`
+
+## 5.2 这一入口的边界
+
+它会：
+
+- 读取 YAML 配置
+- 调用底层渲染器
+- 调用底层静态校验器
+- 生成中文部署说明文档
+
+它不会：
+
+- 自动改线上 Nginx 配置
+- 自动 reload
+- 自动改 DNS
+- 自动上线
+
+---
+
+# 6. 底层渲染模板
+
+如果你仍然想直接使用原始脚本，也可以继续走底层渲染路径。
 
 示例：
 
@@ -134,7 +185,7 @@ LOG_DIR=/www/wwwlogs
 
 ---
 
-# 6. 运行静态自检
+# 7. 运行静态自检
 
 ```bash
 ./validate-rendered-config.sh \

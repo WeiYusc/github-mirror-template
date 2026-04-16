@@ -21,7 +21,38 @@
 
 # Quick Start
 
-如果你只是想最快确认这套模板怎么用，按这 5 步走：
+如果你只是想最快确认这套模板怎么用，推荐优先走 **v0.2 声明式生成流程**：
+
+1. 复制 `deploy.example.yaml`
+2. 按你的环境修改成 `deploy.yaml`
+3. 运行 `generate-from-config.sh`
+4. 检查生成出来的 `dist/<deployment-name>/`
+5. 按 `INSTALL.md` / `BT-PANEL-DEPLOYMENT-v1.md` 做人工落地
+
+最短命令路径：
+
+```bash
+cp deploy.example.yaml deploy.yaml
+
+./generate-from-config.sh --config ./deploy.yaml
+```
+
+> 说明：`generate-from-config.sh` 当前依赖 `python3` 和 Python `PyYAML`。
+
+生成器会：
+
+- 调用底层渲染器生成 conf/snippets/errors
+- 调用底层校验器做静态自检
+- 额外生成中文版部署说明、DNS 检查清单、风险说明和摘要
+
+它不会：
+
+- 自动修改线上 Nginx
+- 自动 reload
+- 自动改 DNS
+- 自动接管生产环境
+
+如果你暂时还想直接使用底层渲染器，也可以继续走原来的 5 步：
 
 1. 选定 `BASE_DOMAIN` 与 `DOMAIN_MODE`
 2. 运行 `render-from-base-domain.sh` 渲染实际配置副本
@@ -29,7 +60,7 @@
 4. 按 `INSTALL.md` / `BT-PANEL-DEPLOYMENT-v1.md` 落地到宝塔/Nginx
 5. 用 `DEPLOY-CHECKLIST.md` 做上线前后验收
 
-最短命令路径：
+底层脚本示例：
 
 ```bash
 ./render-from-base-domain.sh \
@@ -50,6 +81,7 @@
 - `INSTALL.md`
 - `BT-PANEL-DEPLOYMENT-v1.md`
 - `DEPLOY-CHECKLIST.md`
+- `V0.2-SIMPLIFIED-DEPLOYMENT-DESIGN.md`
 
 ---
 
@@ -131,6 +163,9 @@ github-mirror-template/
 ├── TEMPLATE-VARIABLES.md
 ├── REDIRECT-WHITELIST-DESIGN.md
 ├── REDIRECT-WHITELIST-CONFIG-SKETCH.md
+├── deploy.example.yaml
+├── V0.2-SIMPLIFIED-DEPLOYMENT-DESIGN.md
+├── generate-from-config.sh
 ├── render-from-base-domain.sh
 └── validate-rendered-config.sh
 ```

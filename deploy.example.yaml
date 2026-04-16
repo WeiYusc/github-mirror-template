@@ -1,0 +1,29 @@
+deployment_name: github-mirror-prod
+
+domain:
+  base_domain: github.example.com
+  mode: flat-siblings
+
+tls:
+  cert: /etc/ssl/example/fullchain.pem
+  key: /etc/ssl/example/privkey.pem
+
+paths:
+  error_root: /www/wwwroot/github-mirror-errors
+  log_dir: /www/wwwlogs
+  output_dir: ./dist/github-mirror-prod
+
+nginx:
+  snippets_target_hint: /www/server/nginx/snippets
+  vhost_target_hint: /www/server/panel/vhost/nginx
+  include_redirect_whitelist_map: true
+
+deployment:
+  platform: bt-panel-nginx
+  dns_provider: manual
+  review_before_apply: true
+  generate_checklists: true
+
+docs:
+  language: zh-CN
+  audience: operator
