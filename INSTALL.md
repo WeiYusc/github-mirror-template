@@ -113,6 +113,7 @@ LOG_DIR=/www/wwwlogs
 如果你不想手工拼一长串参数，推荐优先使用：
 
 - `deploy.example.yaml`
+- `DEPLOY-CONFIG.md`
 - `generate-from-config.sh`
 
 ## 5.1 最短路径
@@ -145,6 +146,11 @@ cp deploy.example.yaml deploy.yaml
 - 调用底层渲染器
 - 调用底层静态校验器
 - 生成中文部署说明文档
+
+建议搭配阅读：
+
+- `DEPLOY-CONFIG.md`
+- `TEMPLATE-VARIABLES.md`
 
 它不会：
 

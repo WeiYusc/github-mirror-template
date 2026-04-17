@@ -76,6 +76,7 @@ cp deploy.example.yaml deploy.yaml
 详细步骤看：
 
 - `INSTALL.md`
+- `DEPLOY-CONFIG.md`
 - `BT-PANEL-DEPLOYMENT-v1.md`
 - `DEPLOY-CHECKLIST.md`
 - `V0.2-SIMPLIFIED-DEPLOYMENT-DESIGN.md`
@@ -158,6 +159,7 @@ github-mirror-template/
 ├── DEPLOY-CHECKLIST.md
 ├── DOMAIN-PLAN.md
 ├── TEMPLATE-VARIABLES.md
+├── DEPLOY-CONFIG.md
 ├── REDIRECT-WHITELIST-DESIGN.md
 ├── REDIRECT-WHITELIST-CONFIG-SKETCH.md
 ├── deploy.example.yaml
