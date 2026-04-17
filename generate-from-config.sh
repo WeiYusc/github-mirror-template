@@ -119,6 +119,8 @@ values = {
     'ERROR_ROOT': get('paths.error_root', ''),
     'LOG_DIR': get('paths.log_dir', '/www/wwwlogs'),
     'OUTPUT_DIR': get('paths.output_dir', ''),
+    'NGINX_SNIPPETS_TARGET_HINT': get('nginx.snippets_target_hint', ''),
+    'NGINX_VHOST_TARGET_HINT': get('nginx.vhost_target_hint', ''),
     'PLATFORM': get('deployment.platform', 'plain-nginx'),
     'DOC_LANGUAGE': get('docs.language', 'zh-CN'),
 }
@@ -308,6 +310,33 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
       NOTES+=("Output dir hint: parent directory does not exist yet; generation will create it: $OUTPUT_PARENT")
     else
       NOTES+=("Output dir hint: effective output path does not exist yet; generation will create it: $OUTPUT_DIR")
+    fi
+  fi
+
+  DEPLOYMENT_NAME_LOWER="${DEPLOYMENT_NAME,,}"
+  OUTPUT_DIR_DISPLAY_LOWER="${OUTPUT_DIR_DISPLAY,,}"
+  NGINX_SNIPPETS_TARGET_HINT_VALUE="${NGINX_SNIPPETS_TARGET_HINT:-}"
+  NGINX_VHOST_TARGET_HINT_VALUE="${NGINX_VHOST_TARGET_HINT:-}"
+  SNIPPETS_HINT_LOWER="${NGINX_SNIPPETS_TARGET_HINT_VALUE,,}"
+  VHOST_HINT_LOWER="${NGINX_VHOST_TARGET_HINT_VALUE,,}"
+
+  if [[ "$OUTPUT_DIR_DISPLAY_LOWER" != *"$DEPLOYMENT_NAME_LOWER"* ]]; then
+    NOTES+=("Consistency hint: output_dir does not include deployment_name; confirm this is intentional: deployment_name=$DEPLOYMENT_NAME, output_dir=$OUTPUT_DIR_DISPLAY")
+  fi
+
+  if [[ "$PLATFORM" == "bt-panel-nginx" ]]; then
+    if [[ -n "$NGINX_SNIPPETS_TARGET_HINT_VALUE" && "$SNIPPETS_HINT_LOWER" != *"/www/server/"* ]]; then
+      WARNINGS+=("nginx.snippets_target_hint does not look like a 宝塔-style path for bt-panel-nginx: $NGINX_SNIPPETS_TARGET_HINT_VALUE")
+    fi
+    if [[ -n "$NGINX_VHOST_TARGET_HINT_VALUE" && "$VHOST_HINT_LOWER" != *"/www/server/panel/vhost/nginx"* ]]; then
+      WARNINGS+=("nginx.vhost_target_hint does not look like a 宝塔 vhost path for bt-panel-nginx: $NGINX_VHOST_TARGET_HINT_VALUE")
+    fi
+  else
+    if [[ -n "$NGINX_SNIPPETS_TARGET_HINT_VALUE" && "$SNIPPETS_HINT_LOWER" == *"/www/server/"* ]]; then
+      NOTES+=("Consistency hint: nginx.snippets_target_hint looks 宝塔-specific while platform is plain-nginx: $NGINX_SNIPPETS_TARGET_HINT_VALUE")
+    fi
+    if [[ -n "$NGINX_VHOST_TARGET_HINT_VALUE" && "$VHOST_HINT_LOWER" == *"/www/server/panel/vhost/nginx"* ]]; then
+      NOTES+=("Consistency hint: nginx.vhost_target_hint looks 宝塔-specific while platform is plain-nginx: $NGINX_VHOST_TARGET_HINT_VALUE")
     fi
   fi
 
