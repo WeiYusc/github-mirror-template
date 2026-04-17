@@ -21,25 +21,22 @@
 
 # Quick Start
 
-如果你只是想最快确认这套模板怎么用，推荐优先走 **v0.2 声明式生成流程**：
-
-1. 复制 `deploy.example.yaml`
-2. 按你的环境修改成 `deploy.yaml`
-3. 运行 `generate-from-config.sh`
-4. 检查生成出来的 `dist/<deployment-name>/`
-5. 按 `INSTALL.md` / `BT-PANEL-DEPLOYMENT-v1.md` 做人工落地
-
-最短命令路径：
+如果你只想用最短路径确认这套模板怎么跑，直接这样：
 
 ```bash
 cp deploy.example.yaml deploy.yaml
-
 ./generate-from-config.sh --config ./deploy.yaml
 ```
 
+然后做 3 件事：
+
+1. 检查生成出来的 `dist/<deployment-name>/`
+2. 读一遍 `DEPLOY-STEPS.md` / `DNS-CHECKLIST.md`
+3. 按 `INSTALL.md` / `BT-PANEL-DEPLOYMENT-v1.md` 做人工落地
+
 > 说明：`generate-from-config.sh` 当前依赖 `python3` 和 Python `PyYAML`。
 
-生成器会：
+这条 v0.2 生成流程会：
 
 - 调用底层渲染器生成 conf/snippets/errors
 - 调用底层校验器做静态自检

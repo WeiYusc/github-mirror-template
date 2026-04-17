@@ -132,6 +132,7 @@ PY
 source "$TMP_ENV"
 
 CONFIG_ABS="$(cd "$(dirname "$CONFIG_PATH")" && pwd)/$(basename "$CONFIG_PATH")"
+OUTPUT_DIR_DISPLAY="$OUTPUT_DIR"
 if [[ "$OUTPUT_DIR" != /* ]]; then
   OUTPUT_DIR="$SCRIPT_DIR/${OUTPUT_DIR#./}"
 fi
@@ -164,7 +165,7 @@ tls:
 paths:
   error_root: $ERROR_ROOT
   log_dir: $LOG_DIR
-  output_dir: $OUTPUT_DIR
+  output_dir: $OUTPUT_DIR_DISPLAY
 
 deployment:
   platform: $PLATFORM
@@ -182,7 +183,16 @@ cat > "$OUTPUT_DIR/DEPLOY-STEPS.md" <<EOF
 - 基础域名：$BASE_DOMAIN
 - 域名模式：$DOMAIN_MODE
 - 平台：$PLATFORM
-- 输出目录：$OUTPUT_DIR
+- 输出目录：$OUTPUT_DIR_DISPLAY
+
+## 本次派生域名
+
+- Hub：$BASE_DOMAIN
+- Raw：$(grep '^RAW_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Gist：$(grep '^GIST_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Assets：$(grep '^ASSETS_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Archive：$(grep '^ARCHIVE_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Download：$(grep '^DOWNLOAD_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
 
 ## 建议执行顺序
 
@@ -207,12 +217,12 @@ cat > "$OUTPUT_DIR/DNS-CHECKLIST.md" <<EOF
 
 请确认以下域名已正确解析到目标服务器：
 
-- Hub：请查看 RENDERED-VALUES.env 中的 HUB_DOMAIN
-- Raw：请查看 RENDERED-VALUES.env 中的 RAW_DOMAIN
-- Gist：请查看 RENDERED-VALUES.env 中的 GIST_DOMAIN
-- Assets：请查看 RENDERED-VALUES.env 中的 ASSETS_DOMAIN
-- Archive：请查看 RENDERED-VALUES.env 中的 ARCHIVE_DOMAIN
-- Download：请查看 RENDERED-VALUES.env 中的 DOWNLOAD_DOMAIN
+- Hub：$BASE_DOMAIN
+- Raw：$(grep '^RAW_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Gist：$(grep '^GIST_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Assets：$(grep '^ASSETS_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Archive：$(grep '^ARCHIVE_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Download：$(grep '^DOWNLOAD_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
 
 建议在正式接入前逐项验证解析结果。
 EOF
@@ -246,7 +256,16 @@ cat > "$OUTPUT_DIR/SUMMARY.md" <<EOF
 - 基础域名：$BASE_DOMAIN
 - 域名模式：$DOMAIN_MODE
 - 平台：$PLATFORM
-- 输出目录：$OUTPUT_DIR
+- 输出目录：$OUTPUT_DIR_DISPLAY
+
+## 派生域名
+
+- Hub：$BASE_DOMAIN
+- Raw：$(grep '^RAW_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Gist：$(grep '^GIST_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Assets：$(grep '^ASSETS_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Archive：$(grep '^ARCHIVE_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
+- Download：$(grep '^DOWNLOAD_DOMAIN=' "$OUTPUT_DIR/RENDERED-VALUES.env" | cut -d= -f2-)
 
 已生成：
 
@@ -265,7 +284,7 @@ cat <<EOF
 生成完成。
 
 部署名称：$DEPLOYMENT_NAME
-输出目录：$OUTPUT_DIR
+输出目录：$OUTPUT_DIR_DISPLAY
 
 下一步建议：
 1. 先检查 $OUTPUT_DIR/RENDERED-VALUES.env
