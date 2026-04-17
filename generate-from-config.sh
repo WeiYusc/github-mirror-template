@@ -145,6 +145,16 @@ if [[ "$OUTPUT_DIR" != /* ]]; then
   OUTPUT_DIR="$SCRIPT_DIR/${OUTPUT_DIR#./}"
 fi
 
+if [[ "$PLATFORM" == "bt-panel-nginx" ]]; then
+  PLATFORM_STEP_4="4. 将 errors 文件放到 $ERROR_ROOT，并准备按宝塔站点布局接入配置"
+  PLATFORM_STEP_5="5. 将 snippets 与 conf 按宝塔/Nginx 目录手工接入；优先使用宝塔已生成的 vhost 作为落地点"
+  PLATFORM_STEP_6="6. 在目标机器上手工执行 nginx -t，确认宝塔现有站点未被误伤"
+else
+  PLATFORM_STEP_4="4. 将 errors 文件放到 $ERROR_ROOT，并按你的 Nginx 目录规划准备落地"
+  PLATFORM_STEP_5="5. 将 snippets 与 conf 按 plain Nginx 目录手工接入；确认 include 路径与主配置一致"
+  PLATFORM_STEP_6="6. 在目标机器上手工执行 nginx -t，确认主配置与 include 关系正确"
+fi
+
 mkdir -p "$OUTPUT_DIR"
 
 "$RENDER_SCRIPT" \
@@ -207,9 +217,9 @@ cat > "$OUTPUT_DIR/DEPLOY-STEPS.md" <<EOF
 1. 检查 RENDERED-VALUES.env
 2. 检查 conf.d/、snippets/、html/errors/ 是否符合预期
 3. 按 DNS-CHECKLIST.md 完成 DNS 核对
-4. 将 errors 文件放到 $ERROR_ROOT
-5. 将 snippets 与 conf 按目标环境手工接入
-6. 手工执行 nginx -t
+$PLATFORM_STEP_4
+$PLATFORM_STEP_5
+$PLATFORM_STEP_6
 7. 通过后再决定是否 reload
 
 ## 重要说明
