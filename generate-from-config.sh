@@ -178,6 +178,43 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
     DOWNLOAD_DOMAIN="download.$BASE_SUFFIX"
   fi
 
+  WARNINGS=()
+  NOTES=()
+
+  if [[ "$SSL_CERT" != /* ]]; then
+    WARNINGS+=("SSL_CERT is not an absolute path: $SSL_CERT")
+  fi
+
+  if [[ "$SSL_KEY" != /* ]]; then
+    WARNINGS+=("SSL_KEY is not an absolute path: $SSL_KEY")
+  fi
+
+  if [[ "$ERROR_ROOT" != /* ]]; then
+    WARNINGS+=("ERROR_ROOT is not an absolute path: $ERROR_ROOT")
+  fi
+
+  if [[ "$LOG_DIR" != /* ]]; then
+    WARNINGS+=("LOG_DIR is not an absolute path: $LOG_DIR")
+  fi
+
+  if [[ "$OUTPUT_DIR_DISPLAY" == /* ]]; then
+    WARNINGS+=("output_dir is an absolute path; review carefully before writing outside the repository: $OUTPUT_DIR_DISPLAY")
+  fi
+
+  case "$OUTPUT_DIR_DISPLAY" in
+    /etc/*|/usr/*|/var/*|/www/server/*|/www/wwwroot/*)
+      WARNINGS+=("output_dir looks like a live system path; prefer generating into a reviewable workspace path first: $OUTPUT_DIR_DISPLAY")
+      ;;
+  esac
+
+  if [[ "$PLATFORM" == "bt-panel-nginx" ]]; then
+    NOTES+=("Platform hint: bt-panel-nginx mode assumes you will attach generated conf/snippets into 宝塔-managed vhost locations manually.")
+  else
+    NOTES+=("Platform hint: plain-nginx mode assumes you will connect generated conf/snippets into your own nginx include layout manually.")
+  fi
+
+  NOTES+=("Safety reminder: the generator does not apply nginx changes, does not reload nginx, and does not modify DNS.")
+
   if [[ "$PRINT_DERIVED" == "1" ]]; then
     cat <<EOF
 派生结果预览：
@@ -242,6 +279,25 @@ Checks passed for dry-run entry:
 - domain.mode is valid
 - deployment.platform is valid
 - derived domains computed successfully
+EOF
+
+  if (( ${#WARNINGS[@]} > 0 )); then
+    echo
+    echo "Warnings:"
+    for item in "${WARNINGS[@]}"; do
+      echo "- $item"
+    done
+  fi
+
+  if (( ${#NOTES[@]} > 0 )); then
+    echo
+    echo "Notes:"
+    for item in "${NOTES[@]}"; do
+      echo "- $item"
+    done
+  fi
+
+  cat <<EOF
 
 Next step:
 - remove --dry-run to generate the deployment package for real
