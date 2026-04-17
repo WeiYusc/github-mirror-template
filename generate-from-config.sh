@@ -8,7 +8,7 @@ err() {
 usage() {
   cat <<'EOF'
 Usage:
-  ./generate-from-config.sh --config <deploy.yaml> [--output-dir <path>]
+  ./generate-from-config.sh --config <deploy.yaml> [--output-dir <path>] [--print-derived]
 
 What it does:
   1. Read a YAML deployment config
@@ -26,6 +26,7 @@ EOF
 
 CONFIG_PATH=""
 OUTPUT_DIR_OVERRIDE=""
+PRINT_DERIVED="0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RENDER_SCRIPT="$SCRIPT_DIR/render-from-base-domain.sh"
 VALIDATE_SCRIPT="$SCRIPT_DIR/validate-rendered-config.sh"
@@ -36,6 +37,8 @@ while [[ $# -gt 0 ]]; do
       CONFIG_PATH="$2"; shift 2 ;;
     --output-dir)
       OUTPUT_DIR_OVERRIDE="$2"; shift 2 ;;
+    --print-derived)
+      PRINT_DERIVED="1"; shift ;;
     -h|--help)
       usage; exit 0 ;;
     *)
@@ -150,6 +153,52 @@ CONFIG_ABS="$(cd "$(dirname "$CONFIG_PATH")" && pwd)/$(basename "$CONFIG_PATH")"
 OUTPUT_DIR_DISPLAY="$OUTPUT_DIR"
 if [[ "$OUTPUT_DIR" != /* ]]; then
   OUTPUT_DIR="$SCRIPT_DIR/${OUTPUT_DIR#./}"
+fi
+
+if [[ "$PRINT_DERIVED" == "1" ]]; then
+  if [[ "$DOMAIN_MODE" == "nested" ]]; then
+    RAW_DOMAIN="raw.$BASE_DOMAIN"
+    GIST_DOMAIN="gist.$BASE_DOMAIN"
+    ASSETS_DOMAIN="assets.$BASE_DOMAIN"
+    ARCHIVE_DOMAIN="archive.$BASE_DOMAIN"
+    DOWNLOAD_DOMAIN="download.$BASE_DOMAIN"
+  else
+    BASE_SUFFIX="${BASE_DOMAIN#*.}"
+    if [[ "$BASE_SUFFIX" == "$BASE_DOMAIN" || -z "$BASE_SUFFIX" ]]; then
+      err "flat-siblings mode requires base_domain to contain at least one dot: $BASE_DOMAIN"
+      exit 4
+    fi
+    RAW_DOMAIN="raw.$BASE_SUFFIX"
+    GIST_DOMAIN="gist.$BASE_SUFFIX"
+    ASSETS_DOMAIN="assets.$BASE_SUFFIX"
+    ARCHIVE_DOMAIN="archive.$BASE_SUFFIX"
+    DOWNLOAD_DOMAIN="download.$BASE_SUFFIX"
+  fi
+
+  cat <<EOF
+派生结果预览：
+
+- deployment_name: $DEPLOYMENT_NAME
+- source_config: $CONFIG_ABS
+- platform: $PLATFORM
+- domain_mode: $DOMAIN_MODE
+- output_dir: $OUTPUT_DIR_DISPLAY
+
+域名：
+- HUB_DOMAIN=$BASE_DOMAIN
+- RAW_DOMAIN=$RAW_DOMAIN
+- GIST_DOMAIN=$GIST_DOMAIN
+- ASSETS_DOMAIN=$ASSETS_DOMAIN
+- ARCHIVE_DOMAIN=$ARCHIVE_DOMAIN
+- DOWNLOAD_DOMAIN=$DOWNLOAD_DOMAIN
+
+路径：
+- SSL_CERT=$SSL_CERT
+- SSL_KEY=$SSL_KEY
+- ERROR_ROOT=$ERROR_ROOT
+- LOG_DIR=$LOG_DIR
+EOF
+  exit 0
 fi
 
 if [[ "$PLATFORM" == "bt-panel-nginx" ]]; then

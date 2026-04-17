@@ -34,6 +34,12 @@ cp deploy.example.yaml deploy.yaml
 ./generate-from-config.sh --config ./deploy.yaml --output-dir ./dist/github-mirror-test
 ```
 
+如果你只想先看派生域名和关键值，不生成部署包，可以：
+
+```bash
+./generate-from-config.sh --config ./deploy.yaml --print-derived
+```
+
 然后做 3 件事：
 
 1. 检查生成出来的 `dist/<deployment-name>/`
