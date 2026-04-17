@@ -249,6 +249,21 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
     WARNINGS+=("output_dir resolves to the repository root after path normalization; prefer a dedicated deployment subdirectory")
   fi
 
+  if [[ -d "$OUTPUT_DIR" ]]; then
+    if find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 | read -r _; then
+      WARNINGS+=("effective output path already exists and is not empty; review overwrite/mixing risk before generating: $OUTPUT_DIR")
+    else
+      NOTES+=("Output dir hint: effective output path already exists and is currently empty: $OUTPUT_DIR")
+    fi
+  else
+    OUTPUT_PARENT="$(dirname "$OUTPUT_DIR")"
+    if [[ ! -d "$OUTPUT_PARENT" ]]; then
+      NOTES+=("Output dir hint: parent directory does not exist yet; generation will create it: $OUTPUT_PARENT")
+    else
+      NOTES+=("Output dir hint: effective output path does not exist yet; generation will create it: $OUTPUT_DIR")
+    fi
+  fi
+
   if [[ "$DOMAIN_MODE" == "flat-siblings" ]]; then
     NOTES+=("Domain hint: flat-siblings will keep HUB_DOMAIN as $BASE_DOMAIN and derive sibling domains from ${BASE_DOMAIN#*.}.")
   else
