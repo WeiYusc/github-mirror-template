@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+err() {
+  echo "[generate-from-config] $*" >&2
+}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -32,35 +36,37 @@ while [[ $# -gt 0 ]]; do
     -h|--help)
       usage; exit 0 ;;
     *)
-      echo "Unknown argument: $1" >&2
+      err "Unknown argument: $1"
       usage >&2
       exit 1 ;;
   esac
 done
 
 if [[ -z "$CONFIG_PATH" ]]; then
-  echo "Error: --config is required." >&2
+  err "Missing required argument: --config <deploy.yaml>"
   usage >&2
   exit 1
 fi
 
 if [[ ! -f "$CONFIG_PATH" ]]; then
-  echo "Error: config file not found: $CONFIG_PATH" >&2
+  err "Config file not found: $CONFIG_PATH"
+  err "Please check the path and try again."
   exit 1
 fi
 
 if [[ ! -x "$RENDER_SCRIPT" ]]; then
-  echo "Error: renderer not found or not executable: $RENDER_SCRIPT" >&2
+  err "Renderer script is missing or not executable: $RENDER_SCRIPT"
   exit 1
 fi
 
 if [[ ! -x "$VALIDATE_SCRIPT" ]]; then
-  echo "Error: validator not found or not executable: $VALIDATE_SCRIPT" >&2
+  err "Validator script is missing or not executable: $VALIDATE_SCRIPT"
   exit 1
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "Error: python3 is required." >&2
+  err "python3 is required for the v0.2 generator."
+  err "Install python3 first, then run this command again."
   exit 1
 fi
 
@@ -78,7 +84,8 @@ out_path = Path(sys.argv[2])
 try:
     import yaml
 except Exception:
-    print("ERROR: Missing Python dependency: PyYAML", file=sys.stderr)
+    print("[generate-from-config] Missing Python dependency: PyYAML", file=sys.stderr)
+    print("[generate-from-config] Install it first, for example: python3 -m pip install pyyaml", file=sys.stderr)
     sys.exit(2)
 
 with config_path.open('r', encoding='utf-8') as f:
@@ -119,7 +126,8 @@ if values['PLATFORM'] not in ('bt-panel-nginx', 'plain-nginx'):
 
 if errors:
     for err in errors:
-        print(f"ERROR: {err}", file=sys.stderr)
+        print(f"[generate-from-config] {err}", file=sys.stderr)
+    print("[generate-from-config] Please update your deploy.yaml and run the generator again.", file=sys.stderr)
     sys.exit(3)
 
 with out_path.open('w', encoding='utf-8') as f:
@@ -284,10 +292,11 @@ cat <<EOF
 生成完成。
 
 部署名称：$DEPLOYMENT_NAME
-输出目录：$OUTPUT_DIR_DISPLAY
+输出目录（配置值）：$OUTPUT_DIR_DISPLAY
+输出目录（实际路径）：$OUTPUT_DIR
 
 下一步建议：
-1. 先检查 $OUTPUT_DIR/RENDERED-VALUES.env
-2. 再检查 $OUTPUT_DIR/DEPLOY-STEPS.md
+1. 先检查 $OUTPUT_DIR_DISPLAY/RENDERED-VALUES.env
+2. 再检查 $OUTPUT_DIR_DISPLAY/DEPLOY-STEPS.md
 3. 完成人工审查后再决定是否用于真实环境
 EOF
