@@ -28,6 +28,12 @@ cp deploy.example.yaml deploy.yaml
 ./generate-from-config.sh --config ./deploy.yaml
 ```
 
+如果你只想临时改输出目录，不改 `deploy.yaml`，也可以：
+
+```bash
+./generate-from-config.sh --config ./deploy.yaml --output-dir ./dist/github-mirror-test
+```
+
 然后做 3 件事：
 
 1. 检查生成出来的 `dist/<deployment-name>/`

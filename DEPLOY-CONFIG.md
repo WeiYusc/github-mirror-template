@@ -19,6 +19,12 @@ cp deploy.example.yaml deploy.yaml
 ./generate-from-config.sh --config ./deploy.yaml
 ```
 
+如果你只想覆盖输出目录，而不改配置文件，可以：
+
+```bash
+./generate-from-config.sh --config ./deploy.yaml --output-dir ./dist/github-mirror-test
+```
+
 然后：
 
 1. 检查 `dist/<deployment_name>/`
@@ -235,6 +241,8 @@ paths:
 作用：
 
 - 指定本次生成结果输出到哪里
+- 默认作为生成器的输出目录来源
+- 可以被 CLI 参数 `--output-dir` 临时覆盖
 
 示例：
 
@@ -247,6 +255,7 @@ paths:
 
 - 用相对路径放在仓库内部，便于检查与归档
 - 不要直接指向线上 Nginx 目录
+- 如果只是一次性改输出位置，优先用 `--output-dir` 覆盖，不必改配置文件
 
 ---
 

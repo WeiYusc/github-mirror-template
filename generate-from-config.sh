@@ -8,7 +8,7 @@ err() {
 usage() {
   cat <<'EOF'
 Usage:
-  ./generate-from-config.sh --config <deploy.yaml>
+  ./generate-from-config.sh --config <deploy.yaml> [--output-dir <path>]
 
 What it does:
   1. Read a YAML deployment config
@@ -25,6 +25,7 @@ EOF
 }
 
 CONFIG_PATH=""
+OUTPUT_DIR_OVERRIDE=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RENDER_SCRIPT="$SCRIPT_DIR/render-from-base-domain.sh"
 VALIDATE_SCRIPT="$SCRIPT_DIR/validate-rendered-config.sh"
@@ -33,6 +34,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
       CONFIG_PATH="$2"; shift 2 ;;
+    --output-dir)
+      OUTPUT_DIR_OVERRIDE="$2"; shift 2 ;;
     -h|--help)
       usage; exit 0 ;;
     *)
@@ -138,6 +141,10 @@ PY
 
 # shellcheck disable=SC1090
 source "$TMP_ENV"
+
+if [[ -n "$OUTPUT_DIR_OVERRIDE" ]]; then
+  OUTPUT_DIR="$OUTPUT_DIR_OVERRIDE"
+fi
 
 CONFIG_ABS="$(cd "$(dirname "$CONFIG_PATH")" && pwd)/$(basename "$CONFIG_PATH")"
 OUTPUT_DIR_DISPLAY="$OUTPUT_DIR"
