@@ -37,7 +37,7 @@ cp deploy.example.yaml deploy.yaml
 ./generate-from-config.sh --config ./deploy.yaml --dry-run
 ```
 
-`--dry-run` 当前除了显示计划步骤，也会补充一些非阻断的静态提示，例如路径是否像生产目录、证书/错误页路径是否是绝对路径。
+`--dry-run` 当前除了显示计划步骤，也会补充一些非阻断的静态提示，例如路径是否像生产目录、证书/错误页路径是否是绝对路径、`deployment_name` / `base_domain` / `output_dir` 的基本形态是否合理。
 
 然后：
 

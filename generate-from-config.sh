@@ -157,6 +157,10 @@ OUTPUT_DIR_DISPLAY="$OUTPUT_DIR"
 if [[ "$OUTPUT_DIR" != /* ]]; then
   OUTPUT_DIR="$SCRIPT_DIR/${OUTPUT_DIR#./}"
 fi
+OUTPUT_DIR_CANONICAL="$(cd "$OUTPUT_DIR" 2>/dev/null && pwd || true)"
+if [[ -z "$OUTPUT_DIR_CANONICAL" ]]; then
+  OUTPUT_DIR_CANONICAL="$(dirname "$OUTPUT_DIR")/$(basename "$OUTPUT_DIR")"
+fi
 
 if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
   if [[ "$DOMAIN_MODE" == "nested" ]]; then
@@ -181,6 +185,26 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
   WARNINGS=()
   NOTES=()
 
+  if [[ "$DEPLOYMENT_NAME" =~ [[:space:]] ]]; then
+    WARNINGS+=("deployment_name contains whitespace; prefer a simple directory-safe name: $DEPLOYMENT_NAME")
+  fi
+
+  if [[ ! "$DEPLOYMENT_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    WARNINGS+=("deployment_name contains characters outside [A-Za-z0-9._-]; review whether it is safe for directory naming: $DEPLOYMENT_NAME")
+  fi
+
+  if [[ "$BASE_DOMAIN" != *.* ]]; then
+    WARNINGS+=("base_domain does not look like a fully qualified domain name: $BASE_DOMAIN")
+  fi
+
+  if [[ "$BASE_DOMAIN" =~ [A-Z] ]]; then
+    WARNINGS+=("base_domain contains uppercase letters; prefer lowercase hostnames: $BASE_DOMAIN")
+  fi
+
+  if [[ "$BASE_DOMAIN" == .* || "$BASE_DOMAIN" == *. || "$BASE_DOMAIN" == *..* ]]; then
+    WARNINGS+=("base_domain looks malformed; review leading/trailing/consecutive dots: $BASE_DOMAIN")
+  fi
+
   if [[ "$SSL_CERT" != /* ]]; then
     WARNINGS+=("SSL_CERT is not an absolute path: $SSL_CERT")
   fi
@@ -197,6 +221,12 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
     WARNINGS+=("LOG_DIR is not an absolute path: $LOG_DIR")
   fi
 
+  case "$OUTPUT_DIR_DISPLAY" in
+    ""|"."|"./"|".."|"../")
+      WARNINGS+=("output_dir is too broad or ambiguous; prefer a dedicated deployment subdirectory: $OUTPUT_DIR_DISPLAY")
+      ;;
+  esac
+
   if [[ "$OUTPUT_DIR_DISPLAY" == /* ]]; then
     WARNINGS+=("output_dir is an absolute path; review carefully before writing outside the repository: $OUTPUT_DIR_DISPLAY")
   fi
@@ -206,6 +236,24 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
       WARNINGS+=("output_dir looks like a live system path; prefer generating into a reviewable workspace path first: $OUTPUT_DIR_DISPLAY")
       ;;
   esac
+
+  if [[ "$OUTPUT_DIR_DISPLAY" == "$SCRIPT_DIR" || "$OUTPUT_DIR_DISPLAY" == "$SCRIPT_DIR/" ]]; then
+    WARNINGS+=("output_dir points at the repository root; prefer a dedicated subdirectory such as ./dist/<deployment-name>")
+  fi
+
+  if [[ "$OUTPUT_DIR" == "$SCRIPT_DIR" || "$OUTPUT_DIR" == "$SCRIPT_DIR/" ]]; then
+    WARNINGS+=("effective output path resolves to the repository root; this is risky for generated files")
+  fi
+
+  if [[ "$OUTPUT_DIR_CANONICAL" == "$SCRIPT_DIR" ]]; then
+    WARNINGS+=("output_dir resolves to the repository root after path normalization; prefer a dedicated deployment subdirectory")
+  fi
+
+  if [[ "$DOMAIN_MODE" == "flat-siblings" ]]; then
+    NOTES+=("Domain hint: flat-siblings will keep HUB_DOMAIN as $BASE_DOMAIN and derive sibling domains from ${BASE_DOMAIN#*.}.")
+  else
+    NOTES+=("Domain hint: nested mode will derive raw/gist/assets/archive/download as subdomains under $BASE_DOMAIN.")
+  fi
 
   if [[ "$PLATFORM" == "bt-panel-nginx" ]]; then
     NOTES+=("Platform hint: bt-panel-nginx mode assumes you will attach generated conf/snippets into 宝塔-managed vhost locations manually.")
