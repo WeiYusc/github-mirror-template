@@ -315,6 +315,7 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
 
   DEPLOYMENT_NAME_LOWER="${DEPLOYMENT_NAME,,}"
   OUTPUT_DIR_DISPLAY_LOWER="${OUTPUT_DIR_DISPLAY,,}"
+  BASE_DOMAIN_NO_DOTS_LOWER="${BASE_DOMAIN_LOWER//./-}"
   NGINX_SNIPPETS_TARGET_HINT_VALUE="${NGINX_SNIPPETS_TARGET_HINT:-}"
   NGINX_VHOST_TARGET_HINT_VALUE="${NGINX_VHOST_TARGET_HINT:-}"
   SNIPPETS_HINT_LOWER="${NGINX_SNIPPETS_TARGET_HINT_VALUE,,}"
@@ -322,6 +323,34 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
 
   if [[ "$OUTPUT_DIR_DISPLAY_LOWER" != *"$DEPLOYMENT_NAME_LOWER"* ]]; then
     NOTES+=("Consistency hint: output_dir does not include deployment_name; confirm this is intentional: deployment_name=$DEPLOYMENT_NAME, output_dir=$OUTPUT_DIR_DISPLAY")
+  fi
+
+  if [[ "$DEPLOYMENT_NAME_LOWER" != *prod* && "$BASE_DOMAIN_LOWER" == *prod* ]]; then
+    NOTES+=("Consistency hint: base_domain looks production-like while deployment_name does not mention prod: deployment_name=$DEPLOYMENT_NAME, base_domain=$BASE_DOMAIN")
+  fi
+
+  if [[ "$DEPLOYMENT_NAME_LOWER" == *staging* && "$BASE_DOMAIN_LOWER" != *staging* && "$BASE_DOMAIN_LOWER" != *stage* && "$BASE_DOMAIN_LOWER" != *prod* ]]; then
+    NOTES+=("Consistency hint: deployment_name looks staging-like while base_domain does not mention staging/stage: deployment_name=$DEPLOYMENT_NAME, base_domain=$BASE_DOMAIN")
+  fi
+
+  if [[ "$DEPLOYMENT_NAME_LOWER" == *dev* && "$BASE_DOMAIN_LOWER" != *dev* && "$BASE_DOMAIN_LOWER" != *prod* && "$BASE_DOMAIN_LOWER" != *staging* && "$BASE_DOMAIN_LOWER" != *stage* ]]; then
+    NOTES+=("Consistency hint: deployment_name looks dev-like while base_domain does not mention dev: deployment_name=$DEPLOYMENT_NAME, base_domain=$BASE_DOMAIN")
+  fi
+
+  if [[ "$OUTPUT_DIR_DISPLAY_LOWER" != *"$DEPLOYMENT_NAME_LOWER"* && "$OUTPUT_DIR_DISPLAY_LOWER" == *prod* && "$DEPLOYMENT_NAME_LOWER" != *prod* ]]; then
+    WARNINGS+=("output_dir looks production-like but deployment_name does not: deployment_name=$DEPLOYMENT_NAME, output_dir=$OUTPUT_DIR_DISPLAY")
+  fi
+
+  if [[ "$OUTPUT_DIR_DISPLAY_LOWER" != *"$DEPLOYMENT_NAME_LOWER"* && "$OUTPUT_DIR_DISPLAY_LOWER" == *staging* && "$DEPLOYMENT_NAME_LOWER" != *staging* ]]; then
+    WARNINGS+=("output_dir looks staging-like but deployment_name does not: deployment_name=$DEPLOYMENT_NAME, output_dir=$OUTPUT_DIR_DISPLAY")
+  fi
+
+  if [[ "$OUTPUT_DIR_DISPLAY_LOWER" == *github-mirror-* && "$OUTPUT_DIR_DISPLAY_LOWER" != *"$DEPLOYMENT_NAME_LOWER"* ]]; then
+    NOTES+=("Consistency hint: output_dir looks like another github-mirror deployment name; review whether this is a leftover path: deployment_name=$DEPLOYMENT_NAME, output_dir=$OUTPUT_DIR_DISPLAY")
+  fi
+
+  if [[ "$OUTPUT_DIR_DISPLAY_LOWER" == *"$BASE_DOMAIN_NO_DOTS_LOWER"* && "$DEPLOYMENT_NAME_LOWER" != *"$BASE_DOMAIN_NO_DOTS_LOWER"* ]]; then
+    NOTES+=("Consistency hint: output_dir appears to encode base_domain more directly than deployment_name; review whether naming conventions are mixed: deployment_name=$DEPLOYMENT_NAME, base_domain=$BASE_DOMAIN, output_dir=$OUTPUT_DIR_DISPLAY")
   fi
 
   if [[ "$PLATFORM" == "bt-panel-nginx" ]]; then

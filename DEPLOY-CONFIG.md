@@ -37,7 +37,7 @@ cp deploy.example.yaml deploy.yaml
 ./generate-from-config.sh --config ./deploy.yaml --dry-run
 ```
 
-`--dry-run` 当前除了显示计划步骤，也会补充一些非阻断的静态提示，例如路径是否像生产目录、证书/错误页路径是否是绝对路径、`deployment_name` / `base_domain` / `output_dir` 的基本形态是否合理，以及 `output_dir` 是否已存在、是否非空。对于域名 label 形态、`tls.cert` / `tls.key` 是否看起来像常见证书路径，以及 `platform` 与 `nginx target hints` / `deployment_name` 与 `output_dir` 是否明显不一致，也会给出基础提示。
+`--dry-run` 当前除了显示计划步骤，也会补充一些非阻断的静态提示，例如路径是否像生产目录、证书/错误页路径是否是绝对路径、`deployment_name` / `base_domain` / `output_dir` 的基本形态是否合理，以及 `output_dir` 是否已存在、是否非空。对于域名 label 形态、`tls.cert` / `tls.key` 是否看起来像常见证书路径，以及 `platform` 与 `nginx target hints` / `deployment_name` 与 `output_dir` 是否明显不一致，也会给出基础提示。进一步地，如果 `deployment_name`、`base_domain`、`output_dir` 呈现出明显不同的环境命名信号（如 `prod` / `staging` / `dev`）或看起来像另一个 deployment 的残留路径，也会给出一致性提醒。
 
 然后：
 
