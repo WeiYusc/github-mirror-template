@@ -8,7 +8,7 @@ err() {
 usage() {
   cat <<'EOF'
 Usage:
-  ./generate-from-config.sh --config <deploy.yaml> [--output-dir <path>] [--print-derived]
+  ./generate-from-config.sh --config <deploy.yaml> [--output-dir <path>] [--print-derived] [--dry-run]
 
 What it does:
   1. Read a YAML deployment config
@@ -27,6 +27,7 @@ EOF
 CONFIG_PATH=""
 OUTPUT_DIR_OVERRIDE=""
 PRINT_DERIVED="0"
+DRY_RUN="0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RENDER_SCRIPT="$SCRIPT_DIR/render-from-base-domain.sh"
 VALIDATE_SCRIPT="$SCRIPT_DIR/validate-rendered-config.sh"
@@ -39,6 +40,8 @@ while [[ $# -gt 0 ]]; do
       OUTPUT_DIR_OVERRIDE="$2"; shift 2 ;;
     --print-derived)
       PRINT_DERIVED="1"; shift ;;
+    --dry-run)
+      DRY_RUN="1"; shift ;;
     -h|--help)
       usage; exit 0 ;;
     *)
@@ -155,7 +158,7 @@ if [[ "$OUTPUT_DIR" != /* ]]; then
   OUTPUT_DIR="$SCRIPT_DIR/${OUTPUT_DIR#./}"
 fi
 
-if [[ "$PRINT_DERIVED" == "1" ]]; then
+if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
   if [[ "$DOMAIN_MODE" == "nested" ]]; then
     RAW_DOMAIN="raw.$BASE_DOMAIN"
     GIST_DOMAIN="gist.$BASE_DOMAIN"
@@ -175,7 +178,8 @@ if [[ "$PRINT_DERIVED" == "1" ]]; then
     DOWNLOAD_DOMAIN="download.$BASE_SUFFIX"
   fi
 
-  cat <<EOF
+  if [[ "$PRINT_DERIVED" == "1" ]]; then
+    cat <<EOF
 派生结果预览：
 
 - deployment_name: $DEPLOYMENT_NAME
@@ -197,6 +201,50 @@ if [[ "$PRINT_DERIVED" == "1" ]]; then
 - SSL_KEY=$SSL_KEY
 - ERROR_ROOT=$ERROR_ROOT
 - LOG_DIR=$LOG_DIR
+EOF
+    exit 0
+  fi
+
+  cat <<EOF
+Dry run complete. No files were written.
+
+- deployment_name: $DEPLOYMENT_NAME
+- source_config: $CONFIG_ABS
+- platform: $PLATFORM
+- domain_mode: $DOMAIN_MODE
+- output_dir: $OUTPUT_DIR_DISPLAY
+- effective_output_path: $OUTPUT_DIR
+
+Derived domains:
+- HUB_DOMAIN=$BASE_DOMAIN
+- RAW_DOMAIN=$RAW_DOMAIN
+- GIST_DOMAIN=$GIST_DOMAIN
+- ASSETS_DOMAIN=$ASSETS_DOMAIN
+- ARCHIVE_DOMAIN=$ARCHIVE_DOMAIN
+- DOWNLOAD_DOMAIN=$DOWNLOAD_DOMAIN
+
+Input paths:
+- SSL_CERT=$SSL_CERT
+- SSL_KEY=$SSL_KEY
+- ERROR_ROOT=$ERROR_ROOT
+- LOG_DIR=$LOG_DIR
+
+Planned generation steps:
+1. Create output directory structure under $OUTPUT_DIR_DISPLAY
+2. Render conf.d/, snippets/, html/errors/
+3. Write RENDERED-VALUES.env and deploy.resolved.yaml
+4. Run validate-rendered-config.sh against the rendered directory
+5. Generate DEPLOY-STEPS.md, DNS-CHECKLIST.md, RISK-NOTES.md, SUMMARY.md
+
+Checks passed for dry-run entry:
+- config parsed successfully
+- required fields are present
+- domain.mode is valid
+- deployment.platform is valid
+- derived domains computed successfully
+
+Next step:
+- remove --dry-run to generate the deployment package for real
 EOF
   exit 0
 fi

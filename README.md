@@ -40,6 +40,12 @@ cp deploy.example.yaml deploy.yaml
 ./generate-from-config.sh --config ./deploy.yaml --print-derived
 ```
 
+如果你想做一次生成前预演，但仍不写文件，可以：
+
+```bash
+./generate-from-config.sh --config ./deploy.yaml --dry-run
+```
+
 然后做 3 件事：
 
 1. 检查生成出来的 `dist/<deployment-name>/`
