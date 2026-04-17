@@ -205,12 +205,59 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
     WARNINGS+=("base_domain looks malformed; review leading/trailing/consecutive dots: $BASE_DOMAIN")
   fi
 
+  BASE_DOMAIN_LOWER="${BASE_DOMAIN,,}"
+  IFS='.' read -r -a DOMAIN_LABELS <<< "$BASE_DOMAIN_LOWER"
+  HAS_INVALID_DOMAIN_CHARS="0"
+  HAS_EDGE_HYPHEN_LABEL="0"
+  for label in "${DOMAIN_LABELS[@]}"; do
+    if [[ -z "$label" ]]; then
+      continue
+    fi
+    if [[ ! "$label" =~ ^[a-z0-9-]+$ ]]; then
+      HAS_INVALID_DOMAIN_CHARS="1"
+    fi
+    if [[ "$label" == -* || "$label" == *- ]]; then
+      HAS_EDGE_HYPHEN_LABEL="1"
+    fi
+  done
+  if [[ "$HAS_INVALID_DOMAIN_CHARS" == "1" ]]; then
+    WARNINGS+=("base_domain contains a label with characters outside [a-z0-9-]: $BASE_DOMAIN")
+  fi
+  if [[ "$HAS_EDGE_HYPHEN_LABEL" == "1" ]]; then
+    WARNINGS+=("base_domain contains a label starting or ending with '-': $BASE_DOMAIN")
+  fi
+
+  SSL_CERT_BASENAME="$(basename "$SSL_CERT")"
+  SSL_KEY_BASENAME="$(basename "$SSL_KEY")"
+  SSL_CERT_EXT="${SSL_CERT_BASENAME##*.}"
+  SSL_KEY_EXT="${SSL_KEY_BASENAME##*.}"
+  SSL_CERT_LOWER="${SSL_CERT,,}"
+  SSL_KEY_LOWER="${SSL_KEY,,}"
+
   if [[ "$SSL_CERT" != /* ]]; then
     WARNINGS+=("SSL_CERT is not an absolute path: $SSL_CERT")
   fi
 
   if [[ "$SSL_KEY" != /* ]]; then
     WARNINGS+=("SSL_KEY is not an absolute path: $SSL_KEY")
+  fi
+
+  case "$SSL_CERT_LOWER" in
+    *.pem|*.crt|*.cer) ;;
+    *) WARNINGS+=("SSL_CERT does not look like a typical certificate file path (.pem/.crt/.cer): $SSL_CERT") ;;
+  esac
+
+  case "$SSL_KEY_LOWER" in
+    *.pem|*.key) ;;
+    *) WARNINGS+=("SSL_KEY does not look like a typical private key file path (.pem/.key): $SSL_KEY") ;;
+  esac
+
+  if [[ "$SSL_CERT_LOWER" == *key* ]]; then
+    WARNINGS+=("SSL_CERT path contains 'key'; review whether cert/key paths may be swapped: $SSL_CERT")
+  fi
+
+  if [[ "$SSL_KEY_LOWER" == *cert* || "$SSL_KEY_LOWER" == *chain* || "$SSL_KEY_LOWER" == *fullchain* ]]; then
+    WARNINGS+=("SSL_KEY path looks certificate-like; review whether cert/key paths may be swapped: $SSL_KEY")
   fi
 
   if [[ "$ERROR_ROOT" != /* ]]; then
