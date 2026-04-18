@@ -38,6 +38,7 @@
 - `paths.log_dir`
 - `paths.output_dir`
 - 是否仅生成 / 是否继续 apply
+- 是否在真实 apply 后执行 `nginx -t`
 
 ### preflight 检查
 
@@ -80,6 +81,7 @@
 - 备份已有文件
 - 可选执行 `nginx -t`
 - 在 `nginx -t` 失败时输出执行摘要与回滚提示
+- 写出 `APPLY-RESULT.md`
 - 默认不 reload nginx
 
 ---
@@ -133,6 +135,7 @@ github-mirror-template/
 - 调 generator
 - 显示安装计划
 - 询问是否继续 apply
+- 询问是否在真实 apply 后执行 `nginx -t`
 
 ## 4.2 `apply-generated-package.sh`
 
@@ -144,6 +147,7 @@ github-mirror-template/
 - 输出候选复制计划（candidate copy plan）
 - 在进入真实 apply 前执行目标路径 / 部署包结构校验
 - 集中处理复制、备份、测试、reload 逻辑
+- 写出 `APPLY-RESULT.md`
 
 ## 4.3 `scripts/lib/ui.sh`
 
@@ -264,7 +268,7 @@ github-mirror-template/
 - 有警告但可继续
 - 存在阻断项，建议停止
 
-当前实验分支额外约定：在 generator 完成后，可选择立即进入一次 `apply-generated-package.sh --dry-run --print-plan` 预演，但默认仍不进入真实 apply。
+当前实验分支额外约定：在 generator 完成后，可选择立即进入一次 `apply-generated-package.sh --dry-run --print-plan` 预演；若管理员继续确认，还可进入一次默认不 reload 的真实 apply，并可单独确认是否在 apply 后执行 `nginx -t`。
 
 ## Step 5：生成部署包
 
@@ -337,13 +341,15 @@ MVP 阶段的 apply 应保持保守。
 - 复制文件
 - 备份旧文件
 - 执行 `nginx -t`
-- 测试通过后 reload nginx
+- 写出 `APPLY-RESULT.md`
 
 ## 7.2 必须显式确认的动作
 
 - 覆盖已有配置
 - 覆盖已有 snippets
 - 覆盖目标错误页目录
+- 进入真实 apply
+- 执行 `nginx -t`
 - reload nginx
 
 ## 7.3 默认拒绝的动作
@@ -421,7 +427,7 @@ MVP 推荐首版仅正式支持：
 4. 能输出 apply 计划
 5. 在已有证书模式下，可对 plain nginx / bt-panel-nginx 至少一种平台完成受控 apply
 6. 失败时不会无提示破坏线上环境
-7. 最终有明确结果摘要与回滚提示
+7. 最终有明确结果摘要、`APPLY-RESULT.md` 与回滚提示
 
 ---
 
