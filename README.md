@@ -54,6 +54,46 @@ cp deploy.example.yaml deploy.yaml
 
 > 说明：`generate-from-config.sh` 当前依赖 `python3` 和 Python `PyYAML`。
 
+## 可选：实验性中文交互 installer
+
+如果希望先用中文交互方式收集参数，再调用 generator，也可以试用当前实验性的 installer 编排入口：
+
+```bash
+./install-interactive.sh
+```
+
+它当前已经支持：
+
+- 中文交互收集基础部署参数
+- 基础 preflight 摘要
+- 自动生成 deploy config 并调用 `generate-from-config.sh`
+- 输出 `APPLY-PLAN.md`
+- 可选执行一次 `apply-generated-package.sh --dry-run --print-plan`
+- 在显式确认后执行保守式真实 apply
+- 显式确认 `backup_dir`
+- 可选执行 nginx 测试，并显式指定 `nginx-test-cmd`
+- 写出 `APPLY-RESULT.md`
+
+它当前明确**不会**自动做这些事：
+
+- 不会自动改 DNS
+- 不会自动 reload nginx
+- 不会自动接管现有复杂站点
+- 不会在未确认前直接改写目标目录
+- 不会在 nginx 测试失败后自动回滚
+
+更准确地说，这条 installer 路线的定位是：
+
+> 在现有 generator 之上增加一层“中文交互 + 受控 apply”的实验性编排层，
+> 而不是替代人工审查的一键黑盒安装器。
+
+如果想先看脚本帮助：
+
+```bash
+./install-interactive.sh --help
+./apply-generated-package.sh --help
+```
+
 这条 v0.2 生成流程会：
 
 - 调用底层渲染器生成 conf/snippets/errors
@@ -183,8 +223,14 @@ github-mirror-template/
 ├── deploy.example.yaml
 ├── V0.2-SIMPLIFIED-DEPLOYMENT-DESIGN.md
 ├── generate-from-config.sh
+├── install-interactive.sh
+├── apply-generated-package.sh
 ├── render-from-base-domain.sh
-└── validate-rendered-config.sh
+├── validate-rendered-config.sh
+├── scripts/lib/
+└── docs/
+    ├── INSTALLER-DESIGN-ZH.md
+    └── INSTALLER-MVP-PLAN-ZH.md
 ```
 
 ---
@@ -355,6 +401,8 @@ github-mirror-template/
 - `INSTALL.md`
 - `BT-PANEL-DEPLOYMENT-v1.md`
 - `DEPLOY-CHECKLIST.md`
+- `docs/INSTALLER-DESIGN-ZH.md`
+- `docs/INSTALLER-MVP-PLAN-ZH.md`
 
 ## 理解下载链路收口
 
