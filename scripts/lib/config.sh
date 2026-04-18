@@ -105,6 +105,7 @@ EOF
 
 print_config_summary() {
   cat <<EOF
+- input_mode: ${INSTALL_INPUT_MODE:-advanced}
 - deployment_name: ${DEPLOYMENT_NAME}
 - base_domain: ${BASE_DOMAIN}
 - domain.mode: ${DOMAIN_MODE}

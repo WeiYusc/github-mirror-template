@@ -6,7 +6,7 @@ platform_explain_bt_panel_nginx() {
 bt-panel-nginx 平台说明：
 - 适用于宝塔面板管理的 nginx 环境
 - 常见目录包括 /www/server/panel/vhost/nginx 与 /www/server/nginx/snippets
-- 当前骨架阶段仅输出计划，不执行真实写入
+- 当前 installer 已支持 dry-run / print-plan，以及显式确认后的保守式 real apply
 EOF
 }
 

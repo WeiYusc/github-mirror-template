@@ -1,43 +1,144 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+APPLY_PLAN_ROWS=()
+APPLY_PLAN_COUNT_NEW=0
+APPLY_PLAN_COUNT_REPLACE=0
+APPLY_PLAN_COUNT_SAME=0
+APPLY_PLAN_COUNT_CONFLICT=0
+APPLY_PLAN_COUNT_TARGET_BLOCK=0
+APPLY_PLAN_COUNT_MISSING_SOURCE=0
+
+apply_plan_reset() {
+  APPLY_PLAN_ROWS=()
+  APPLY_PLAN_COUNT_NEW=0
+  APPLY_PLAN_COUNT_REPLACE=0
+  APPLY_PLAN_COUNT_SAME=0
+  APPLY_PLAN_COUNT_CONFLICT=0
+  APPLY_PLAN_COUNT_TARGET_BLOCK=0
+  APPLY_PLAN_COUNT_MISSING_SOURCE=0
+}
+
+apply_plan_add_row() {
+  local category="$1"
+  local source="$2"
+  local dest="$3"
+  local status="$4"
+  local note="${5:-}"
+
+  APPLY_PLAN_ROWS+=("$category"$'\t'"$source"$'\t'"$dest"$'\t'"$status"$'\t'"$note")
+
+  case "$status" in
+    NEW) APPLY_PLAN_COUNT_NEW=$((APPLY_PLAN_COUNT_NEW + 1)) ;;
+    REPLACE) APPLY_PLAN_COUNT_REPLACE=$((APPLY_PLAN_COUNT_REPLACE + 1)) ;;
+    SAME) APPLY_PLAN_COUNT_SAME=$((APPLY_PLAN_COUNT_SAME + 1)) ;;
+    CONFLICT) APPLY_PLAN_COUNT_CONFLICT=$((APPLY_PLAN_COUNT_CONFLICT + 1)) ;;
+    TARGET-BLOCK) APPLY_PLAN_COUNT_TARGET_BLOCK=$((APPLY_PLAN_COUNT_TARGET_BLOCK + 1)) ;;
+    MISSING-SOURCE) APPLY_PLAN_COUNT_MISSING_SOURCE=$((APPLY_PLAN_COUNT_MISSING_SOURCE + 1)) ;;
+  esac
+}
+
+apply_plan_classify_item() {
+  local source="$1"
+  local dest="$2"
+
+  if [[ -e "$dest" && ! -f "$dest" ]]; then
+    printf 'CONFLICT\n'
+    return 0
+  fi
+
+  if [[ ! -e "$dest" ]]; then
+    printf 'NEW\n'
+    return 0
+  fi
+
+  if cmp -s "$source" "$dest"; then
+    printf 'SAME\n'
+  else
+    printf 'REPLACE\n'
+  fi
+}
+
+apply_plan_scan_dir() {
+  local category="$1"
+  local source_dir="$2"
+  local target_dir="$3"
+
+  if [[ -e "$target_dir" && ! -d "$target_dir" ]]; then
+    apply_plan_add_row "$category" "-" "$target_dir" "TARGET-BLOCK" "目标路径存在但不是目录"
+    return 0
+  fi
+
+  if [[ ! -d "$source_dir" ]]; then
+    apply_plan_add_row "$category" "$source_dir" "$target_dir" "MISSING-SOURCE" "部署包缺少该目录"
+    return 0
+  fi
+
+  while IFS= read -r -d '' file; do
+    local base dest status note
+    base="$(basename "$file")"
+    dest="$target_dir/$base"
+    status="$(apply_plan_classify_item "$file" "$dest")"
+    note=""
+    case "$status" in
+      NEW) note="目标文件不存在，将新建" ;;
+      REPLACE) note="目标文件已存在，内容不同，将覆盖" ;;
+      SAME) note="目标文件已存在且内容一致，可跳过" ;;
+      CONFLICT) note="目标路径已存在但不是普通文件" ;;
+    esac
+    apply_plan_add_row "$category" "$file" "$dest" "$status" "$note"
+  done < <(find "$source_dir" -maxdepth 1 -type f -print0 | sort -z)
+}
+
+build_apply_plan() {
+  local from_path="$1"
+  local snippets_target="$2"
+  local vhost_target="$3"
+  local error_root="$4"
+
+  apply_plan_reset
+  apply_plan_scan_dir "snippets" "$from_path/snippets" "$snippets_target"
+  apply_plan_scan_dir "conf.d" "$from_path/conf.d" "$vhost_target"
+  apply_plan_scan_dir "errors" "$from_path/html/errors" "$error_root"
+}
+
+apply_plan_has_blockers() {
+  [[ $((APPLY_PLAN_COUNT_CONFLICT + APPLY_PLAN_COUNT_TARGET_BLOCK + APPLY_PLAN_COUNT_MISSING_SOURCE)) -gt 0 ]]
+}
+
 print_copy_candidates() {
   local from_path="$1"
   local snippets_target="$2"
   local vhost_target="$3"
   local error_root="$4"
 
+  build_apply_plan "$from_path" "$snippets_target" "$vhost_target" "$error_root"
+
   echo "候选复制计划："
+  echo "- NEW: $APPLY_PLAN_COUNT_NEW"
+  echo "- REPLACE: $APPLY_PLAN_COUNT_REPLACE"
+  echo "- SAME: $APPLY_PLAN_COUNT_SAME"
+  echo "- CONFLICT: $APPLY_PLAN_COUNT_CONFLICT"
+  echo
 
-  if [[ -d "$from_path/snippets" ]]; then
-    while IFS= read -r -d '' file; do
-      local base
-      base="$(basename "$file")"
-      echo "- snippets: $file -> $snippets_target/$base"
-    done < <(find "$from_path/snippets" -maxdepth 1 -type f -print0 | sort -z)
-  else
-    echo "- snippets: 未发现 $from_path/snippets"
-  fi
-
-  if [[ -d "$from_path/conf.d" ]]; then
-    while IFS= read -r -d '' file; do
-      local base
-      base="$(basename "$file")"
-      echo "- conf.d: $file -> $vhost_target/$base"
-    done < <(find "$from_path/conf.d" -maxdepth 1 -type f -print0 | sort -z)
-  else
-    echo "- conf.d: 未发现 $from_path/conf.d"
-  fi
-
-  if [[ -d "$from_path/html/errors" ]]; then
-    while IFS= read -r -d '' file; do
-      local base
-      base="$(basename "$file")"
-      echo "- errors: $file -> $error_root/$base"
-    done < <(find "$from_path/html/errors" -maxdepth 1 -type f -print0 | sort -z)
-  else
-    echo "- errors: 未发现 $from_path/html/errors"
-  fi
+  local row category source dest status note
+  for row in "${APPLY_PLAN_ROWS[@]}"; do
+    IFS=$'\t' read -r category source dest status note <<< "$row"
+    case "$status" in
+      NEW|REPLACE|SAME|CONFLICT)
+        echo "- [$status] $category: $source -> $dest"
+        [[ -n "$note" ]] && echo "  - $note"
+        ;;
+      TARGET-BLOCK)
+        echo "- [BLOCK] $category 目标根路径不可用: $dest"
+        [[ -n "$note" ]] && echo "  - $note"
+        ;;
+      MISSING-SOURCE)
+        echo "- [BLOCK] $category 缺少源目录: $source"
+        [[ -n "$note" ]] && echo "  - $note"
+        ;;
+    esac
+  done
 }
 
 validate_apply_inputs() {
@@ -81,8 +182,30 @@ validate_apply_inputs() {
     warnings=$((warnings + 1))
   fi
 
+  build_apply_plan "$from_path" "$snippets_target" "$vhost_target" "$error_root"
+
+  local row category source dest status note
+  for row in "${APPLY_PLAN_ROWS[@]}"; do
+    IFS=$'\t' read -r category source dest status note <<< "$row"
+    case "$status" in
+      CONFLICT)
+        echo "- [BLOCK] $category 目标路径存在冲突：$dest" >&2
+        [[ -n "$note" ]] && echo "  [detail] $note" >&2
+        blockers=$((blockers + 1))
+        ;;
+      TARGET-BLOCK|MISSING-SOURCE)
+        echo "- [BLOCK] $category: $note ($dest)" >&2
+        blockers=$((blockers + 1))
+        ;;
+    esac
+  done
+
   echo "- BLOCK: $blockers"
   echo "- WARN: $warnings"
+  echo "- PLAN NEW: $APPLY_PLAN_COUNT_NEW"
+  echo "- PLAN REPLACE: $APPLY_PLAN_COUNT_REPLACE"
+  echo "- PLAN SAME: $APPLY_PLAN_COUNT_SAME"
+  echo "- PLAN CONFLICT: $APPLY_PLAN_COUNT_CONFLICT"
 
   if [[ $blockers -ne 0 ]]; then
     echo "[apply] 结论：存在 BLOCK 项，当前不能继续执行 apply。" >&2
@@ -97,27 +220,34 @@ validate_apply_inputs() {
   return 0
 }
 
-copy_tree_flat() {
-  local source_dir="$1"
-  local target_dir="$2"
-
-  mkdir -p "$target_dir"
-  find "$source_dir" -maxdepth 1 -type f -print0 | while IFS= read -r -d '' file; do
-    cp -a "$file" "$target_dir/$(basename "$file")"
-    echo "[apply] 已复制：$file -> $target_dir/$(basename "$file")"
-  done
-}
-
 run_apply_copy() {
   local from_path="$1"
   local snippets_target="$2"
   local vhost_target="$3"
   local error_root="$4"
 
+  build_apply_plan "$from_path" "$snippets_target" "$vhost_target" "$error_root"
+
   echo "[apply] 开始执行真实复制（仍不 reload）。"
-  copy_tree_flat "$from_path/snippets" "$snippets_target"
-  copy_tree_flat "$from_path/conf.d" "$vhost_target"
-  copy_tree_flat "$from_path/html/errors" "$error_root"
+
+  local row category source dest status note
+  for row in "${APPLY_PLAN_ROWS[@]}"; do
+    IFS=$'\t' read -r category source dest status note <<< "$row"
+    case "$status" in
+      NEW|REPLACE)
+        mkdir -p "$(dirname "$dest")"
+        cp -a "$source" "$dest"
+        echo "[apply] [$status] $source -> $dest"
+        ;;
+      SAME)
+        echo "[apply] [SKIP] 内容一致，跳过：$dest"
+        ;;
+      CONFLICT|TARGET-BLOCK|MISSING-SOURCE)
+        echo "[apply][error] 遇到未处理的阻断项：$status $dest" >&2
+        return 1
+        ;;
+    esac
+  done
 }
 
 print_rollback_guidance() {
@@ -129,9 +259,11 @@ print_rollback_guidance() {
   cat <<EOF
 [apply] 回滚提示：
 - 本次备份目录：$backup_dir
-- 如需回滚 snippets 目标，可参考：cp -a "$backup_dir/$(basename "$snippets_target")/." "$snippets_target/"
-- 如需回滚 vhost 目标，可参考：cp -a "$backup_dir/$(basename "$vhost_target")/." "$vhost_target/"
-- 如需回滚错误页目标，可参考：cp -a "$backup_dir/$(basename "$error_root")/." "$error_root/"
+- 文件级备份根：$backup_dir/files
+- 如需回滚，请从备份目录中按原绝对路径取回对应文件
+- 例如 snippets 目标目录下的文件会备份到：$backup_dir/files/${snippets_target#/}/
+- 例如 vhost 目标目录下的文件会备份到：$backup_dir/files/${vhost_target#/}/
+- 例如错误页目标目录下的文件会备份到：$backup_dir/files/${error_root#/}/
 - 回滚后请重新执行 nginx -t，确认配置恢复正常
 EOF
 }
@@ -143,7 +275,8 @@ print_execute_summary() {
 
   echo "[apply] 执行摘要："
   echo "- 模式：execute"
-  echo "- 备份：已完成"
+  echo "- 计划：NEW=$APPLY_PLAN_COUNT_NEW / REPLACE=$APPLY_PLAN_COUNT_REPLACE / SAME=$APPLY_PLAN_COUNT_SAME / CONFLICT=$APPLY_PLAN_COUNT_CONFLICT"
+  echo "- 备份：已完成（文件级）"
   echo "- 复制：已完成"
   echo "- 备份目录：$backup_dir"
   if [[ "$run_nginx_test" == "1" ]]; then
@@ -183,7 +316,7 @@ write_apply_result_markdown() {
   local nginx_summary="未执行"
   local next_step="当前未进入真实执行。"
   if [[ "$final_status" == "blocked" ]]; then
-    next_step="请先补齐缺失目录或部署说明文件，再重新执行 apply。"
+    next_step="请先处理冲突项、缺失目录或目标根路径问题，再重新执行 apply。"
   elif [[ "$run_nginx_test" == "1" && "$nginx_test_status" == "0" ]]; then
     nginx_summary="通过"
     next_step="如需继续，请人工确认后再决定是否 reload nginx。"
@@ -191,7 +324,7 @@ write_apply_result_markdown() {
     nginx_summary="失败"
     next_step="建议先按备份目录回滚，再重新执行 nginx -t。"
   elif [[ "$mode" == "execute" ]]; then
-    next_step="已完成备份与复制；如需继续，请手工执行 nginx -t。"
+    next_step="已完成文件级备份与复制；如需继续，请手工执行 nginx -t。"
   fi
 
   cat > "$result_file" <<EOF
@@ -209,14 +342,39 @@ write_apply_result_markdown() {
 - nginx 测试：$nginx_summary
 - reload：未执行
 
+## 变更计划摘要
+
+- NEW：$APPLY_PLAN_COUNT_NEW
+- REPLACE：$APPLY_PLAN_COUNT_REPLACE
+- SAME：$APPLY_PLAN_COUNT_SAME
+- CONFLICT：$APPLY_PLAN_COUNT_CONFLICT
+- TARGET-BLOCK：$APPLY_PLAN_COUNT_TARGET_BLOCK
+- MISSING-SOURCE：$APPLY_PLAN_COUNT_MISSING_SOURCE
+
 ## 风险边界
 
 - 当前不会自动 reload nginx
 - nginx 测试失败时不会自动回滚
+- REPLACE 类文件会先做文件级备份
+- SAME 类文件默认跳过，不重复覆盖
 - 如需继续，应先人工确认目标目录与配置状态
 
 ## 下一步建议
 
 - $next_step
 EOF
+
+  if [[ ${#APPLY_PLAN_ROWS[@]} -gt 0 ]]; then
+    {
+      echo
+      echo "## 明细"
+      echo
+      local row category source dest status note
+      for row in "${APPLY_PLAN_ROWS[@]}"; do
+        IFS=$'\t' read -r category source dest status note <<< "$row"
+        echo "- [$status] $category: $source -> $dest"
+        [[ -n "$note" ]] && echo "  - $note"
+      done
+    } >> "$result_file"
+  fi
 }

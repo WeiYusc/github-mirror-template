@@ -135,6 +135,7 @@ LOG_DIR=/www/wwwlogs
 - 想先用中文交互收集参数
 - 想少手写 YAML
 - 想在生成部署包之后，继续走一次受控 apply / dry-run / 最终确认流程
+- 或希望通过最小 flags 做非交互 / 半非交互调用
 
 入口：
 
@@ -151,6 +152,7 @@ LOG_DIR=/www/wwwlogs
 它当前已经支持：
 
 - 中文交互收集参数
+- 也支持用 flags 直接覆盖常用输入
 - preflight 摘要
 - 调用 `generate-from-config.sh`
 - 输出 `APPLY-PLAN.md`
@@ -159,6 +161,21 @@ LOG_DIR=/www/wwwlogs
 - 显式设置 `backup_dir`
 - 可选执行 nginx 测试，并显式设置 `nginx-test-cmd`
 - 输出 `APPLY-RESULT.md`
+
+一个最小脚本化示例：
+
+```bash
+./install-interactive.sh \
+  --deployment-name github-mirror-prod \
+  --base-domain github.example.com \
+  --domain-mode flat-siblings \
+  --platform bt-panel-nginx \
+  --tls-cert /etc/ssl/example/fullchain.pem \
+  --tls-key /etc/ssl/example/privkey.pem \
+  --input-mode basic \
+  --run-apply-dry-run \
+  --yes
+```
 
 它当前明确不会：
 

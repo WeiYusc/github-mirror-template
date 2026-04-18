@@ -6,7 +6,7 @@ platform_explain_plain_nginx() {
 plain-nginx 平台说明：
 - 适用于常规 nginx 部署
 - 后续 apply 阶段通常落到 /etc/nginx/conf.d 或 sites-enabled 风格目录
-- 当前骨架阶段仅输出计划，不执行真实写入
+- 当前 installer 已支持 dry-run / print-plan，以及显式确认后的保守式 real apply
 EOF
 }
 

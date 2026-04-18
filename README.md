@@ -62,9 +62,25 @@ cp deploy.example.yaml deploy.yaml
 ./install-interactive.sh
 ```
 
+如果希望**少交互或完全脚本化**，现在也可以直接传最小 flags：
+
+```bash
+./install-interactive.sh \
+  --deployment-name github-mirror-prod \
+  --base-domain github.example.com \
+  --domain-mode flat-siblings \
+  --platform bt-panel-nginx \
+  --tls-cert /etc/ssl/example/fullchain.pem \
+  --tls-key /etc/ssl/example/privkey.pem \
+  --input-mode basic \
+  --run-apply-dry-run \
+  --yes
+```
+
 它当前已经支持：
 
 - 中文交互收集基础部署参数
+- 也支持用 flags 直接覆盖常用输入
 - 基础 preflight 摘要
 - 自动生成 deploy config 并调用 `generate-from-config.sh`
 - 输出 `APPLY-PLAN.md`
