@@ -38,7 +38,9 @@
 - `paths.log_dir`
 - `paths.output_dir`
 - 是否仅生成 / 是否继续 apply
+- 真实 apply 使用的 `backup_dir`
 - 是否在真实 apply 后执行 `nginx -t`
+- 执行 nginx 测试时所用的 `nginx-test-cmd`
 
 ### preflight 检查
 
@@ -69,6 +71,7 @@
 - 展示证书方案
 - 展示 apply 前确认提示
 - 展示逐文件 candidate copy plan
+- 展示最终确认摘要（目标路径 / backup 目录 / nginx 测试动作与命令）
 
 ### 可选 apply
 
@@ -79,7 +82,9 @@
 - 复制 snippets
 - 复制 vhost/conf
 - 备份已有文件
+- 可显式指定 `backup_dir`
 - 可选执行 `nginx -t`
+- 可显式指定 `nginx-test-cmd`
 - 在 `nginx -t` 失败时输出执行摘要与回滚提示
 - 写出 `APPLY-RESULT.md`
 - 默认不 reload nginx
@@ -135,7 +140,10 @@ github-mirror-template/
 - 调 generator
 - 显示安装计划
 - 询问是否继续 apply
+- 询问真实 apply 使用的 `backup_dir`
 - 询问是否在真实 apply 后执行 `nginx -t`
+- 在需要时询问 `nginx-test-cmd`
+- 在真实 apply 前展示最终确认摘要并二次确认
 
 ## 4.2 `apply-generated-package.sh`
 
@@ -196,6 +204,7 @@ github-mirror-template/
 
 - 备份已有目标文件
 - 生成备份路径清单
+- 提供默认 `backup_dir` 派生逻辑
 - 在当前阶段至少提供备份计划输出骨架
 
 ## 4.9 `scripts/lib/apply-plan.sh`
@@ -268,7 +277,7 @@ github-mirror-template/
 - 有警告但可继续
 - 存在阻断项，建议停止
 
-当前实验分支额外约定：在 generator 完成后，可选择立即进入一次 `apply-generated-package.sh --dry-run --print-plan` 预演；若管理员继续确认，还可进入一次默认不 reload 的真实 apply，并可单独确认是否在 apply 后执行 `nginx -t`。
+当前实验分支额外约定：在 generator 完成后，可选择立即进入一次 `apply-generated-package.sh --dry-run --print-plan` 预演；若管理员继续确认，还可进入一次默认不 reload 的真实 apply，并可单独确认 `backup_dir`、是否在 apply 后执行 `nginx -t`、以及执行 nginx 测试时所用的 `nginx-test-cmd`。
 
 ## Step 5：生成部署包
 
@@ -281,11 +290,24 @@ github-mirror-template/
 - 将修改哪些目录
 - 将创建哪些文件
 - 将备份哪些现有文件
+- 默认 backup 目录是什么
+- 是否会执行 nginx 测试
+- 若执行，nginx-test-cmd 是什么
 - 是否会执行 reload nginx
 
 ## Step 7：显式确认后 apply
 
 仅在管理员确认后执行。
+
+在当前实验分支中，真实 apply 前还会展示最终确认摘要，至少包含：
+
+- 输出目录
+- 目标平台
+- snippets / vhost / errors 目标路径
+- 备份目录
+- 是否执行 nginx 测试
+- nginx-test-cmd（若启用）
+- 结果摘要文件位置
 
 ## Step 8：输出结果与回滚建议
 
@@ -340,7 +362,8 @@ MVP 阶段的 apply 应保持保守。
 - 创建目录
 - 复制文件
 - 备份旧文件
-- 执行 `nginx -t`
+- 使用显式确认后的 `backup_dir`
+- 执行显式确认后的 `nginx-test-cmd`
 - 写出 `APPLY-RESULT.md`
 
 ## 7.2 必须显式确认的动作
@@ -349,7 +372,9 @@ MVP 阶段的 apply 应保持保守。
 - 覆盖已有 snippets
 - 覆盖目标错误页目录
 - 进入真实 apply
-- 执行 `nginx -t`
+- 使用哪个 `backup_dir`
+- 是否执行 nginx 测试
+- 若执行，使用哪个 `nginx-test-cmd`
 - reload nginx
 
 ## 7.3 默认拒绝的动作
@@ -424,10 +449,11 @@ MVP 推荐首版仅正式支持：
 1. 管理员可以通过中文交互完成一套 deploy 配置输入
 2. 脚本能调用现有 generator 正常输出 `dist/<deployment_name>/`
 3. 能输出清晰的 preflight 结果
-4. 能输出 apply 计划
+4. 能输出 apply 计划与最终确认摘要
 5. 在已有证书模式下，可对 plain nginx / bt-panel-nginx 至少一种平台完成受控 apply
 6. 失败时不会无提示破坏线上环境
 7. 最终有明确结果摘要、`APPLY-RESULT.md` 与回滚提示
+8. 可显式控制 `backup_dir` 与 `nginx-test-cmd`
 
 ---
 
