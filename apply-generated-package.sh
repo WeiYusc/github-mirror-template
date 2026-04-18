@@ -156,16 +156,25 @@ print_copy_candidates "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_RO
 
 echo
 if [[ "$EXECUTE" == "1" ]]; then
+  local_nginx_test_status="not-run"
   run_backup_real "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
   echo
   run_apply_copy "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
   if [[ "$RUN_NGINX_TEST" == "1" ]]; then
     echo
     echo "[apply] 开始执行 nginx 测试命令：$NGINX_TEST_CMD"
-    bash -lc "$NGINX_TEST_CMD"
-  else
-    echo "[apply] 已完成复制；按当前默认边界，未执行 nginx -t，未 reload nginx。"
+    if bash -lc "$NGINX_TEST_CMD"; then
+      local_nginx_test_status="0"
+      echo "[apply] nginx 测试通过。"
+    else
+      local_nginx_test_status="1"
+      echo "[apply][warn] nginx 测试失败；当前未自动 reload，也未自动回滚。" >&2
+      echo
+      print_rollback_guidance "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
+    fi
   fi
+  echo
+  print_execute_summary "$BACKUP_DIR" "$RUN_NGINX_TEST" "$local_nginx_test_status"
 else
   run_backup_stub "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
   echo "[apply] 当前不会执行真实复制、不会覆盖线上文件、不会 reload nginx"

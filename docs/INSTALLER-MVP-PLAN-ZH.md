@@ -79,6 +79,7 @@
 - 复制 vhost/conf
 - 备份已有文件
 - 可选执行 `nginx -t`
+- 在 `nginx -t` 失败时输出执行摘要与回滚提示
 - 默认不 reload nginx
 
 ---
