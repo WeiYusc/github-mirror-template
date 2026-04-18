@@ -108,7 +108,89 @@ LOG_DIR=/www/wwwlogs
 
 ---
 
-# 5. 推荐入口：v0.2 声明式生成
+# 5. 先选入口：generator / experimental installer / low-level renderer
+
+当前这套仓库有 3 条入口，建议先按你的目标选路：
+
+## 5.1 推荐默认：v0.2 声明式 generator
+
+适合：
+
+- 希望输入稳定、可复用、可版本化
+- 希望先生成部署包，再人工审查
+- 希望把配置保留在 `deploy.yaml` 中
+
+推荐入口：
+
+- `deploy.example.yaml`
+- `DEPLOY-CONFIG.md`
+- `generate-from-config.sh`
+
+这是当前最稳的默认路径。
+
+## 5.2 可选：v0.3 实验性中文交互 installer
+
+适合：
+
+- 想先用中文交互收集参数
+- 想少手写 YAML
+- 想在生成部署包之后，继续走一次受控 apply / dry-run / 最终确认流程
+
+入口：
+
+- `install-interactive.sh`
+- `apply-generated-package.sh`
+- `docs/INSTALLER-DESIGN-ZH.md`
+- `docs/INSTALLER-MVP-PLAN-ZH.md`
+
+这条路线当前定位是：
+
+- 在现有 generator 之上增加“中文交互 + 受控 apply”的实验性编排层
+- 不是替代人工审查的一键黑盒安装器
+
+它当前已经支持：
+
+- 中文交互收集参数
+- preflight 摘要
+- 调用 `generate-from-config.sh`
+- 输出 `APPLY-PLAN.md`
+- 可选执行 apply dry-run
+- 显式确认后执行保守式真实 apply
+- 显式设置 `backup_dir`
+- 可选执行 nginx 测试，并显式设置 `nginx-test-cmd`
+- 输出 `APPLY-RESULT.md`
+
+它当前明确不会：
+
+- 不会自动改 DNS
+- 不会自动 reload nginx
+- 不会自动接管复杂现网
+- 不会在未确认前直接改写目标目录
+- 不会在 nginx 测试失败后自动回滚
+
+如果想先看帮助：
+
+```bash
+./install-interactive.sh --help
+./apply-generated-package.sh --help
+```
+
+## 5.3 保留入口：low-level renderer
+
+适合：
+
+- 需要直接控制底层渲染参数
+- 正在调模板
+- 不想经过 YAML 或交互式 installer
+
+入口：
+
+- `render-from-base-domain.sh`
+- `validate-rendered-config.sh`
+
+---
+
+# 6. 推荐入口：v0.2 声明式生成
 
 如果你不想手工拼一长串参数，推荐优先使用：
 
@@ -161,7 +243,7 @@ cp deploy.example.yaml deploy.yaml
 
 ---
 
-# 6. 底层渲染模板
+# 7. 底层渲染模板
 
 如果你仍然想直接使用原始脚本，也可以继续走底层渲染路径。
 
@@ -191,7 +273,7 @@ cp deploy.example.yaml deploy.yaml
 
 ---
 
-# 7. 运行静态自检
+# 8. 运行静态自检
 
 ```bash
 ./validate-rendered-config.sh \
@@ -208,7 +290,7 @@ cp deploy.example.yaml deploy.yaml
 
 ---
 
-# 7. DNS 解析
+# 9. DNS 解析
 
 按你的域名模式，把以下域名都解析到目标服务器：
 
@@ -230,7 +312,7 @@ cp deploy.example.yaml deploy.yaml
 
 ---
 
-# 8. 在宝塔中建站
+# 10. 在宝塔中建站
 
 推荐做法：
 
@@ -246,7 +328,7 @@ cp deploy.example.yaml deploy.yaml
 
 ---
 
-# 9. 放置渲染结果
+# 11. 放置渲染结果
 
 你通常需要做 3 类落地：
 
@@ -266,7 +348,7 @@ cp deploy.example.yaml deploy.yaml
 
 ---
 
-# 10. redirect whitelist 接入
+# 12. redirect whitelist 接入
 
 这是生产部署里最不能漏的一步。
 
@@ -284,7 +366,7 @@ cp deploy.example.yaml deploy.yaml
 
 ---
 
-# 11. 上线前检查
+# 13. 上线前检查
 
 在 reload 前至少确认：
 
@@ -297,7 +379,7 @@ cp deploy.example.yaml deploy.yaml
 
 ---
 
-# 12. Nginx 检查与重载
+# 14. Nginx 检查与重载
 
 ```bash
 nginx -t
@@ -312,7 +394,7 @@ nginx -s reload
 
 ---
 
-# 13. 首轮验收建议
+# 15. 首轮验收建议
 
 至少测这些：
 
@@ -339,7 +421,7 @@ nginx -s reload
 
 ---
 
-# 14. 回滚方法
+# 16. 回滚方法
 
 如果本轮部署有问题：
 
@@ -355,7 +437,7 @@ nginx -s reload
 
 ---
 
-# 15. 你还应该继续看的文档
+# 17. 你还应该继续看的文档
 
 - `BT-PANEL-DEPLOYMENT-v1.md`：更偏宝塔落地
 - `DEPLOY-CHECKLIST.md`：执行清单
