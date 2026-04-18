@@ -81,6 +81,7 @@ ui_print_execute_summary() {
   local error_root="$5"
   local backup_dir="$6"
   local will_run_nginx_test="$7"
+  local nginx_test_cmd="$8"
 
   ui_section "真实 apply 最终确认摘要"
   echo "- 部署输出目录：$output_dir_abs"
@@ -91,7 +92,8 @@ ui_print_execute_summary() {
   echo "- 备份目录：$backup_dir"
   echo "- 结果摘要文件：$output_dir_abs/APPLY-RESULT.md"
   if [[ "$will_run_nginx_test" == "1" ]]; then
-    echo "- apply 后动作：会执行 nginx -t"
+    echo "- apply 后动作：会执行 nginx 测试"
+    echo "- nginx 测试命令：$nginx_test_cmd"
   else
     echo "- apply 后动作：不会执行 nginx -t"
   fi
@@ -99,6 +101,6 @@ ui_print_execute_summary() {
   echo "风险边界："
   echo "- 会复制 snippets / conf / errors 到目标目录"
   echo "- 默认不会 reload nginx"
-  echo "- nginx -t 失败时不会自动回滚"
+  echo "- nginx 测试失败时不会自动回滚"
   echo "- 如需回滚，应按备份目录手工恢复"
 }

@@ -146,6 +146,7 @@ fi
 
 if ui_confirm "是否继续执行一次真实 apply（默认仍不 reload）？" "N"; then
   WILL_RUN_NGINX_TEST="0"
+  NGINX_TEST_CMD="nginx -t"
   BACKUP_DIR_DEFAULT="$(backup_plan_default_dir)"
   ui_prompt BACKUP_DIR "请输入本次 apply 的备份目录" "$BACKUP_DIR_DEFAULT"
 
@@ -163,7 +164,8 @@ if ui_confirm "是否继续执行一次真实 apply（默认仍不 reload）？"
 
   if ui_confirm "是否在真实 apply 后立即执行 nginx -t？" "N"; then
     WILL_RUN_NGINX_TEST="1"
-    EXECUTE_APPLY_CMD+=("--run-nginx-test")
+    ui_prompt NGINX_TEST_CMD "请输入 nginx 测试命令" "nginx -t"
+    EXECUTE_APPLY_CMD+=("--run-nginx-test" "--nginx-test-cmd" "$NGINX_TEST_CMD")
   fi
 
   ui_print_execute_summary \
@@ -173,7 +175,8 @@ if ui_confirm "是否继续执行一次真实 apply（默认仍不 reload）？"
     "$NGINX_VHOST_TARGET_HINT" \
     "$ERROR_ROOT" \
     "$BACKUP_DIR" \
-    "$WILL_RUN_NGINX_TEST"
+    "$WILL_RUN_NGINX_TEST" \
+    "$NGINX_TEST_CMD"
 
   if ui_confirm "是否确认执行以上真实 apply？" "N"; then
     ui_section "执行真实 apply（默认不 reload）"
