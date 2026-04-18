@@ -52,18 +52,33 @@ PY
 }
 
 print_check_report() {
-  echo "Preflight 结果："
-  if [[ ${#CHECK_BLOCKERS[@]} -eq 0 && ${#CHECK_WARNINGS[@]} -eq 0 ]]; then
+  local warning_count="${#CHECK_WARNINGS[@]}"
+  local blocker_count="${#CHECK_BLOCKERS[@]}"
+
+  echo "Preflight checklist："
+  echo "- BLOCK: $blocker_count"
+  echo "- WARN: $warning_count"
+
+  if [[ $blocker_count -eq 0 && $warning_count -eq 0 ]]; then
     echo "- PASS: 未发现阻断项或警告"
     return 0
   fi
 
-  for item in "${CHECK_WARNINGS[@]}"; do
-    echo "- WARN: $item"
-  done
-  for item in "${CHECK_BLOCKERS[@]}"; do
-    echo "- BLOCK: $item"
-  done
+  if [[ $warning_count -gt 0 ]]; then
+    echo
+    echo "Warnings:"
+    for item in "${CHECK_WARNINGS[@]}"; do
+      echo "- [WARN] $item"
+    done
+  fi
+
+  if [[ $blocker_count -gt 0 ]]; then
+    echo
+    echo "Blockers:"
+    for item in "${CHECK_BLOCKERS[@]}"; do
+      echo "- [BLOCK] $item"
+    done
+  fi
 }
 
 has_blockers() {

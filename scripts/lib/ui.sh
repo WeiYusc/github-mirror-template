@@ -56,15 +56,21 @@ ui_choose() {
   local options=("$@")
   local i=1
   local choice=""
+  local default_index=1
 
   echo "$prompt"
   for opt in "${options[@]}"; do
-    echo "  $i) $opt"
+    if (( i == default_index )); then
+      echo "  $i) $opt (default)"
+    else
+      echo "  $i) $opt"
+    fi
     i=$((i + 1))
   done
 
   while true; do
-    read -r -p "请选择编号: " choice || true
+    read -r -p "请选择编号 [$default_index]: " choice || true
+    choice="${choice:-$default_index}"
     if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#options[@]} )); then
       printf -v "$var_name" '%s' "${options[$((choice - 1))]}"
       return 0

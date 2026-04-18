@@ -126,21 +126,24 @@ print_execute_summary() {
   local nginx_test_status="$3"
 
   echo "[apply] 执行摘要："
-  echo "- 已完成真实备份"
-  echo "- 已完成真实复制"
+  echo "- 模式：execute"
+  echo "- 备份：已完成"
+  echo "- 复制：已完成"
   echo "- 备份目录：$backup_dir"
   if [[ "$run_nginx_test" == "1" ]]; then
     if [[ "$nginx_test_status" == "0" ]]; then
       echo "- nginx 测试：通过"
       echo "- reload：未执行（默认保守）"
+      echo "- 下一步：如需继续，请人工确认后再决定是否 reload nginx"
     else
       echo "- nginx 测试：失败"
       echo "- reload：未执行"
-      echo "- 建议：先按回滚提示恢复，再重新执行 nginx -t"
+      echo "- 下一步：建议先按回滚提示恢复，再重新执行 nginx -t"
     fi
   else
     echo "- nginx 测试：未执行"
     echo "- reload：未执行（默认保守）"
+    echo "- 下一步：如需继续，请手工执行 nginx -t"
   fi
 }
 
@@ -172,6 +175,8 @@ write_apply_result_markdown() {
   cat > "$result_file" <<EOF
 # APPLY RESULT
 
+## 执行概览
+
 - 模式：$mode
 - 平台：$platform
 - 备份目录：$backup_dir
@@ -180,6 +185,12 @@ write_apply_result_markdown() {
 - 错误页目标：$error_root
 - nginx 测试：$nginx_summary
 - reload：未执行
+
+## 风险边界
+
+- 当前不会自动 reload nginx
+- nginx 测试失败时不会自动回滚
+- 如需继续，应先人工确认目标目录与配置状态
 
 ## 下一步建议
 

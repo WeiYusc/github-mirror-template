@@ -27,13 +27,14 @@ Current stage:
   - Generate a deploy config draft
   - Run basic preflight checks
   - Call generate-from-config.sh
-  - Print an apply plan only
+  - Offer apply dry-run
+  - Support conservative real apply after explicit confirmation
 
 What it does NOT do yet:
-  - It does NOT perform real apply
-  - It does NOT modify live nginx configs
-  - It does NOT reload nginx
   - It does NOT change DNS
+  - It does NOT reload nginx
+  - It does NOT auto-rollback when nginx test fails
+  - It does NOT take over complex live nginx configs automatically
 EOF
 }
 
@@ -43,8 +44,8 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 ui_section "欢迎使用 github-mirror-template v0.3 实验性安装编排骨架"
-ui_info "当前阶段只打通：交互输入 → 配置生成 → 调 generator → 输出 apply plan"
-ui_warn "当前不会执行真实 apply，不会修改线上 nginx，不会 reload，不会改 DNS。"
+ui_info "当前阶段已打通：交互输入 → 配置生成 → 调 generator → apply dry-run / 保守式真实 apply"
+ui_warn "默认不会直接执行真实 apply；真实 apply 仍需显式确认，且不会自动改 DNS、不会自动 reload、不做失败后自动回滚。"
 
 echo
 ui_prompt DEPLOYMENT_NAME "请输入 deployment_name" "github-mirror-prod"
@@ -114,13 +115,14 @@ RENDERED_VALUES_PATH="$OUTPUT_DIR_ABS/RENDERED-VALUES.env"
 mkdir -p "$OUTPUT_DIR_ABS"
 write_apply_plan_markdown "$APPLY_PLAN_PATH" "$RENDERED_VALUES_PATH" "$CONFIG_PATH" "$OUTPUT_DIR_ABS"
 
-ui_section "Apply Plan（仅计划，不执行）"
+ui_section "Apply Plan（当前步骤仅输出计划）"
 echo "- 将使用生成配置：$CONFIG_PATH"
 echo "- 将读取部署输出目录：$OUTPUT_DIR"
 echo "- 已写出 apply 计划文档：$APPLY_PLAN_PATH"
 echo "- 将由后续 apply 脚本处理 conf/snippets/errors 的落地"
-echo "- 当前阶段不会真实写入 nginx / 宝塔目录"
-echo "- 当前阶段不会执行 nginx -t / reload"
+echo "- 当前步骤不会直接改写目标目录"
+echo "- 如需继续，可先执行 apply dry-run，再在显式确认后进入真实 apply"
+echo "- 默认不会执行 nginx reload"
 "$PLATFORM_PLAN_FN"
 
 ui_section "后续命令参考"
@@ -190,4 +192,4 @@ else
   ui_info "已跳过真实 apply。"
 fi
 
-ui_info "骨架阶段完成：已打通交互输入、配置生成、generator 调用与 apply plan 输出。"
+ui_info "骨架阶段完成：已打通交互输入、配置生成、generator 调用，以及 apply dry-run / 保守式真实 apply 流程。"
