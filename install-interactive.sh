@@ -143,6 +143,7 @@ else
 fi
 
 if ui_confirm "是否继续执行一次真实 apply（默认仍不 reload）？" "N"; then
+  WILL_RUN_NGINX_TEST="0"
   EXECUTE_APPLY_CMD=(
     "./apply-generated-package.sh"
     "--from" "$OUTPUT_DIR_ABS"
@@ -155,13 +156,26 @@ if ui_confirm "是否继续执行一次真实 apply（默认仍不 reload）？"
   )
 
   if ui_confirm "是否在真实 apply 后立即执行 nginx -t？" "N"; then
+    WILL_RUN_NGINX_TEST="1"
     EXECUTE_APPLY_CMD+=("--run-nginx-test")
   fi
 
-  ui_section "执行真实 apply（默认不 reload）"
-  printf '%q ' "${EXECUTE_APPLY_CMD[@]}"
-  printf '\n'
-  "${EXECUTE_APPLY_CMD[@]}"
+  ui_print_execute_summary \
+    "$OUTPUT_DIR_ABS" \
+    "$PLATFORM" \
+    "$NGINX_SNIPPETS_TARGET_HINT" \
+    "$NGINX_VHOST_TARGET_HINT" \
+    "$ERROR_ROOT" \
+    "$WILL_RUN_NGINX_TEST"
+
+  if ui_confirm "是否确认执行以上真实 apply？" "N"; then
+    ui_section "执行真实 apply（默认不 reload）"
+    printf '%q ' "${EXECUTE_APPLY_CMD[@]}"
+    printf '\n'
+    "${EXECUTE_APPLY_CMD[@]}"
+  else
+    ui_info "已在最终确认阶段取消真实 apply。"
+  fi
 else
   ui_info "已跳过真实 apply。"
 fi
