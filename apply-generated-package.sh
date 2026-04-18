@@ -165,6 +165,10 @@ fi
 echo
 print_copy_candidates "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
 
+APPLY_PLAN_JSON_FILE="$FROM_PATH/APPLY-PLAN.json"
+write_apply_plan_json "$APPLY_PLAN_JSON_FILE" "$MODE" "$PLATFORM" "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
+echo "[apply] 已写出计划 JSON：$APPLY_PLAN_JSON_FILE"
+
 echo
 if [[ "$EXECUTE" == "1" ]]; then
   local_nginx_test_status="not-run"

@@ -154,8 +154,13 @@ LOG_DIR=/www/wwwlogs
 - 中文交互收集参数
 - 也支持用 flags 直接覆盖常用输入
 - preflight 摘要
+- 额外落盘 `scripts/generated/preflight.generated.md`
+- 额外落盘 `scripts/generated/preflight.generated.json`
+- 额外落盘 `scripts/generated/INSTALLER-SUMMARY.generated.json`
 - 调用 `generate-from-config.sh`
 - 输出 `APPLY-PLAN.md`
+- 输出 `APPLY-PLAN.json`
+- 在部署输出目录额外落盘 `INSTALLER-SUMMARY.json`
 - 可选执行 apply dry-run
 - 显式确认后执行保守式真实 apply
 - 显式设置 `backup_dir`

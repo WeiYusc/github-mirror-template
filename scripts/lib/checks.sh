@@ -12,6 +12,130 @@ check_add_blocker() {
   CHECK_BLOCKERS+=("$1")
 }
 
+check_preflight_status() {
+  if [[ ${#CHECK_BLOCKERS[@]} -gt 0 ]]; then
+    printf 'blocked\n'
+  elif [[ ${#CHECK_WARNINGS[@]} -gt 0 ]]; then
+    printf 'warn\n'
+  else
+    printf 'ok\n'
+  fi
+}
+
+write_preflight_report_markdown() {
+  local target_path="$1"
+  local status
+  status="$(check_preflight_status)"
+
+  mkdir -p "$(dirname "$target_path")"
+
+  {
+    echo "# PREFLIGHT REPORT"
+    echo
+    echo "## 执行概览"
+    echo
+    echo "- 状态：$status"
+    echo "- input_mode：${INSTALL_INPUT_MODE:-unknown}"
+    echo "- deployment_name：${DEPLOYMENT_NAME:-}"
+    echo "- base_domain：${BASE_DOMAIN:-}"
+    echo "- domain.mode：${DOMAIN_MODE:-}"
+    echo "- deployment.platform：${PLATFORM:-}"
+    echo "- paths.output_dir：${OUTPUT_DIR:-}"
+    echo "- WARN 数量：${#CHECK_WARNINGS[@]}"
+    echo "- BLOCK 数量：${#CHECK_BLOCKERS[@]}"
+
+    echo
+    echo "## Warnings"
+    echo
+    if [[ ${#CHECK_WARNINGS[@]} -eq 0 ]]; then
+      echo "- 无"
+    else
+      local item
+      for item in "${CHECK_WARNINGS[@]}"; do
+        echo "- $item"
+      done
+    fi
+
+    echo
+    echo "## Blockers"
+    echo
+    if [[ ${#CHECK_BLOCKERS[@]} -eq 0 ]]; then
+      echo "- 无"
+    else
+      local item
+      for item in "${CHECK_BLOCKERS[@]}"; do
+        echo "- $item"
+      done
+    fi
+  } > "$target_path"
+}
+
+write_preflight_report_json() {
+  local target_path="$1"
+  local status
+  local warnings_file blockers_file
+  status="$(check_preflight_status)"
+  warnings_file="$(mktemp)"
+  blockers_file="$(mktemp)"
+
+  printf '%s\n' "${CHECK_WARNINGS[@]}" > "$warnings_file"
+  printf '%s\n' "${CHECK_BLOCKERS[@]}" > "$blockers_file"
+
+  mkdir -p "$(dirname "$target_path")"
+
+  python3 - "$target_path" "$status" "$warnings_file" "$blockers_file" \
+    "${INSTALL_INPUT_MODE:-unknown}" "${DEPLOYMENT_NAME:-}" "${BASE_DOMAIN:-}" "${DOMAIN_MODE:-}" "${PLATFORM:-}" "${OUTPUT_DIR:-}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+(
+    target_path,
+    status,
+    warnings_file,
+    blockers_file,
+    input_mode,
+    deployment_name,
+    base_domain,
+    domain_mode,
+    platform,
+    output_dir,
+) = sys.argv[1:]
+
+def read_lines(path: str):
+    p = Path(path)
+    if not p.exists():
+        return []
+    lines = [line.rstrip("\n") for line in p.read_text(encoding="utf-8").splitlines()]
+    return [line for line in lines if line]
+
+warnings = read_lines(warnings_file)
+blockers = read_lines(blockers_file)
+
+payload = {
+    "status": status,
+    "summary": {
+        "warnings": len(warnings),
+        "blockers": len(blockers),
+    },
+    "context": {
+        "input_mode": input_mode,
+        "deployment_name": deployment_name,
+        "base_domain": base_domain,
+        "domain_mode": domain_mode,
+        "platform": platform,
+        "output_dir": output_dir,
+    },
+    "warnings": warnings,
+    "blockers": blockers,
+}
+
+Path(target_path).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+
+  rm -f "$warnings_file" "$blockers_file"
+}
+
 check_value_looks_like_yes_no() {
   case "$1" in
     y|Y|yes|YES|Yes|n|N|no|NO|No) return 0 ;;

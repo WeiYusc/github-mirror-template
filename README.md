@@ -82,8 +82,13 @@ cp deploy.example.yaml deploy.yaml
 - 中文交互收集基础部署参数
 - 也支持用 flags 直接覆盖常用输入
 - 基础 preflight 摘要
+- 额外落盘 `scripts/generated/preflight.generated.md`
+- 额外落盘 `scripts/generated/preflight.generated.json`
+- 额外落盘 `scripts/generated/INSTALLER-SUMMARY.generated.json`
 - 自动生成 deploy config 并调用 `generate-from-config.sh`
 - 输出 `APPLY-PLAN.md`
+- 输出 `APPLY-PLAN.json`
+- 在部署输出目录额外落盘 `INSTALLER-SUMMARY.json`
 - 可选执行一次 `apply-generated-package.sh --dry-run --print-plan`
 - 在显式确认后执行保守式真实 apply
 - 显式确认 `backup_dir`

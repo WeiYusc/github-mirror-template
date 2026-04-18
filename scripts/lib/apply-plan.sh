@@ -9,6 +9,14 @@ APPLY_PLAN_COUNT_CONFLICT=0
 APPLY_PLAN_COUNT_TARGET_BLOCK=0
 APPLY_PLAN_COUNT_MISSING_SOURCE=0
 
+apply_plan_json_escape() {
+  python3 - <<'PY' "$1"
+import json
+import sys
+print(json.dumps(sys.argv[1], ensure_ascii=False))
+PY
+}
+
 apply_plan_reset() {
   APPLY_PLAN_ROWS=()
   APPLY_PLAN_COUNT_NEW=0
@@ -104,6 +112,62 @@ build_apply_plan() {
 
 apply_plan_has_blockers() {
   [[ $((APPLY_PLAN_COUNT_CONFLICT + APPLY_PLAN_COUNT_TARGET_BLOCK + APPLY_PLAN_COUNT_MISSING_SOURCE)) -gt 0 ]]
+}
+
+write_apply_plan_json() {
+  local target_path="$1"
+  local mode="$2"
+  local platform="$3"
+  local from_path="$4"
+  local snippets_target="$5"
+  local vhost_target="$6"
+  local error_root="$7"
+
+  mkdir -p "$(dirname "$target_path")"
+
+  {
+    echo '{'
+    printf '  "mode": %s,\n' "$(apply_plan_json_escape "$mode")"
+    printf '  "platform": %s,\n' "$(apply_plan_json_escape "$platform")"
+    echo '  "summary": {'
+    printf '    "new": %s,\n' "$APPLY_PLAN_COUNT_NEW"
+    printf '    "replace": %s,\n' "$APPLY_PLAN_COUNT_REPLACE"
+    printf '    "same": %s,\n' "$APPLY_PLAN_COUNT_SAME"
+    printf '    "conflict": %s,\n' "$APPLY_PLAN_COUNT_CONFLICT"
+    printf '    "target_block": %s,\n' "$APPLY_PLAN_COUNT_TARGET_BLOCK"
+    printf '    "missing_source": %s,\n' "$APPLY_PLAN_COUNT_MISSING_SOURCE"
+    printf '    "has_blockers": %s\n' "$(if apply_plan_has_blockers; then echo true; else echo false; fi)"
+    echo '  },'
+    echo '  "paths": {'
+    printf '    "from": %s,\n' "$(apply_plan_json_escape "$from_path")"
+    printf '    "snippets_target": %s,\n' "$(apply_plan_json_escape "$snippets_target")"
+    printf '    "vhost_target": %s,\n' "$(apply_plan_json_escape "$vhost_target")"
+    printf '    "error_root": %s\n' "$(apply_plan_json_escape "$error_root")"
+    echo '  },'
+    echo '  "items": ['
+
+    local row_count="${#APPLY_PLAN_ROWS[@]}"
+    local idx=0
+    local row category source dest status note
+    for row in "${APPLY_PLAN_ROWS[@]}"; do
+      idx=$((idx + 1))
+      IFS=$'\t' read -r category source dest status note <<< "$row"
+      echo '    {'
+      printf '      "category": %s,\n' "$(apply_plan_json_escape "$category")"
+      printf '      "source": %s,\n' "$(apply_plan_json_escape "$source")"
+      printf '      "dest": %s,\n' "$(apply_plan_json_escape "$dest")"
+      printf '      "status": %s,\n' "$(apply_plan_json_escape "$status")"
+      printf '      "note": %s\n' "$(apply_plan_json_escape "$note")"
+      if [[ "$idx" -lt "$row_count" ]]; then
+        echo '    },'
+      else
+        echo '    }'
+      fi
+    done
+
+    echo '  ]'
+    echo '}'
+  } > "$target_path"
 }
 
 print_copy_candidates() {
