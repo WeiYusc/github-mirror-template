@@ -14,6 +14,8 @@ source "$ROOT_DIR/scripts/lib/checks.sh"
 source "$ROOT_DIR/scripts/lib/dns.sh"
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/tls.sh"
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib/backup.sh"
 
 usage() {
   cat <<'EOF'
@@ -144,6 +146,9 @@ fi
 
 if ui_confirm "是否继续执行一次真实 apply（默认仍不 reload）？" "N"; then
   WILL_RUN_NGINX_TEST="0"
+  BACKUP_DIR_DEFAULT="$(backup_plan_default_dir)"
+  ui_prompt BACKUP_DIR "请输入本次 apply 的备份目录" "$BACKUP_DIR_DEFAULT"
+
   EXECUTE_APPLY_CMD=(
     "./apply-generated-package.sh"
     "--from" "$OUTPUT_DIR_ABS"
@@ -151,6 +156,7 @@ if ui_confirm "是否继续执行一次真实 apply（默认仍不 reload）？"
     "--snippets-target" "$NGINX_SNIPPETS_TARGET_HINT"
     "--vhost-target" "$NGINX_VHOST_TARGET_HINT"
     "--error-root" "$ERROR_ROOT"
+    "--backup-dir" "$BACKUP_DIR"
     "--execute"
     "--result-file" "$OUTPUT_DIR_ABS/APPLY-RESULT.md"
   )
@@ -166,6 +172,7 @@ if ui_confirm "是否继续执行一次真实 apply（默认仍不 reload）？"
     "$NGINX_SNIPPETS_TARGET_HINT" \
     "$NGINX_VHOST_TARGET_HINT" \
     "$ERROR_ROOT" \
+    "$BACKUP_DIR" \
     "$WILL_RUN_NGINX_TEST"
 
   if ui_confirm "是否确认执行以上真实 apply？" "N"; then

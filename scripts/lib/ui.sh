@@ -79,7 +79,8 @@ ui_print_execute_summary() {
   local snippets_target="$3"
   local vhost_target="$4"
   local error_root="$5"
-  local will_run_nginx_test="$6"
+  local backup_dir="$6"
+  local will_run_nginx_test="$7"
 
   ui_section "真实 apply 最终确认摘要"
   echo "- 部署输出目录：$output_dir_abs"
@@ -87,6 +88,7 @@ ui_print_execute_summary() {
   echo "- snippets 目标路径：$snippets_target"
   echo "- vhost 目标路径：$vhost_target"
   echo "- 错误页目标路径：$error_root"
+  echo "- 备份目录：$backup_dir"
   echo "- 结果摘要文件：$output_dir_abs/APPLY-RESULT.md"
   if [[ "$will_run_nginx_test" == "1" ]]; then
     echo "- apply 后动作：会执行 nginx -t"
