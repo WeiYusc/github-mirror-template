@@ -12,12 +12,15 @@ Usage:
     --error-root <path> \
     [--backup-dir <path>] \
     [--dry-run] \
-    [--print-plan]
+    [--print-plan] \
+    [--execute] \
+    [--nginx-test-cmd <cmd>] \
+    [--run-nginx-test]
 
 Current stage:
-  - Dry-run / print-plan only
-  - Do not modify live nginx configs
-  - Do not reload nginx
+  - Dry-run / print-plan by default
+  - Real execute is available but still conservative
+  - Do not reload nginx by default
 EOF
 }
 
@@ -37,6 +40,9 @@ ERROR_ROOT=""
 BACKUP_DIR=""
 DRY_RUN="0"
 PRINT_PLAN="0"
+EXECUTE="0"
+RUN_NGINX_TEST="0"
+NGINX_TEST_CMD="nginx -t"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --from)
@@ -55,6 +61,12 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN="1"; shift ;;
     --print-plan)
       PRINT_PLAN="1"; shift ;;
+    --execute)
+      EXECUTE="1"; shift ;;
+    --nginx-test-cmd)
+      NGINX_TEST_CMD="$2"; shift 2 ;;
+    --run-nginx-test)
+      RUN_NGINX_TEST="1"; shift ;;
     -h|--help)
       usage; exit 0 ;;
     *)
@@ -80,6 +92,11 @@ if [[ -z "$PLATFORM" || -z "$SNIPPETS_TARGET" || -z "$VHOST_TARGET" || -z "$ERRO
   exit 3
 fi
 
+if [[ "$EXECUTE" == "1" && "$DRY_RUN" == "1" ]]; then
+  echo "[apply] --execute 与 --dry-run 不能同时使用。" >&2
+  exit 4
+fi
+
 if [[ -z "$BACKUP_DIR" ]]; then
   BACKUP_DIR="$(backup_plan_default_dir)"
 fi
@@ -97,31 +114,38 @@ case "$PLATFORM" in
     ;;
   *)
     echo "[apply] Unsupported platform: $PLATFORM" >&2
-    exit 4
+    exit 5
     ;;
 esac
 
+MODE="plan-only"
+if [[ "$DRY_RUN" == "1" ]]; then
+  MODE="dry-run"
+elif [[ "$EXECUTE" == "1" ]]; then
+  MODE="execute"
+fi
+
 cat <<EOF
-[apply] 当前为骨架阶段，仅输出 apply 计划。
+[apply] 当前 apply 模式：$MODE
 [apply] dist 路径：$FROM_PATH
 [apply] 平台：$PLATFORM
-[apply] snippets 目标提示路径：$SNIPPETS_TARGET
-[apply] vhost 目标提示路径：$VHOST_TARGET
-[apply] 错误页目标提示路径：$ERROR_ROOT
-[apply] 备份目录（计划）：$BACKUP_DIR
-[apply] 模式：$([[ "$DRY_RUN" == "1" ]] && echo 'dry-run' || echo 'plan-only')
+[apply] snippets 目标路径：$SNIPPETS_TARGET
+[apply] vhost 目标路径：$VHOST_TARGET
+[apply] 错误页目标路径：$ERROR_ROOT
+[apply] 备份目录：$BACKUP_DIR
+[apply] nginx 测试命令：$NGINX_TEST_CMD
 EOF
 
 if ! validate_apply_inputs "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"; then
-  echo "[apply] 存在阻断项，停止继续输出 apply 计划。" >&2
-  exit 5
+  echo "[apply] 存在阻断项，停止继续。" >&2
+  exit 6
 fi
 
 NGINX_SNIPPETS_TARGET_HINT="$SNIPPETS_TARGET"
 NGINX_VHOST_TARGET_HINT="$VHOST_TARGET"
 export ERROR_ROOT NGINX_SNIPPETS_TARGET_HINT NGINX_VHOST_TARGET_HINT
 
-if [[ "$PRINT_PLAN" == "1" || "$DRY_RUN" == "1" ]]; then
+if [[ "$PRINT_PLAN" == "1" || "$DRY_RUN" == "1" || "$EXECUTE" == "1" ]]; then
   echo
   echo "[apply] 计划摘要："
 fi
@@ -131,6 +155,18 @@ echo
 print_copy_candidates "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
 
 echo
-run_backup_stub "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
-
-echo "[apply] 当前不会执行真实复制、不会覆盖线上文件、不会 reload nginx"
+if [[ "$EXECUTE" == "1" ]]; then
+  run_backup_real "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
+  echo
+  run_apply_copy "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
+  if [[ "$RUN_NGINX_TEST" == "1" ]]; then
+    echo
+    echo "[apply] 开始执行 nginx 测试命令：$NGINX_TEST_CMD"
+    bash -lc "$NGINX_TEST_CMD"
+  else
+    echo "[apply] 已完成复制；按当前默认边界，未执行 nginx -t，未 reload nginx。"
+  fi
+else
+  run_backup_stub "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
+  echo "[apply] 当前不会执行真实复制、不会覆盖线上文件、不会 reload nginx"
+fi

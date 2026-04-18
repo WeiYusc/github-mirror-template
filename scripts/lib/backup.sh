@@ -28,6 +28,28 @@ print_backup_plan() {
   done
 }
 
+backup_existing_target() {
+  local backup_dir="$1"
+  local target="$2"
+
+  if [[ ! -e "$target" ]]; then
+    echo "[backup] 跳过不存在目标：$target"
+    return 0
+  fi
+
+  mkdir -p "$backup_dir"
+  local base
+  base="$(basename "$target")"
+  local dest="$backup_dir/$base"
+
+  if [[ -d "$target" ]]; then
+    cp -a "$target" "$dest"
+  else
+    cp -a "$target" "$dest"
+  fi
+  echo "[backup] 已备份：$target -> $dest"
+}
+
 run_backup_stub() {
   local backup_dir="$1"
   shift
@@ -35,4 +57,16 @@ run_backup_stub() {
 
   echo "[backup] 当前为骨架阶段，仅输出备份计划，不执行真实备份。"
   print_backup_plan "$backup_dir" "${targets[@]}"
+}
+
+run_backup_real() {
+  local backup_dir="$1"
+  shift
+  local targets=("$@")
+
+  echo "[backup] 开始执行真实备份。"
+  print_backup_plan "$backup_dir" "${targets[@]}"
+  for target in "${targets[@]}"; do
+    backup_existing_target "$backup_dir" "$target"
+  done
 }

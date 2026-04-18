@@ -80,3 +80,26 @@ validate_apply_inputs() {
   fi
   return 0
 }
+
+copy_tree_flat() {
+  local source_dir="$1"
+  local target_dir="$2"
+
+  mkdir -p "$target_dir"
+  find "$source_dir" -maxdepth 1 -type f -print0 | while IFS= read -r -d '' file; do
+    cp -a "$file" "$target_dir/$(basename "$file")"
+    echo "[apply] 已复制：$file -> $target_dir/$(basename "$file")"
+  done
+}
+
+run_apply_copy() {
+  local from_path="$1"
+  local snippets_target="$2"
+  local vhost_target="$3"
+  local error_root="$4"
+
+  echo "[apply] 开始执行真实复制（仍不 reload）。"
+  copy_tree_flat "$from_path/snippets" "$snippets_target"
+  copy_tree_flat "$from_path/conf.d" "$vhost_target"
+  copy_tree_flat "$from_path/html/errors" "$error_root"
+}
