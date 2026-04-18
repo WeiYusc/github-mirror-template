@@ -18,6 +18,8 @@ source "$ROOT_DIR/scripts/lib/dns.sh"
 source "$ROOT_DIR/scripts/lib/tls.sh"
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/backup.sh"
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib/state.sh"
 
 usage() {
   cat <<'EOF'
@@ -55,6 +57,8 @@ Options:
   --backup-dir <path>
   --run-nginx-test
   --nginx-test-cmd <cmd>
+  --resume <run_id>
+  --doctor <run_id>
   --yes
   -h, --help
 
@@ -95,6 +99,10 @@ What it does NOT do yet:
   - It does NOT reload nginx
   - It does NOT auto-rollback when nginx test fails
   - It does NOT take over complex live nginx configs automatically
+
+Recovery helpers (first iteration):
+  - --resume <run_id> : reload a previous run's captured inputs and re-enter from a safe boundary
+  - --doctor <run_id> : inspect one run's state/journal/artifacts and print next-step hints
 EOF
 }
 
@@ -234,6 +242,10 @@ write_installer_summary_json() {
     printf '    "apply_result": %s,\n' "$(apply_plan_json_escape "${APPLY_RESULT_PATH:-}")"
     printf '    "summary_generated": %s,\n' "$(apply_plan_json_escape "${SUMMARY_JSON_PRIMARY:-}")"
     printf '    "summary_output": %s,\n' "$(apply_plan_json_escape "${SUMMARY_JSON_SECONDARY:-}")"
+    printf '    "state_dir": %s,\n' "$(apply_plan_json_escape "${STATE_DIR:-}")"
+    printf '    "state_json": %s,\n' "$(apply_plan_json_escape "${STATE_JSON_PATH:-}")"
+    printf '    "journal_jsonl": %s,\n' "$(apply_plan_json_escape "${STATE_JOURNAL_PATH:-}")"
+    printf '    "run_id": %s,\n' "$(apply_plan_json_escape "${RUN_ID:-}")"
     printf '    "apply_result_exists": %s\n' "$apply_result_exists"
     echo '  }'
     echo "}"
@@ -250,11 +262,18 @@ installer_write_summary_artifacts() {
   if [[ -n "${SUMMARY_JSON_SECONDARY:-}" ]]; then
     write_installer_summary_json "$SUMMARY_JSON_SECONDARY" "$exit_code"
   fi
+
+  if [[ -n "${STATE_JSON_PATH:-}" ]]; then
+    state_write_json "${INSTALLER_CHECKPOINT:-${INSTALLER_FINAL_STATUS:-running}}" "installer_on_exit"
+  fi
 }
 
 installer_on_exit() {
   local rc=$?
   trap - EXIT
+  if [[ -n "${STATE_JOURNAL_PATH:-}" ]]; then
+    state_append_journal "run.exit" "${INSTALLER_FINAL_STATUS:-unknown}" "exit_code=$rc" "${STATE_JSON_PATH:-}"
+  fi
   installer_write_summary_artifacts "$rc" || true
   exit "$rc"
 }
@@ -278,6 +297,34 @@ RUN_NGINX_TEST_AFTER_EXECUTE="0"
 NGINX_TEST_CMD="nginx -t"
 ASSUME_YES="0"
 SCRIPT_FLAGS_USED="0"
+RESUME_RUN_ID=""
+DOCTOR_RUN_ID=""
+INSTALLER_MODE="new"
+INSTALLER_CHECKPOINT="initialized"
+RESUME_STRATEGY="fresh"
+RESUME_SOURCE_RUN_ID=""
+RESUME_SOURCE_CHECKPOINT=""
+RESUME_SOURCE_PREFLIGHT_STATUS=""
+RESUME_SOURCE_GENERATOR_STATUS=""
+RESUME_SOURCE_APPLY_PLAN_STATUS=""
+RESUME_SOURCE_DRY_RUN_STATUS=""
+RESUME_SOURCE_EXECUTE_STATUS=""
+RESUME_SOURCE_FINAL_STATUS=""
+RESUME_SOURCE_CONFIG_PATH=""
+RESUME_SOURCE_OUTPUT_DIR_ABS=""
+RESUME_SOURCE_PREFLIGHT_REPORT_MD=""
+RESUME_SOURCE_PREFLIGHT_REPORT_JSON=""
+RESUME_SOURCE_APPLY_PLAN_PATH=""
+RESUME_SOURCE_APPLY_PLAN_JSON_PATH=""
+RESUME_SOURCE_APPLY_RESULT_PATH=""
+RESUME_SOURCE_SUMMARY_JSON_PRIMARY=""
+RESUME_SOURCE_SUMMARY_JSON_SECONDARY=""
+RESUME_SOURCE_INPUTS_ENV=""
+RESUME_SOURCE_JOURNAL_JSONL=""
+SHOULD_SKIP_INPUTS="0"
+SHOULD_SKIP_PREFLIGHT="0"
+SHOULD_SKIP_GENERATOR="0"
+SHOULD_SKIP_APPLY_PLAN="0"
 
 INSTALLER_PREFLIGHT_STATUS="pending"
 INSTALLER_GENERATOR_STATUS="pending"
@@ -287,6 +334,12 @@ INSTALLER_EXECUTE_STATUS="not-requested"
 INSTALLER_FINAL_STATUS="running"
 
 GENERATED_DIR="$ROOT_DIR/scripts/generated"
+RUNS_ROOT_DIR="$GENERATED_DIR/runs"
+RUN_ID=""
+STATE_DIR=""
+STATE_JSON_PATH=""
+STATE_JOURNAL_PATH=""
+STATE_INPUTS_PATH=""
 PREFLIGHT_REPORT_MD="$GENERATED_DIR/preflight.generated.md"
 PREFLIGHT_REPORT_JSON="$GENERATED_DIR/preflight.generated.json"
 SUMMARY_JSON_PRIMARY="$GENERATED_DIR/INSTALLER-SUMMARY.generated.json"
@@ -335,6 +388,10 @@ while [[ $# -gt 0 ]]; do
       RUN_NGINX_TEST_AFTER_EXECUTE="1"; SCRIPT_FLAGS_USED="1"; shift ;;
     --nginx-test-cmd)
       NGINX_TEST_CMD="$2"; SCRIPT_FLAGS_USED="1"; shift 2 ;;
+    --resume)
+      RESUME_RUN_ID="$2"; SCRIPT_FLAGS_USED="1"; shift 2 ;;
+    --doctor)
+      DOCTOR_RUN_ID="$2"; SCRIPT_FLAGS_USED="1"; shift 2 ;;
     --yes)
       ASSUME_YES="1"; SCRIPT_FLAGS_USED="1"; shift ;;
     -h|--help)
@@ -346,7 +403,64 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-ui_section "欢迎使用 github-mirror-template v0.3 实验性安装编排骨架"
+mkdir -p "$GENERATED_DIR" "$RUNS_ROOT_DIR"
+
+if [[ -n "$DOCTOR_RUN_ID" && -n "$RESUME_RUN_ID" ]]; then
+  ui_error "--doctor 与 --resume 不能同时使用"
+  exit 1
+fi
+
+if [[ -n "$DOCTOR_RUN_ID" ]]; then
+  state_doctor "$DOCTOR_RUN_ID"
+  exit 0
+fi
+
+if [[ -n "$RESUME_RUN_ID" ]]; then
+  INSTALLER_MODE="resume"
+  state_load_inputs_env "$RESUME_RUN_ID"
+  state_load_resume_context "$RESUME_RUN_ID"
+  ui_info "已读取历史运行输入：$RESUME_RUN_ID"
+
+  if [[ "$RESUME_SOURCE_PREFLIGHT_STATUS" != "blocked" && -n "$RESUME_SOURCE_CONFIG_PATH" && -f "$RESUME_SOURCE_CONFIG_PATH" ]]; then
+    SHOULD_SKIP_INPUTS="1"
+    SHOULD_SKIP_PREFLIGHT="1"
+  fi
+
+  if [[ "$RESUME_SOURCE_GENERATOR_STATUS" == "success" && -n "$RESUME_SOURCE_OUTPUT_DIR_ABS" && -d "$RESUME_SOURCE_OUTPUT_DIR_ABS" ]]; then
+    SHOULD_SKIP_GENERATOR="1"
+  fi
+
+  if [[ "$RESUME_SOURCE_APPLY_PLAN_STATUS" == "generated" && -n "$RESUME_SOURCE_APPLY_PLAN_JSON_PATH" && -f "$RESUME_SOURCE_APPLY_PLAN_JSON_PATH" ]]; then
+    SHOULD_SKIP_APPLY_PLAN="1"
+  fi
+
+  if [[ "$SHOULD_SKIP_APPLY_PLAN" == "1" ]]; then
+    RESUME_STRATEGY="reuse-apply-plan"
+  elif [[ "$SHOULD_SKIP_GENERATOR" == "1" ]]; then
+    RESUME_STRATEGY="reuse-generated-output"
+  elif [[ "$SHOULD_SKIP_PREFLIGHT" == "1" ]]; then
+    RESUME_STRATEGY="reuse-preflight"
+  else
+    RESUME_STRATEGY="re-enter-from-inputs"
+  fi
+
+  state_init_run "$RUNS_ROOT_DIR"
+  ASSUME_YES="1"
+else
+  state_init_run "$RUNS_ROOT_DIR"
+fi
+
+state_prepare_run "$INSTALLER_MODE"
+export RUNS_ROOT_DIR RUN_ID STATE_DIR STATE_JSON_PATH STATE_JOURNAL_PATH STATE_INPUTS_PATH
+export INSTALLER_MODE INSTALLER_CHECKPOINT RESUME_RUN_ID RESUME_STRATEGY
+
+ui_section "欢迎使用 github-mirror-template v0.3/v0.4 实验性安装编排骨架"
+ui_info "当前运行 ID：$RUN_ID"
+ui_info "运行状态目录：$STATE_DIR"
+if [[ "$INSTALLER_MODE" == "resume" ]]; then
+  ui_info "当前以 resume 模式启动：将复用历史输入并尽量跳过已完成阶段。"
+  ui_info "本次 resume 策略：$RESUME_STRATEGY（源运行：${RESUME_SOURCE_RUN_ID:-$RESUME_RUN_ID}，源 checkpoint：${RESUME_SOURCE_CHECKPOINT:-unknown}）"
+fi
 ui_info "当前阶段已打通：交互输入 → 配置生成 → 调 generator → apply dry-run / 保守式真实 apply"
 ui_info "本轮已新增输入分层：默认优先基础模式，仅在需要时进入高级路径配置。"
 ui_info "本轮也已补上最小非交互参数入口：可用 flags 直接驱动 generator / dry-run / 受控 apply。"
@@ -356,41 +470,111 @@ if [[ "$SCRIPT_FLAGS_USED" == "1" ]]; then
 fi
 
 echo
-prompt_or_keep DEPLOYMENT_NAME "请输入 deployment_name" "github-mirror-prod"
-prompt_or_keep BASE_DOMAIN "请输入基础域名 base_domain" "github.example.com"
-choose_or_keep DOMAIN_MODE "请选择域名模型" "flat-siblings" "nested"
-choose_or_keep PLATFORM "请选择部署平台" "bt-panel-nginx" "plain-nginx"
-prompt_path_or_keep TLS_CERT "请输入 TLS 证书路径 tls.cert" "/etc/ssl/example/fullchain.pem"
-prompt_path_or_keep TLS_KEY "请输入 TLS 私钥路径 tls.key" "/etc/ssl/example/privkey.pem"
+if [[ "$SHOULD_SKIP_INPUTS" == "1" ]]; then
+  state_mark_checkpoint "inputs-reused" "resume reuse previous inputs"
+  state_append_journal "inputs.reused" "ok" "resume reused previous inputs" "$STATE_INPUTS_PATH"
+  ui_section "恢复输入摘要"
+  ui_info "已复用历史输入与已生成配置，跳过交互输入阶段。"
+  print_config_summary
+else
+  state_mark_checkpoint "collect-inputs" "enter-input-collection"
+  state_append_journal "inputs.start" "running" "collecting installer inputs" "$STATE_INPUTS_PATH"
+  prompt_or_keep DEPLOYMENT_NAME "请输入 deployment_name" "github-mirror-prod"
+  prompt_or_keep BASE_DOMAIN "请输入基础域名 base_domain" "github.example.com"
+  choose_or_keep DOMAIN_MODE "请选择域名模型" "flat-siblings" "nested"
+  choose_or_keep PLATFORM "请选择部署平台" "bt-panel-nginx" "plain-nginx"
+  prompt_path_or_keep TLS_CERT "请输入 TLS 证书路径 tls.cert" "/etc/ssl/example/fullchain.pem"
+  prompt_path_or_keep TLS_KEY "请输入 TLS 私钥路径 tls.key" "/etc/ssl/example/privkey.pem"
 
-set_platform_defaults "$PLATFORM"
+  set_platform_defaults "$PLATFORM"
 
-if [[ -n "$INPUT_MODE" ]] && ! validate_choice "$INPUT_MODE" "basic" "advanced"; then
-  ui_error "input-mode 取值无效：$INPUT_MODE（仅支持 basic / advanced）"
-  exit 1
-fi
-
-PATH_OVERRIDE_COUNT=0
-for maybe_path in "$ERROR_ROOT" "$LOG_DIR" "$OUTPUT_DIR" "$NGINX_SNIPPETS_TARGET_HINT" "$NGINX_VHOST_TARGET_HINT"; do
-  [[ -n "$maybe_path" ]] && PATH_OVERRIDE_COUNT=$((PATH_OVERRIDE_COUNT + 1))
-done
-
-if [[ -z "$INPUT_MODE" && $PATH_OVERRIDE_COUNT -gt 0 ]]; then
-  INPUT_MODE="advanced"
-  ui_info "检测到路径级覆盖参数，已自动切换为 advanced 模式。"
-fi
-
-if [[ -z "$INPUT_MODE" ]]; then
-  if ui_confirm "是否进入高级路径配置（修改 error_root / log_dir / output_dir / nginx target hints）？" "N"; then
-    INPUT_MODE="advanced"
-  else
-    INPUT_MODE="basic"
+  if [[ -n "$INPUT_MODE" ]] && ! validate_choice "$INPUT_MODE" "basic" "advanced"; then
+    ui_error "input-mode 取值无效：$INPUT_MODE（仅支持 basic / advanced）"
+    exit 1
   fi
-fi
 
-if [[ "$INPUT_MODE" == "basic" && $PATH_OVERRIDE_COUNT -gt 0 ]]; then
-  ui_warn "你传入了路径级覆盖参数，但 input-mode=basic；为避免语义冲突，已自动切换到 advanced 模式。"
-  INPUT_MODE="advanced"
+  PATH_OVERRIDE_COUNT=0
+  for maybe_path in "$ERROR_ROOT" "$LOG_DIR" "$OUTPUT_DIR" "$NGINX_SNIPPETS_TARGET_HINT" "$NGINX_VHOST_TARGET_HINT"; do
+    [[ -n "$maybe_path" ]] && PATH_OVERRIDE_COUNT=$((PATH_OVERRIDE_COUNT + 1))
+  done
+
+  if [[ -z "$INPUT_MODE" && $PATH_OVERRIDE_COUNT -gt 0 ]]; then
+    INPUT_MODE="advanced"
+    ui_info "检测到路径级覆盖参数，已自动切换为 advanced 模式。"
+  fi
+
+  if [[ -z "$INPUT_MODE" ]]; then
+    if ui_confirm "是否进入高级路径配置（修改 error_root / log_dir / output_dir / nginx target hints）？" "N"; then
+      INPUT_MODE="advanced"
+    else
+      INPUT_MODE="basic"
+    fi
+  fi
+
+  if [[ "$INPUT_MODE" == "basic" && $PATH_OVERRIDE_COUNT -gt 0 ]]; then
+    ui_warn "你传入了路径级覆盖参数，但 input-mode=basic；为避免语义冲突，已自动切换到 advanced 模式。"
+    INPUT_MODE="advanced"
+  fi
+
+  if [[ "$PLATFORM" == "bt-panel-nginx" ]]; then
+    # shellcheck disable=SC1091
+    source "$ROOT_DIR/scripts/lib/platforms/bt-panel-nginx.sh"
+    PLATFORM_EXPLAIN_FN="platform_explain_bt_panel_nginx"
+    PLATFORM_PLAN_FN="platform_plan_bt_panel_nginx"
+  else
+    # shellcheck disable=SC1091
+    source "$ROOT_DIR/scripts/lib/platforms/plain-nginx.sh"
+    PLATFORM_EXPLAIN_FN="platform_explain_plain_nginx"
+    PLATFORM_PLAN_FN="platform_plan_plain_nginx"
+  fi
+
+  if [[ "$INPUT_MODE" == "advanced" ]]; then
+    INSTALL_INPUT_MODE="advanced"
+    prompt_path_or_keep ERROR_ROOT "请输入错误页目录 paths.error_root" "$DEFAULT_ERROR_ROOT"
+    prompt_path_or_keep LOG_DIR "请输入日志目录 paths.log_dir" "$DEFAULT_LOG_DIR"
+    prompt_path_or_keep OUTPUT_DIR "请输入输出目录 paths.output_dir" "$DEFAULT_OUTPUT_DIR"
+    prompt_path_or_keep NGINX_SNIPPETS_TARGET_HINT "请输入 snippets 目标提示路径" "$DEFAULT_NGINX_SNIPPETS_TARGET_HINT"
+    prompt_path_or_keep NGINX_VHOST_TARGET_HINT "请输入 vhost 目标提示路径" "$DEFAULT_NGINX_VHOST_TARGET_HINT"
+  else
+    INSTALL_INPUT_MODE="basic"
+    ERROR_ROOT="$DEFAULT_ERROR_ROOT"
+    LOG_DIR="$DEFAULT_LOG_DIR"
+    OUTPUT_DIR="$DEFAULT_OUTPUT_DIR"
+    NGINX_SNIPPETS_TARGET_HINT="$DEFAULT_NGINX_SNIPPETS_TARGET_HINT"
+    NGINX_VHOST_TARGET_HINT="$DEFAULT_NGINX_VHOST_TARGET_HINT"
+
+    ui_section "已采用平台默认路径"
+    echo "- 输入模式：基础模式"
+    echo "- paths.error_root: $ERROR_ROOT"
+    echo "- paths.log_dir: $LOG_DIR"
+    echo "- paths.output_dir: $OUTPUT_DIR"
+    echo "- nginx.snippets_target_hint: $NGINX_SNIPPETS_TARGET_HINT"
+    echo "- nginx.vhost_target_hint: $NGINX_VHOST_TARGET_HINT"
+  fi
+
+  ui_section "平台说明"
+  "$PLATFORM_EXPLAIN_FN"
+
+  ui_section "配置摘要"
+  print_config_summary
+  state_mark_checkpoint "inputs-confirmed" "input summary ready"
+  state_append_journal "inputs.confirmed" "ok" "input summary ready" "$STATE_INPUTS_PATH"
+
+  ui_section "DNS 摘要"
+  dns_print_summary "$BASE_DOMAIN" "$DOMAIN_MODE"
+
+  ui_section "TLS 摘要"
+  tls_print_summary "$TLS_CERT" "$TLS_KEY"
+
+  if [[ "$ASSUME_YES" == "1" ]]; then
+    ui_info "已使用 --yes，自动确认配置摘要并继续。"
+  else
+    if ! ui_confirm "是否确认以上输入摘要并继续 preflight / generator？" "Y"; then
+      INSTALLER_FINAL_STATUS="cancelled"
+      ui_info "已在摘要确认阶段取消；请重新运行 installer 并修正输入。"
+      exit 0
+    fi
+  fi
 fi
 
 if [[ "$PLATFORM" == "bt-panel-nginx" ]]; then
@@ -405,65 +589,41 @@ else
   PLATFORM_PLAN_FN="platform_plan_plain_nginx"
 fi
 
-if [[ "$INPUT_MODE" == "advanced" ]]; then
-  INSTALL_INPUT_MODE="advanced"
-  prompt_path_or_keep ERROR_ROOT "请输入错误页目录 paths.error_root" "$DEFAULT_ERROR_ROOT"
-  prompt_path_or_keep LOG_DIR "请输入日志目录 paths.log_dir" "$DEFAULT_LOG_DIR"
-  prompt_path_or_keep OUTPUT_DIR "请输入输出目录 paths.output_dir" "$DEFAULT_OUTPUT_DIR"
-  prompt_path_or_keep NGINX_SNIPPETS_TARGET_HINT "请输入 snippets 目标提示路径" "$DEFAULT_NGINX_SNIPPETS_TARGET_HINT"
-  prompt_path_or_keep NGINX_VHOST_TARGET_HINT "请输入 vhost 目标提示路径" "$DEFAULT_NGINX_VHOST_TARGET_HINT"
-else
-  INSTALL_INPUT_MODE="basic"
-  ERROR_ROOT="$DEFAULT_ERROR_ROOT"
-  LOG_DIR="$DEFAULT_LOG_DIR"
-  OUTPUT_DIR="$DEFAULT_OUTPUT_DIR"
-  NGINX_SNIPPETS_TARGET_HINT="$DEFAULT_NGINX_SNIPPETS_TARGET_HINT"
-  NGINX_VHOST_TARGET_HINT="$DEFAULT_NGINX_VHOST_TARGET_HINT"
-
-  ui_section "已采用平台默认路径"
-  echo "- 输入模式：基础模式"
-  echo "- paths.error_root: $ERROR_ROOT"
-  echo "- paths.log_dir: $LOG_DIR"
-  echo "- paths.output_dir: $OUTPUT_DIR"
-  echo "- nginx.snippets_target_hint: $NGINX_SNIPPETS_TARGET_HINT"
-  echo "- nginx.vhost_target_hint: $NGINX_VHOST_TARGET_HINT"
-fi
-
-ui_section "平台说明"
-"$PLATFORM_EXPLAIN_FN"
-
-ui_section "配置摘要"
-print_config_summary
-
-ui_section "DNS 摘要"
-dns_print_summary "$BASE_DOMAIN" "$DOMAIN_MODE"
-
-ui_section "TLS 摘要"
-tls_print_summary "$TLS_CERT" "$TLS_KEY"
-
-if [[ "$ASSUME_YES" == "1" ]]; then
-  ui_info "已使用 --yes，自动确认配置摘要并继续。"
-else
-  if ! ui_confirm "是否确认以上输入摘要并继续 preflight / generator？" "Y"; then
-    INSTALLER_FINAL_STATUS="cancelled"
-    ui_info "已在摘要确认阶段取消；请重新运行 installer 并修正输入。"
-    exit 0
+if [[ "$SHOULD_SKIP_PREFLIGHT" == "1" ]]; then
+  INSTALLER_PREFLIGHT_STATUS="$RESUME_SOURCE_PREFLIGHT_STATUS"
+  if [[ -n "$RESUME_SOURCE_PREFLIGHT_REPORT_MD" ]]; then
+    PREFLIGHT_REPORT_MD="$RESUME_SOURCE_PREFLIGHT_REPORT_MD"
   fi
+  if [[ -n "$RESUME_SOURCE_PREFLIGHT_REPORT_JSON" ]]; then
+    PREFLIGHT_REPORT_JSON="$RESUME_SOURCE_PREFLIGHT_REPORT_JSON"
+  fi
+  if [[ -n "$RESUME_SOURCE_CONFIG_PATH" ]]; then
+    CONFIG_PATH="$RESUME_SOURCE_CONFIG_PATH"
+  fi
+  state_mark_checkpoint "preflight-reused" "resume reused preflight artifacts"
+  state_append_journal "preflight.reused" "ok" "resume reused preflight artifacts" "$PREFLIGHT_REPORT_JSON"
+  ui_section "基础 preflight"
+  ui_info "已复用历史 preflight 结果，跳过重新检查。"
+  ui_info "$PREFLIGHT_REPORT_MD"
+  ui_info "$PREFLIGHT_REPORT_JSON"
+  ui_info "$SUMMARY_JSON_PRIMARY"
+else
+  run_basic_checks
+  INSTALLER_PREFLIGHT_STATUS="$(check_preflight_status)"
+  state_mark_checkpoint "preflight-complete" "preflight status=$INSTALLER_PREFLIGHT_STATUS"
+  ui_section "基础 preflight"
+  print_check_report
+
+  mkdir -p "$GENERATED_DIR"
+  write_preflight_report_markdown "$PREFLIGHT_REPORT_MD"
+  write_preflight_report_json "$PREFLIGHT_REPORT_JSON"
+  state_append_journal "preflight.complete" "$INSTALLER_PREFLIGHT_STATUS" "preflight finished" "$PREFLIGHT_REPORT_JSON"
+
+  ui_section "已写出 preflight 报告"
+  ui_info "$PREFLIGHT_REPORT_MD"
+  ui_info "$PREFLIGHT_REPORT_JSON"
+  ui_info "$SUMMARY_JSON_PRIMARY"
 fi
-
-run_basic_checks
-INSTALLER_PREFLIGHT_STATUS="$(check_preflight_status)"
-ui_section "基础 preflight"
-print_check_report
-
-mkdir -p "$GENERATED_DIR"
-write_preflight_report_markdown "$PREFLIGHT_REPORT_MD"
-write_preflight_report_json "$PREFLIGHT_REPORT_JSON"
-
-ui_section "已写出 preflight 报告"
-ui_info "$PREFLIGHT_REPORT_MD"
-ui_info "$PREFLIGHT_REPORT_JSON"
-ui_info "$SUMMARY_JSON_PRIMARY"
 
 if has_blockers; then
   INSTALLER_FINAL_STATUS="blocked"
@@ -471,35 +631,73 @@ if has_blockers; then
   exit 2
 fi
 
-write_deploy_config "$CONFIG_PATH"
-
-ui_section "已生成配置文件"
-ui_info "$CONFIG_PATH"
-
-ui_section "开始调用 generator"
-INSTALLER_GENERATOR_STATUS="running"
-if "$ROOT_DIR/generate-from-config.sh" --config "$CONFIG_PATH"; then
+if [[ "$SHOULD_SKIP_GENERATOR" == "1" ]]; then
   INSTALLER_GENERATOR_STATUS="success"
+  if [[ -n "$RESUME_SOURCE_OUTPUT_DIR_ABS" ]]; then
+    OUTPUT_DIR_ABS="$RESUME_SOURCE_OUTPUT_DIR_ABS"
+  fi
+  state_mark_checkpoint "generator-reused" "resume reused generated output"
+  state_append_journal "generator.reused" "success" "resume reused previous generator output" "$OUTPUT_DIR_ABS"
+  ui_section "开始调用 generator"
+  ui_info "已复用历史 generator 输出，跳过重新调用 generate-from-config.sh。"
 else
-  rc=$?
-  INSTALLER_GENERATOR_STATUS="failed"
-  exit "$rc"
+  write_deploy_config "$CONFIG_PATH"
+  state_mark_checkpoint "config-written" "deploy config written"
+  state_append_journal "config.written" "ok" "deploy config generated" "$CONFIG_PATH"
+
+  ui_section "已生成配置文件"
+  ui_info "$CONFIG_PATH"
+
+  ui_section "开始调用 generator"
+  INSTALLER_GENERATOR_STATUS="running"
+  state_mark_checkpoint "generator-running" "calling generate-from-config.sh"
+  state_append_journal "generator.start" "running" "calling generator" "$CONFIG_PATH"
+  if "$ROOT_DIR/generate-from-config.sh" --config "$CONFIG_PATH"; then
+    INSTALLER_GENERATOR_STATUS="success"
+    state_mark_checkpoint "generator-success" "generator completed"
+  else
+    rc=$?
+    INSTALLER_GENERATOR_STATUS="failed"
+    exit "$rc"
+  fi
 fi
 
-OUTPUT_DIR_ABS="$OUTPUT_DIR"
-if [[ "$OUTPUT_DIR_ABS" != /* ]]; then
-  OUTPUT_DIR_ABS="$ROOT_DIR/${OUTPUT_DIR_ABS#./}"
+if [[ -z "$OUTPUT_DIR_ABS" ]]; then
+  OUTPUT_DIR_ABS="$OUTPUT_DIR"
+  if [[ "$OUTPUT_DIR_ABS" != /* ]]; then
+    OUTPUT_DIR_ABS="$ROOT_DIR/${OUTPUT_DIR_ABS#./}"
+  fi
 fi
 APPLY_PLAN_PATH="$OUTPUT_DIR_ABS/APPLY-PLAN.md"
 APPLY_PLAN_JSON_PATH="$OUTPUT_DIR_ABS/APPLY-PLAN.json"
 APPLY_RESULT_PATH="$OUTPUT_DIR_ABS/APPLY-RESULT.md"
 SUMMARY_JSON_SECONDARY="$OUTPUT_DIR_ABS/INSTALLER-SUMMARY.json"
 RENDERED_VALUES_PATH="$OUTPUT_DIR_ABS/RENDERED-VALUES.env"
-mkdir -p "$OUTPUT_DIR_ABS"
-write_apply_plan_markdown "$APPLY_PLAN_PATH" "$RENDERED_VALUES_PATH" "$CONFIG_PATH" "$OUTPUT_DIR_ABS"
-build_apply_plan "$OUTPUT_DIR_ABS" "$NGINX_SNIPPETS_TARGET_HINT" "$NGINX_VHOST_TARGET_HINT" "$ERROR_ROOT"
-write_apply_plan_json "$APPLY_PLAN_JSON_PATH" "plan-only" "$PLATFORM" "$OUTPUT_DIR_ABS" "$NGINX_SNIPPETS_TARGET_HINT" "$NGINX_VHOST_TARGET_HINT" "$ERROR_ROOT"
-INSTALLER_APPLY_PLAN_STATUS="generated"
+if [[ "$SHOULD_SKIP_APPLY_PLAN" == "1" ]]; then
+  INSTALLER_APPLY_PLAN_STATUS="generated"
+  if [[ -n "$RESUME_SOURCE_APPLY_PLAN_PATH" ]]; then
+    APPLY_PLAN_PATH="$RESUME_SOURCE_APPLY_PLAN_PATH"
+  fi
+  if [[ -n "$RESUME_SOURCE_APPLY_PLAN_JSON_PATH" ]]; then
+    APPLY_PLAN_JSON_PATH="$RESUME_SOURCE_APPLY_PLAN_JSON_PATH"
+  fi
+  if [[ -n "$RESUME_SOURCE_APPLY_RESULT_PATH" ]]; then
+    APPLY_RESULT_PATH="$RESUME_SOURCE_APPLY_RESULT_PATH"
+  fi
+  if [[ -n "$RESUME_SOURCE_SUMMARY_JSON_SECONDARY" ]]; then
+    SUMMARY_JSON_SECONDARY="$RESUME_SOURCE_SUMMARY_JSON_SECONDARY"
+  fi
+  state_mark_checkpoint "apply-plan-reused" "resume reused apply plan artifacts"
+  state_append_journal "apply-plan.reused" "generated" "resume reused apply plan artifacts" "$APPLY_PLAN_JSON_PATH"
+else
+  mkdir -p "$OUTPUT_DIR_ABS"
+  write_apply_plan_markdown "$APPLY_PLAN_PATH" "$RENDERED_VALUES_PATH" "$CONFIG_PATH" "$OUTPUT_DIR_ABS"
+  build_apply_plan "$OUTPUT_DIR_ABS" "$NGINX_SNIPPETS_TARGET_HINT" "$NGINX_VHOST_TARGET_HINT" "$ERROR_ROOT"
+  write_apply_plan_json "$APPLY_PLAN_JSON_PATH" "plan-only" "$PLATFORM" "$OUTPUT_DIR_ABS" "$NGINX_SNIPPETS_TARGET_HINT" "$NGINX_VHOST_TARGET_HINT" "$ERROR_ROOT"
+  INSTALLER_APPLY_PLAN_STATUS="generated"
+  state_mark_checkpoint "apply-plan-generated" "apply plan artifacts ready"
+  state_append_journal "apply-plan.complete" "generated" "apply plan generated" "$APPLY_PLAN_JSON_PATH"
+fi
 
 ui_section "Apply Plan（当前步骤仅输出计划）"
 echo "- 将使用生成配置：$CONFIG_PATH"
@@ -530,8 +728,12 @@ printf '\n'
 if [[ "$RUN_APPLY_DRY_RUN" == "1" ]]; then
   ui_section "执行 apply dry-run 预演"
   INSTALLER_DRY_RUN_STATUS="running"
+  state_mark_checkpoint "apply-dry-run-running" "apply dry-run start"
+  state_append_journal "apply-dry-run.start" "running" "apply dry-run start" "$APPLY_PLAN_JSON_PATH"
   if "${APPLY_CMD[@]}"; then
     INSTALLER_DRY_RUN_STATUS="success"
+    state_mark_checkpoint "apply-dry-run-success" "apply dry-run success"
+    state_append_journal "apply-dry-run.complete" "success" "apply dry-run success" "$APPLY_RESULT_PATH"
   else
     rc=$?
     INSTALLER_DRY_RUN_STATUS="failed"
@@ -544,8 +746,12 @@ else
   if ui_confirm "是否立即执行一次 apply dry-run 预演？" "N"; then
     ui_section "执行 apply dry-run 预演"
     INSTALLER_DRY_RUN_STATUS="running"
+    state_mark_checkpoint "apply-dry-run-running" "apply dry-run start"
+    state_append_journal "apply-dry-run.start" "running" "apply dry-run start" "$APPLY_PLAN_JSON_PATH"
     if "${APPLY_CMD[@]}"; then
       INSTALLER_DRY_RUN_STATUS="success"
+      state_mark_checkpoint "apply-dry-run-success" "apply dry-run success"
+      state_append_journal "apply-dry-run.complete" "success" "apply dry-run success" "$APPLY_RESULT_PATH"
     else
       rc=$?
       INSTALLER_DRY_RUN_STATUS="failed"
@@ -605,8 +811,12 @@ if [[ "$EXECUTE_APPLY" == "1" ]]; then
     printf '%q ' "${EXECUTE_APPLY_CMD[@]}"
     printf '\n'
     INSTALLER_EXECUTE_STATUS="running"
+    state_mark_checkpoint "apply-execute-running" "real apply start"
+    state_append_journal "apply-execute.start" "running" "real apply start" "$APPLY_RESULT_PATH"
     if "${EXECUTE_APPLY_CMD[@]}"; then
       INSTALLER_EXECUTE_STATUS="success"
+      state_mark_checkpoint "apply-execute-success" "real apply success"
+      state_append_journal "apply-execute.complete" "success" "real apply success" "$APPLY_RESULT_PATH"
     else
       rc=$?
       INSTALLER_EXECUTE_STATUS="failed"
@@ -659,8 +869,12 @@ else
       printf '%q ' "${EXECUTE_APPLY_CMD[@]}"
       printf '\n'
       INSTALLER_EXECUTE_STATUS="running"
+      state_mark_checkpoint "apply-execute-running" "real apply start"
+      state_append_journal "apply-execute.start" "running" "real apply start" "$APPLY_RESULT_PATH"
       if "${EXECUTE_APPLY_CMD[@]}"; then
         INSTALLER_EXECUTE_STATUS="success"
+        state_mark_checkpoint "apply-execute-success" "real apply success"
+        state_append_journal "apply-execute.complete" "success" "real apply success" "$APPLY_RESULT_PATH"
       else
         rc=$?
         INSTALLER_EXECUTE_STATUS="failed"
@@ -677,4 +891,6 @@ else
 fi
 
 INSTALLER_FINAL_STATUS="success"
+state_mark_checkpoint "completed" "installer completed"
+state_append_journal "run.complete" "success" "installer completed" "$SUMMARY_JSON_SECONDARY"
 ui_info "骨架阶段完成：已打通交互输入、配置生成、generator 调用，以及 apply dry-run / 保守式真实 apply 流程。"

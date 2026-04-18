@@ -81,6 +81,9 @@ cp deploy.example.yaml deploy.yaml
 
 - 中文交互收集基础部署参数
 - 也支持用 flags 直接覆盖常用输入
+- 支持为每次 installer 运行生成 `run_id` 与运行状态目录（`scripts/generated/runs/<run_id>/`）
+- 支持 `--doctor <run_id>` 查看某次运行的 state/journal/产物摘要
+- 支持 `--resume <run_id>` 复用上次输入，并在条件满足时跳过已完成的 preflight / generator / apply plan 阶段
 - 基础 preflight 摘要
 - 额外落盘 `scripts/generated/preflight.generated.md`
 - 额外落盘 `scripts/generated/preflight.generated.json`
@@ -112,6 +115,8 @@ cp deploy.example.yaml deploy.yaml
 
 ```bash
 ./install-interactive.sh --help
+./install-interactive.sh --doctor <run_id>
+./install-interactive.sh --resume <run_id>
 ./apply-generated-package.sh --help
 ```
 
