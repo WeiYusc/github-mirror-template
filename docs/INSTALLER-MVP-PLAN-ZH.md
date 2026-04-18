@@ -138,6 +138,8 @@ github-mirror-template/
 - 根据已生成的包执行落地
 - 支持非交互 apply
 - 在当前阶段至少支持 `--dry-run` / `--print-plan`
+- 输出候选复制计划（candidate copy plan）
+- 在进入真实 apply 前执行目标路径 / 部署包结构校验
 - 集中处理复制、备份、测试、reload 逻辑
 
 ## 4.3 `scripts/lib/ui.sh`
@@ -189,7 +191,16 @@ github-mirror-template/
 - 生成备份路径清单
 - 在当前阶段至少提供备份计划输出骨架
 
-## 4.9 `scripts/lib/platforms/*.sh`
+## 4.9 `scripts/lib/apply-plan.sh`
+
+职责：
+
+- 校验部署包结构是否完整
+- 校验目标路径输入是否基本合理
+- 输出逐文件 candidate copy plan
+- 为真实 apply 前的安全台阶提供统一入口
+
+## 4.10 `scripts/lib/platforms/*.sh`
 
 职责：
 

@@ -26,6 +26,8 @@ ROOT_DIR="$SCRIPT_DIR"
 
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/backup.sh"
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib/apply-plan.sh"
 
 FROM_PATH=""
 PLATFORM=""
@@ -110,17 +112,9 @@ cat <<EOF
 [apply] 模式：$([[ "$DRY_RUN" == "1" ]] && echo 'dry-run' || echo 'plan-only')
 EOF
 
-if [[ ! -d "$FROM_PATH/conf.d" ]]; then
-  echo "[apply][warn] 未发现 $FROM_PATH/conf.d，后续真正 apply 前请先确认部署包结构。"
-fi
-if [[ ! -d "$FROM_PATH/snippets" ]]; then
-  echo "[apply][warn] 未发现 $FROM_PATH/snippets，后续真正 apply 前请先确认部署包结构。"
-fi
-if [[ ! -f "$FROM_PATH/DEPLOY-STEPS.md" ]]; then
-  echo "[apply][warn] 未发现 $FROM_PATH/DEPLOY-STEPS.md，建议先回看 generator 输出。"
-fi
-if [[ ! -d "$FROM_PATH/html/errors" && ! -d "$FROM_PATH/errors" ]]; then
-  echo "[apply][warn] 部署包内未发现显式错误页目录；请结合 DEPLOY-STEPS.md 与模板结构人工确认。"
+if ! validate_apply_inputs "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"; then
+  echo "[apply] 存在阻断项，停止继续输出 apply 计划。" >&2
+  exit 5
 fi
 
 NGINX_SNIPPETS_TARGET_HINT="$SNIPPETS_TARGET"
@@ -132,6 +126,9 @@ if [[ "$PRINT_PLAN" == "1" || "$DRY_RUN" == "1" ]]; then
   echo "[apply] 计划摘要："
 fi
 "$PLAN_FN" "$FROM_PATH"
+
+echo
+print_copy_candidates "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
 
 echo
 run_backup_stub "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
