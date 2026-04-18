@@ -146,6 +146,8 @@ cat <<EOF
 EOF
 
 if ! validate_apply_inputs "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"; then
+  write_apply_result_markdown "$RESULT_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "not-run" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT" "blocked"
+  echo "[apply] 已写出结果摘要：$RESULT_FILE" >&2
   echo "[apply] 存在阻断项，停止继续。" >&2
   exit 6
 fi
@@ -166,6 +168,7 @@ print_copy_candidates "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_RO
 echo
 if [[ "$EXECUTE" == "1" ]]; then
   local_nginx_test_status="not-run"
+  local_result_status="ok"
   run_backup_real "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
   echo
   run_apply_copy "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
@@ -177,6 +180,7 @@ if [[ "$EXECUTE" == "1" ]]; then
       echo "[apply] nginx 测试通过。"
     else
       local_nginx_test_status="1"
+      local_result_status="needs-attention"
       echo "[apply][warn] nginx 测试失败；当前未自动 reload，也未自动回滚。" >&2
       echo
       print_rollback_guidance "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
@@ -184,11 +188,11 @@ if [[ "$EXECUTE" == "1" ]]; then
   fi
   echo
   print_execute_summary "$BACKUP_DIR" "$RUN_NGINX_TEST" "$local_nginx_test_status"
-  write_apply_result_markdown "$RESULT_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "$local_nginx_test_status" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
+  write_apply_result_markdown "$RESULT_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "$local_nginx_test_status" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT" "$local_result_status"
   echo "[apply] 已写出结果摘要：$RESULT_FILE"
 else
   run_backup_stub "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
-  write_apply_result_markdown "$RESULT_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "not-run" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
+  write_apply_result_markdown "$RESULT_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "not-run" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT" "ok"
   echo "[apply] 已写出结果摘要：$RESULT_FILE"
   echo "[apply] 当前不会执行真实复制、不会覆盖线上文件、不会 reload nginx"
 fi

@@ -47,36 +47,52 @@ validate_apply_inputs() {
   local error_root="$4"
 
   local blockers=0
+  local warnings=0
+
+  echo "[apply] 输入校验："
 
   if [[ ! -d "$from_path/conf.d" ]]; then
-    echo "[apply][block] 缺少部署包目录：$from_path/conf.d" >&2
-    blockers=1
+    echo "- [BLOCK] 缺少部署包目录：$from_path/conf.d" >&2
+    blockers=$((blockers + 1))
   fi
   if [[ ! -d "$from_path/snippets" ]]; then
-    echo "[apply][block] 缺少部署包目录：$from_path/snippets" >&2
-    blockers=1
+    echo "- [BLOCK] 缺少部署包目录：$from_path/snippets" >&2
+    blockers=$((blockers + 1))
   fi
   if [[ ! -d "$from_path/html/errors" ]]; then
-    echo "[apply][block] 缺少部署包目录：$from_path/html/errors" >&2
-    blockers=1
+    echo "- [BLOCK] 缺少部署包目录：$from_path/html/errors" >&2
+    blockers=$((blockers + 1))
   fi
   if [[ ! -f "$from_path/DEPLOY-STEPS.md" ]]; then
-    echo "[apply][block] 缺少部署包说明：$from_path/DEPLOY-STEPS.md" >&2
-    blockers=1
+    echo "- [BLOCK] 缺少部署包说明：$from_path/DEPLOY-STEPS.md" >&2
+    blockers=$((blockers + 1))
   fi
 
   if [[ "$snippets_target" != /* ]]; then
-    echo "[apply][warn] snippets 目标路径不是绝对路径：$snippets_target" >&2
+    echo "- [WARN] snippets 目标路径不是绝对路径：$snippets_target" >&2
+    warnings=$((warnings + 1))
   fi
   if [[ "$vhost_target" != /* ]]; then
-    echo "[apply][warn] vhost 目标路径不是绝对路径：$vhost_target" >&2
+    echo "- [WARN] vhost 目标路径不是绝对路径：$vhost_target" >&2
+    warnings=$((warnings + 1))
   fi
   if [[ "$error_root" != /* ]]; then
-    echo "[apply][warn] error_root 目标路径不是绝对路径：$error_root" >&2
+    echo "- [WARN] error_root 目标路径不是绝对路径：$error_root" >&2
+    warnings=$((warnings + 1))
   fi
 
+  echo "- BLOCK: $blockers"
+  echo "- WARN: $warnings"
+
   if [[ $blockers -ne 0 ]]; then
+    echo "[apply] 结论：存在 BLOCK 项，当前不能继续执行 apply。" >&2
     return 1
+  fi
+
+  if [[ $warnings -gt 0 ]]; then
+    echo "[apply] 结论：当前可继续，但建议先人工确认 WARN 项。"
+  else
+    echo "[apply] 结论：输入校验通过，可以继续。"
   fi
   return 0
 }
@@ -134,15 +150,18 @@ print_execute_summary() {
     if [[ "$nginx_test_status" == "0" ]]; then
       echo "- nginx 测试：通过"
       echo "- reload：未执行（默认保守）"
+      echo "- 结论：本次 apply 已完成，配置自检通过。"
       echo "- 下一步：如需继续，请人工确认后再决定是否 reload nginx"
     else
       echo "- nginx 测试：失败"
       echo "- reload：未执行"
+      echo "- 结论：本次 apply 已落盘，但 nginx 自检未通过。"
       echo "- 下一步：建议先按回滚提示恢复，再重新执行 nginx -t"
     fi
   else
     echo "- nginx 测试：未执行"
     echo "- reload：未执行（默认保守）"
+    echo "- 结论：本次 apply 已落盘，但尚未做 nginx 自检。"
     echo "- 下一步：如需继续，请手工执行 nginx -t"
   fi
 }
@@ -157,12 +176,15 @@ write_apply_result_markdown() {
   local snippets_target="$7"
   local vhost_target="$8"
   local error_root="$9"
+  local final_status="${10:-ok}"
 
   mkdir -p "$(dirname "$result_file")"
 
   local nginx_summary="未执行"
   local next_step="当前未进入真实执行。"
-  if [[ "$run_nginx_test" == "1" && "$nginx_test_status" == "0" ]]; then
+  if [[ "$final_status" == "blocked" ]]; then
+    next_step="请先补齐缺失目录或部署说明文件，再重新执行 apply。"
+  elif [[ "$run_nginx_test" == "1" && "$nginx_test_status" == "0" ]]; then
     nginx_summary="通过"
     next_step="如需继续，请人工确认后再决定是否 reload nginx。"
   elif [[ "$run_nginx_test" == "1" && "$nginx_test_status" != "not-run" ]]; then
@@ -179,6 +201,7 @@ write_apply_result_markdown() {
 
 - 模式：$mode
 - 平台：$platform
+- 状态：$final_status
 - 备份目录：$backup_dir
 - snippets 目标：$snippets_target
 - vhost 目标：$vhost_target

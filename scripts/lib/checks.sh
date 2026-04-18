@@ -61,6 +61,8 @@ print_check_report() {
 
   if [[ $blocker_count -eq 0 && $warning_count -eq 0 ]]; then
     echo "- PASS: 未发现阻断项或警告"
+    echo
+    echo "结论：当前可以继续进入 generator / apply 下一步。"
     return 0
   fi
 
@@ -78,6 +80,11 @@ print_check_report() {
     for item in "${CHECK_BLOCKERS[@]}"; do
       echo "- [BLOCK] $item"
     done
+    echo
+    echo "结论：存在 BLOCK 项；请先处理后再继续。"
+  else
+    echo
+    echo "结论：当前可继续，但建议先人工确认 WARN 项。"
   fi
 }
 

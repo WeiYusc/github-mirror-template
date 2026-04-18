@@ -91,7 +91,7 @@ ui_section "基础 preflight"
 print_check_report
 
 if has_blockers; then
-  ui_error "存在 BLOCK 项，当前停止，不继续调用 generator。"
+  ui_error "存在 BLOCK 项，当前停止，不继续调用 generator。请先修复后重新运行 installer。"
   exit 2
 fi
 
