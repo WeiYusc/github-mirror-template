@@ -198,7 +198,7 @@ LOG_DIR=/www/wwwlogs
 - `DEPLOY-CONFIG.md`
 - `generate-from-config.sh`
 
-## 5.1 最短路径
+## 6.1 最短路径
 
 ```bash
 cp deploy.example.yaml deploy.yaml
@@ -220,7 +220,7 @@ cp deploy.example.yaml deploy.yaml
 - `RISK-NOTES.md`
 - `SUMMARY.md`
 
-## 5.2 这一入口的边界
+## 6.2 这一入口的边界
 
 它会：
 
@@ -332,15 +332,15 @@ cp deploy.example.yaml deploy.yaml
 
 你通常需要做 3 类落地：
 
-## 9.1 snippets
+## 11.1 snippets
 
 把渲染结果中的 `snippets/` 放到你的 Nginx snippets 目录。
 
-## 9.2 errors
+## 11.2 errors
 
 把 `html/errors/` 放到 `ERROR_ROOT`。
 
-## 9.3 站点 conf
+## 11.3 站点 conf
 
 把 `conf.d/*.conf` 中的逻辑整理到你的宝塔 vhost 文件里。
 
