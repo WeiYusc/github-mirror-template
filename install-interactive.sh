@@ -52,22 +52,22 @@ ui_prompt DEPLOYMENT_NAME "请输入 deployment_name" "github-mirror-prod"
 ui_prompt BASE_DOMAIN "请输入基础域名 base_domain" "github.example.com"
 ui_choose DOMAIN_MODE "请选择域名模型" "flat-siblings" "nested"
 ui_choose PLATFORM "请选择部署平台" "bt-panel-nginx" "plain-nginx"
-ui_prompt TLS_CERT "请输入 TLS 证书路径 tls.cert" "/etc/ssl/example/fullchain.pem"
-ui_prompt TLS_KEY "请输入 TLS 私钥路径 tls.key" "/etc/ssl/example/privkey.pem"
-ui_prompt ERROR_ROOT "请输入错误页目录 paths.error_root" "/www/wwwroot/github-mirror-errors"
-ui_prompt LOG_DIR "请输入日志目录 paths.log_dir" "/www/wwwlogs"
-ui_prompt OUTPUT_DIR "请输入输出目录 paths.output_dir" "./dist/${DEPLOYMENT_NAME}"
+ui_prompt_path TLS_CERT "请输入 TLS 证书路径 tls.cert" "/etc/ssl/example/fullchain.pem"
+ui_prompt_path TLS_KEY "请输入 TLS 私钥路径 tls.key" "/etc/ssl/example/privkey.pem"
+ui_prompt_path ERROR_ROOT "请输入错误页目录 paths.error_root" "/www/wwwroot/github-mirror-errors"
+ui_prompt_path LOG_DIR "请输入日志目录 paths.log_dir" "/www/wwwlogs"
+ui_prompt_path OUTPUT_DIR "请输入输出目录 paths.output_dir" "./dist/${DEPLOYMENT_NAME}"
 
 if [[ "$PLATFORM" == "bt-panel-nginx" ]]; then
-  ui_prompt NGINX_SNIPPETS_TARGET_HINT "请输入 snippets 目标提示路径" "/www/server/nginx/snippets"
-  ui_prompt NGINX_VHOST_TARGET_HINT "请输入 vhost 目标提示路径" "/www/server/panel/vhost/nginx"
+  ui_prompt_path NGINX_SNIPPETS_TARGET_HINT "请输入 snippets 目标提示路径" "/www/server/nginx/snippets"
+  ui_prompt_path NGINX_VHOST_TARGET_HINT "请输入 vhost 目标提示路径" "/www/server/panel/vhost/nginx"
   # shellcheck disable=SC1091
   source "$ROOT_DIR/scripts/lib/platforms/bt-panel-nginx.sh"
   PLATFORM_EXPLAIN_FN="platform_explain_bt_panel_nginx"
   PLATFORM_PLAN_FN="platform_plan_bt_panel_nginx"
 else
-  ui_prompt NGINX_SNIPPETS_TARGET_HINT "请输入 snippets 目标提示路径" "/etc/nginx/snippets"
-  ui_prompt NGINX_VHOST_TARGET_HINT "请输入 vhost 目标提示路径" "/etc/nginx/conf.d"
+  ui_prompt_path NGINX_SNIPPETS_TARGET_HINT "请输入 snippets 目标提示路径" "/etc/nginx/snippets"
+  ui_prompt_path NGINX_VHOST_TARGET_HINT "请输入 vhost 目标提示路径" "/etc/nginx/conf.d"
   # shellcheck disable=SC1091
   source "$ROOT_DIR/scripts/lib/platforms/plain-nginx.sh"
   PLATFORM_EXPLAIN_FN="platform_explain_plain_nginx"
@@ -85,6 +85,11 @@ dns_print_summary "$BASE_DOMAIN" "$DOMAIN_MODE"
 
 ui_section "TLS 摘要"
 tls_print_summary "$TLS_CERT" "$TLS_KEY"
+
+if ! ui_confirm "是否确认以上输入摘要并继续 preflight / generator？" "Y"; then
+  ui_info "已在摘要确认阶段取消；请重新运行 installer 并修正输入。"
+  exit 0
+fi
 
 run_basic_checks
 ui_section "基础 preflight"
@@ -150,7 +155,7 @@ if ui_confirm "是否继续执行一次真实 apply（默认仍不 reload）？"
   WILL_RUN_NGINX_TEST="0"
   NGINX_TEST_CMD="nginx -t"
   BACKUP_DIR_DEFAULT="$(backup_plan_default_dir)"
-  ui_prompt BACKUP_DIR "请输入本次 apply 的备份目录" "$BACKUP_DIR_DEFAULT"
+  ui_prompt_path BACKUP_DIR "请输入本次 apply 的备份目录" "$BACKUP_DIR_DEFAULT"
 
   EXECUTE_APPLY_CMD=(
     "./apply-generated-package.sh"

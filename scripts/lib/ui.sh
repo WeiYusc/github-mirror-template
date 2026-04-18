@@ -49,6 +49,46 @@ ui_prompt() {
   printf -v "$var_name" '%s' "$answer"
 }
 
+ui_value_looks_like_yes_no() {
+  case "$1" in
+    y|Y|yes|YES|Yes|n|N|no|NO|No) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+ui_value_looks_like_path() {
+  local value="$1"
+  [[ "$value" == /* || "$value" == ./* || "$value" == ../* || "$value" == '~/'* || "$value" == *"/"* || "$value" == "." || "$value" == ".." ]]
+}
+
+ui_prompt_path() {
+  local var_name="$1"
+  local prompt="$2"
+  local default="${3:-}"
+  local answer=""
+
+  while true; do
+    if [[ -n "$default" ]]; then
+      read -r -p "$prompt [$default]: " answer || true
+      answer="${answer:-$default}"
+    else
+      read -r -p "$prompt: " answer || true
+    fi
+
+    if ui_value_looks_like_yes_no "$answer" && ! ui_value_looks_like_path "$answer"; then
+      ui_warn "你输入的是 \"$answer\"，看起来像确认回答，不像路径。"
+      if ui_confirm "仍然使用这个值作为路径吗？" "N"; then
+        printf -v "$var_name" '%s' "$answer"
+        return 0
+      fi
+      continue
+    fi
+
+    printf -v "$var_name" '%s' "$answer"
+    return 0
+  done
+}
+
 ui_choose() {
   local var_name="$1"
   local prompt="$2"
