@@ -92,14 +92,14 @@ write_apply_plan_markdown() {
 
 ## 6. 参考命令
 
-```bash
+~~~bash
 ./apply-generated-package.sh \
   --from "${output_dir_abs}" \
   --platform "${PLATFORM}" \
   --snippets-target "${NGINX_SNIPPETS_TARGET_HINT}" \
   --vhost-target "${NGINX_VHOST_TARGET_HINT}" \
   --error-root "${ERROR_ROOT}"
-```
+~~~
 EOF
 }
 

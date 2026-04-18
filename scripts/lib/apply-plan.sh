@@ -143,3 +143,46 @@ print_execute_summary() {
     echo "- reload：未执行（默认保守）"
   fi
 }
+
+write_apply_result_markdown() {
+  local result_file="$1"
+  local mode="$2"
+  local platform="$3"
+  local backup_dir="$4"
+  local run_nginx_test="$5"
+  local nginx_test_status="$6"
+  local snippets_target="$7"
+  local vhost_target="$8"
+  local error_root="$9"
+
+  mkdir -p "$(dirname "$result_file")"
+
+  local nginx_summary="未执行"
+  local next_step="当前未进入真实执行。"
+  if [[ "$run_nginx_test" == "1" && "$nginx_test_status" == "0" ]]; then
+    nginx_summary="通过"
+    next_step="如需继续，请人工确认后再决定是否 reload nginx。"
+  elif [[ "$run_nginx_test" == "1" && "$nginx_test_status" != "not-run" ]]; then
+    nginx_summary="失败"
+    next_step="建议先按备份目录回滚，再重新执行 nginx -t。"
+  elif [[ "$mode" == "execute" ]]; then
+    next_step="已完成备份与复制；如需继续，请手工执行 nginx -t。"
+  fi
+
+  cat > "$result_file" <<EOF
+# APPLY RESULT
+
+- 模式：$mode
+- 平台：$platform
+- 备份目录：$backup_dir
+- snippets 目标：$snippets_target
+- vhost 目标：$vhost_target
+- 错误页目标：$error_root
+- nginx 测试：$nginx_summary
+- reload：未执行
+
+## 下一步建议
+
+- $next_step
+EOF
+}

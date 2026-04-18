@@ -15,7 +15,8 @@ Usage:
     [--print-plan] \
     [--execute] \
     [--nginx-test-cmd <cmd>] \
-    [--run-nginx-test]
+    [--run-nginx-test] \
+    [--result-file <path>]
 
 Current stage:
   - Dry-run / print-plan by default
@@ -43,6 +44,7 @@ PRINT_PLAN="0"
 EXECUTE="0"
 RUN_NGINX_TEST="0"
 NGINX_TEST_CMD="nginx -t"
+RESULT_FILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --from)
@@ -67,6 +69,8 @@ while [[ $# -gt 0 ]]; do
       NGINX_TEST_CMD="$2"; shift 2 ;;
     --run-nginx-test)
       RUN_NGINX_TEST="1"; shift ;;
+    --result-file)
+      RESULT_FILE="$2"; shift 2 ;;
     -h|--help)
       usage; exit 0 ;;
     *)
@@ -99,6 +103,10 @@ fi
 
 if [[ -z "$BACKUP_DIR" ]]; then
   BACKUP_DIR="$(backup_plan_default_dir)"
+fi
+
+if [[ -z "$RESULT_FILE" ]]; then
+  RESULT_FILE="$FROM_PATH/APPLY-RESULT.md"
 fi
 
 case "$PLATFORM" in
@@ -134,6 +142,7 @@ cat <<EOF
 [apply] 错误页目标路径：$ERROR_ROOT
 [apply] 备份目录：$BACKUP_DIR
 [apply] nginx 测试命令：$NGINX_TEST_CMD
+[apply] 结果摘要文件：$RESULT_FILE
 EOF
 
 if ! validate_apply_inputs "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"; then
@@ -175,7 +184,11 @@ if [[ "$EXECUTE" == "1" ]]; then
   fi
   echo
   print_execute_summary "$BACKUP_DIR" "$RUN_NGINX_TEST" "$local_nginx_test_status"
+  write_apply_result_markdown "$RESULT_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "$local_nginx_test_status" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
+  echo "[apply] 已写出结果摘要：$RESULT_FILE"
 else
   run_backup_stub "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
+  write_apply_result_markdown "$RESULT_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "not-run" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
+  echo "[apply] 已写出结果摘要：$RESULT_FILE"
   echo "[apply] 当前不会执行真实复制、不会覆盖线上文件、不会 reload nginx"
 fi

@@ -142,4 +142,28 @@ else
   ui_info "已跳过 apply dry-run 预演。"
 fi
 
+if ui_confirm "是否继续执行一次真实 apply（默认仍不 reload）？" "N"; then
+  EXECUTE_APPLY_CMD=(
+    "./apply-generated-package.sh"
+    "--from" "$OUTPUT_DIR_ABS"
+    "--platform" "$PLATFORM"
+    "--snippets-target" "$NGINX_SNIPPETS_TARGET_HINT"
+    "--vhost-target" "$NGINX_VHOST_TARGET_HINT"
+    "--error-root" "$ERROR_ROOT"
+    "--execute"
+    "--result-file" "$OUTPUT_DIR_ABS/APPLY-RESULT.md"
+  )
+
+  if ui_confirm "是否在真实 apply 后立即执行 nginx -t？" "N"; then
+    EXECUTE_APPLY_CMD+=("--run-nginx-test")
+  fi
+
+  ui_section "执行真实 apply（默认不 reload）"
+  printf '%q ' "${EXECUTE_APPLY_CMD[@]}"
+  printf '\n'
+  "${EXECUTE_APPLY_CMD[@]}"
+else
+  ui_info "已跳过真实 apply。"
+fi
+
 ui_info "骨架阶段完成：已打通交互输入、配置生成、generator 调用与 apply plan 输出。"
