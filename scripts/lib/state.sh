@@ -444,6 +444,36 @@ if lineage:
     print(f"- lineage.source_resumed_from: {lineage.get('source_resumed_from', '') or '无'}")
     print(f"- lineage.resume_strategy: {lineage.get('resume_strategy', '')}")
     print(f"- lineage.resume_strategy_reason: {lineage.get('resume_strategy_reason', '')}")
+    print()
+    print("[doctor] lineage 摘要")
+    if lineage.get("is_resumed_run"):
+        source_run_id = lineage.get("source_run_id", "") or "未知"
+        source_checkpoint = lineage.get("source_checkpoint", "") or "未知"
+        source_resumed_from = lineage.get("source_resumed_from", "") or "无"
+        resume_strategy = lineage.get("resume_strategy", "") or "未记录"
+        resume_strategy_reason = lineage.get("resume_strategy_reason", "") or "未记录"
+        print(f"- 这是一轮 resumed run：当前运行继承自 {source_run_id}（source checkpoint: {source_checkpoint}）。")
+        if source_resumed_from != "无":
+            print(f"- 源运行自身也来自更早的一轮：{source_resumed_from}。")
+        else:
+            print("- 源运行本身不是已记录的 resumed run，当前链路到此为止。")
+        print(f"- 当前 resume 策略：{resume_strategy}。")
+        print(f"- 触发原因：{resume_strategy_reason}。")
+
+        operator_hint = "先结合 state / result artifacts 做常规复核。"
+        if resume_strategy in {"repair-review-first", "post-repair-verification"}:
+            operator_hint = "优先查看 repair 结果与 nginx test 相关输出，确认是否还需要人工处理。"
+        elif resume_strategy == "post-rollback-inspection":
+            operator_hint = "优先核对 rollback 结果与当前落地文件状态，确认是否适合继续后续动作。"
+        elif resume_strategy == "inspect-after-apply-attention":
+            operator_hint = "优先查看 apply result / recovery 建议，先理解为什么该 run 不推荐直接继续 apply。"
+        elif resume_strategy in {"reuse-apply-plan", "reuse-generated-output", "reuse-preflight"}:
+            operator_hint = "当前更像是复用既有产物继续推进；先确认复用产物仍然有效，再决定是否进入下一阶段。"
+        elif resume_strategy == "re-enter-from-inputs":
+            operator_hint = "当前只能从已保存输入重新进入；先确认输入仍然适用，再继续跑后续阶段。"
+        print(f"- 操作建议：{operator_hint}")
+    else:
+        print("- 这不是 resumed run；当前运行没有接续历史 run 的 lineage。")
 print()
 print("[doctor] 输入")
 inputs = state.get("inputs", {})
