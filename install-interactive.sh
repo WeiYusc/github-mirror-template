@@ -188,6 +188,17 @@ installer_json_bool() {
   fi
 }
 
+resume_strategy_allows_execute() {
+  case "${1:-}" in
+    post-rollback-inspection|post-repair-verification|repair-review-first|inspect-after-apply-attention)
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
 installer_determine_final_status() {
   if [[ "${INSTALLER_PREFLIGHT_STATUS:-pending}" == "blocked" ]]; then
     printf 'blocked'
@@ -398,6 +409,9 @@ APPLY_PLAN_PATH=""
 APPLY_PLAN_JSON_PATH=""
 APPLY_RESULT_PATH=""
 APPLY_RESULT_JSON_PATH=""
+CLI_REQUEST_RUN_APPLY_DRY_RUN="0"
+CLI_REQUEST_EXECUTE_APPLY="0"
+CLI_REQUEST_RUN_NGINX_TEST="0"
 
 trap installer_on_exit EXIT
 
@@ -452,6 +466,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+CLI_REQUEST_RUN_APPLY_DRY_RUN="$RUN_APPLY_DRY_RUN"
+CLI_REQUEST_EXECUTE_APPLY="$EXECUTE_APPLY"
+CLI_REQUEST_RUN_NGINX_TEST="$RUN_NGINX_TEST_AFTER_EXECUTE"
+
 mkdir -p "$GENERATED_DIR" "$RUNS_ROOT_DIR"
 
 if [[ -n "$DOCTOR_RUN_ID" && -n "$RESUME_RUN_ID" ]]; then
@@ -470,9 +488,9 @@ if [[ -n "$RESUME_RUN_ID" ]]; then
   state_load_resume_context "$RESUME_RUN_ID"
   ui_info "已读取历史运行输入：$RESUME_RUN_ID"
 
-  RUN_APPLY_DRY_RUN="0"
-  EXECUTE_APPLY="0"
-  RUN_NGINX_TEST_AFTER_EXECUTE="0"
+  RUN_APPLY_DRY_RUN="$CLI_REQUEST_RUN_APPLY_DRY_RUN"
+  EXECUTE_APPLY="$CLI_REQUEST_EXECUTE_APPLY"
+  RUN_NGINX_TEST_AFTER_EXECUTE="$CLI_REQUEST_RUN_NGINX_TEST"
 
   if [[ "$RESUME_SOURCE_PREFLIGHT_STATUS" != "blocked" && -n "$RESUME_SOURCE_CONFIG_PATH" && -f "$RESUME_SOURCE_CONFIG_PATH" ]]; then
     SHOULD_SKIP_INPUTS="1"
@@ -496,12 +514,10 @@ if [[ -n "$RESUME_RUN_ID" ]]; then
 
   if [[ "$RESUME_SOURCE_ROLLBACK_MODE" == "execute" && "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" == "ok" ]]; then
     RESUME_STRATEGY="post-rollback-inspection"
-    RUN_APPLY_DRY_RUN="0"
     EXECUTE_APPLY="0"
     RUN_NGINX_TEST_AFTER_EXECUTE="0"
   elif [[ "$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS" == "passed" ]]; then
     RESUME_STRATEGY="post-repair-verification"
-    RUN_APPLY_DRY_RUN="0"
     EXECUTE_APPLY="0"
     RUN_NGINX_TEST_AFTER_EXECUTE="0"
   elif [[ "$RESUME_SOURCE_REPAIR_FINAL_STATUS" == "needs-attention" || "$RESUME_SOURCE_REPAIR_FINAL_STATUS" == "blocked" ]]; then
@@ -516,6 +532,15 @@ if [[ -n "$RESUME_RUN_ID" ]]; then
     RESUME_STRATEGY="reuse-preflight"
   else
     RESUME_STRATEGY="re-enter-from-inputs"
+  fi
+
+  if ! resume_strategy_allows_execute "$RESUME_STRATEGY"; then
+    if [[ "$CLI_REQUEST_EXECUTE_APPLY" == "1" ]]; then
+      ui_error "当前 resume 策略 $RESUME_STRATEGY 不允许直接执行真实 apply；请先按 doctor / repair / rollback 结论完成复查。"
+      exit 2
+    fi
+    EXECUTE_APPLY="0"
+    RUN_NGINX_TEST_AFTER_EXECUTE="0"
   fi
 
   state_init_run "$RUNS_ROOT_DIR"

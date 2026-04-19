@@ -85,6 +85,7 @@ cp deploy.example.yaml deploy.yaml
 - 支持 `--doctor <run_id>` 查看某次运行的 state/journal/产物摘要
 - 支持 `--resume <run_id>` 复用上次输入，并在条件满足时跳过已完成的 preflight / generator / apply plan 阶段
 - `--resume` 现在会优先消费 run 级 `repair` / `rollback` 结果语义：若已执行 rollback，或 repair 的 nginx `-t` 重跑已通过 / 仍需人工处理，会默认收紧为“复查优先”，而不是继续把真实 apply 当默认下一步
+- 在这些 inspection-first 的 resume 策略下，仍允许你显式传 `--run-apply-dry-run` 做只读预演；但若显式传 `--execute-apply`，installer 现在会直接拒绝，避免把“继续看看”误变成“继续落地改写”
 - 基础 preflight 摘要
 - 额外落盘 `scripts/generated/preflight.generated.md`
 - 额外落盘 `scripts/generated/preflight.generated.json`
@@ -172,6 +173,9 @@ cp deploy.example.yaml deploy.yaml
   - rollback 已执行成功时，resume 会优先进入 **post-rollback inspection** 语义
   - repair 已把 `nginx -t` 重跑通过时，resume 会优先进入 **post-repair verification** 语义
   - repair 仍是 `needs-attention` / `blocked` 时，resume 会优先进入 **repair-review-first** 语义
+- 在这些 inspection-first 策略下：
+  - 仍可显式带 `--run-apply-dry-run` 做只读预演
+  - 但若显式带 `--execute-apply`，当前会直接拒绝，而不是默默降级或继续执行
 
 这使得 `--doctor` 不再只凭 checkpoint 粗略判断，而能区分：
 

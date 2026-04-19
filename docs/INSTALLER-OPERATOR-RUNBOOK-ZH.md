@@ -254,6 +254,9 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
 - 如果已经有 `ROLLBACK-RESULT.json` 且 rollback 已执行成功：
   - 会优先进入“post-rollback inspection”语义
   - 默认继续保持不继承真实 apply 意图
+- 在这些 inspection-first 语义下：
+  - 可以显式带 `--run-apply-dry-run` 再做一次只读预演
+  - 但若显式带 `--execute-apply`，当前实现会直接拒绝，要求先完成人工复查
 
 所以它更像“带上下文的保守续接”，不是“一键重试执行器”。
 
