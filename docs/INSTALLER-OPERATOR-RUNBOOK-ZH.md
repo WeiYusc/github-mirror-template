@@ -199,6 +199,27 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
 
 更常见的做法是直接从 `state.json` 里取 `artifacts.apply_result_json` 的真实路径，再把它传给 rollback helper。
 
+如果你当前还没决定是“撤回”还是“修一修再测”，先跑一轮 repair 诊断更稳：
+
+```bash
+./repair-applied-package.sh --result-json <APPLY-RESULT.json> --dry-run
+```
+
+它当前会：
+
+- 复核 apply result 里的 `NEW / REPLACE` 项现在是否还在目标机上
+- 复核 `REPLACE` 项对应备份是否齐全
+- 给出“更像该 rollback 还是更像该人工修配置”的保守提示
+- **不会**直接改文件
+
+如果你只是想重新验证当前配置有没有已经恢复正常，也可以再显式跑：
+
+```bash
+./repair-applied-package.sh --result-json <APPLY-RESULT.json> --execute --nginx-test-cmd 'nginx -t'
+```
+
+即便用了 `--execute`，当前也只是重跑 nginx 测试并记录结果，不会自动 reload nginx。
+
 ### 不要直接做的事
 
 - 不要把 `needs-attention` 当成“只是小 warning”

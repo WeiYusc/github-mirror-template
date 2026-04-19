@@ -121,6 +121,7 @@ cp deploy.example.yaml deploy.yaml
 ./install-interactive.sh --resume <run_id>
 ./apply-generated-package.sh --help
 ./rollback-applied-package.sh --help
+./repair-applied-package.sh --help
 ```
 
 另外，如果你需要针对异常状态做人工判断，现已补一份单独的操作者手册：
@@ -150,6 +151,13 @@ cp deploy.example.yaml deploy.yaml
 - `REPLACE` 类文件优先从备份恢复
 - `NEW` 类文件默认**不会删除**；只有显式传入 `--delete-new`，且当前目标仍与原始部署源一致时，才会纳入删除计划
 - 当前同样**不会**自动 reload nginx
+
+另外，还补了一个更轻量的 repair helper：
+
+- `./repair-applied-package.sh --result-json <APPLY-RESULT.json>`：默认只做 **post-apply 诊断**，不直接改写已部署文件
+- 重点适用于 `needs-attention` 场景，帮助判断当前更适合 **selective rollback** 还是 **人工修复后重跑 nginx -t**
+- `--execute` 当前也只会重跑 `nginx -t`（或你指定的 `--nginx-test-cmd`）并把结果落盘，不会自动 reload nginx
+- 会输出 `REPAIR-RESULT.md` / `REPAIR-RESULT.json`
 
 另外，`--resume <run_id>` 现在有一个更保守的新约束：
 

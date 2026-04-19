@@ -401,6 +401,7 @@ if apply_result:
     recovery = apply_result.get("recovery") or {}
     operator_action = recovery.get("operator_action", "")
     resume_recommended = recovery.get("resume_recommended")
+    apply_result_json_path = artifacts.get("apply_result_json", "")
     if apply_final == "blocked":
         if (summary.get("conflict") or 0) > 0:
             suggestion = "apply 结果显示存在冲突项；建议先处理目标文件冲突，再重新执行 apply / resume。"
@@ -409,9 +410,22 @@ if apply_result:
         else:
             suggestion = apply_result.get("next_step") or "apply 阶段被阻断；建议先处理阻断项后再 resume。"
     elif operator_action == "rollback-or-fix":
-        suggestion = "真实 apply 已落盘，但 nginx 测试失败；当前更适合先人工回滚或修复，再决定是否重跑，而不是直接 resume。"
+        if apply_result_json_path:
+            suggestion = (
+                "真实 apply 已落盘，但 nginx 测试失败；建议先运行 "
+                f"./repair-applied-package.sh --result-json {apply_result_json_path} --dry-run "
+                "做保守诊断，再决定 selective rollback 还是人工修复。"
+            )
+        else:
+            suggestion = "真实 apply 已落盘，但 nginx 测试失败；当前更适合先人工回滚或修复，再决定是否重跑，而不是直接 resume。"
     elif operator_action == "manual-nginx-test":
-        suggestion = "真实 apply 已落盘，但尚未执行 nginx -t；建议先手工执行 nginx -t，再决定是否继续。"
+        if apply_result_json_path:
+            suggestion = (
+                "真实 apply 已落盘，但尚未执行 nginx -t；建议先手工执行 nginx -t，"
+                f"必要时用 ./repair-applied-package.sh --result-json {apply_result_json_path} --dry-run 做诊断，再决定是否继续。"
+            )
+        else:
+            suggestion = "真实 apply 已落盘，但尚未执行 nginx -t；建议先手工执行 nginx -t，再决定是否继续。"
     elif status.get("apply_execute") == "success":
         suggestion = apply_result.get("next_step") or "真实 apply 已完成；建议人工确认后再决定是否 reload nginx。"
     elif status.get("apply_dry_run") == "success":
