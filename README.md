@@ -120,6 +120,7 @@ cp deploy.example.yaml deploy.yaml
 ./install-interactive.sh --doctor <run_id>
 ./install-interactive.sh --resume <run_id>
 ./apply-generated-package.sh --help
+./rollback-applied-package.sh --help
 ```
 
 另外，如果你需要针对异常状态做人工判断，现已补一份单独的操作者手册：
@@ -142,6 +143,13 @@ cp deploy.example.yaml deploy.yaml
 - `summary`：`new` / `replace` / `same` / `conflict` / `target_block` / `missing_source`
 - `targets`：snippets / vhost / error_root
 - `next_step`：当前建议的下一步动作
+
+另外，当前还新增了一个保守式 rollback helper：
+
+- `./rollback-applied-package.sh --result-json <APPLY-RESULT.json>`：默认只做 dry-run，按 `backup_dir` 规划 selective rollback
+- `REPLACE` 类文件优先从备份恢复
+- `NEW` 类文件默认**不会删除**；只有显式传入 `--delete-new`，且当前目标仍与原始部署源一致时，才会纳入删除计划
+- 当前同样**不会**自动 reload nginx
 
 另外，`--resume <run_id>` 现在有一个更保守的新约束：
 

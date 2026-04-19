@@ -191,12 +191,21 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
 ./install-interactive.sh --resume <run_id> --yes
 ```
 
+如果你已经确认本轮真实 apply 写入需要撤回，也可以先做一轮**保守式 selective rollback 预演**：
+
+```bash
+./rollback-applied-package.sh --result-json scripts/generated/runs/<run_id>/../<dist>/APPLY-RESULT.json --dry-run
+```
+
+更常见的做法是直接从 `state.json` 里取 `artifacts.apply_result_json` 的真实路径，再把它传给 rollback helper。
+
 ### 不要直接做的事
 
 - 不要把 `needs-attention` 当成“只是小 warning”
 - 不要默认 resume 就会替你安全修好
 - 不要不看 `APPLY-RESULT.json` 就重复执行真实 apply
 - 不要在没看手工 `nginx -t` 结果前直接继续生产动作
+- 不要在未审查 NEW/REPLACE 明细前直接执行 rollback helper 的 `--execute --delete-new`
 
 ### 这类状态下对 resume 的理解
 
