@@ -826,9 +826,20 @@ if [[ "$EXECUTE_APPLY" == "1" ]]; then
     state_mark_checkpoint "apply-execute-running" "real apply start"
     state_append_journal "apply-execute.start" "running" "real apply start" "$APPLY_RESULT_JSON_PATH"
     if "${EXECUTE_APPLY_CMD[@]}"; then
-      INSTALLER_EXECUTE_STATUS="success"
-      state_mark_checkpoint "apply-execute-success" "real apply success"
-      state_append_journal "apply-execute.complete" "success" "real apply success" "$APPLY_RESULT_JSON_PATH"
+      EXECUTE_RECOVERY_STATUS="$(python3 - "$APPLY_RESULT_JSON_PATH" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+if not p.exists():
+    print("success")
+else:
+    data = json.loads(p.read_text(encoding="utf-8"))
+    print((data.get("recovery") or {}).get("installer_status", "success"))
+PY
+)"
+      INSTALLER_EXECUTE_STATUS="$EXECUTE_RECOVERY_STATUS"
+      state_mark_checkpoint "apply-execute-success" "real apply status=$EXECUTE_RECOVERY_STATUS"
+      state_append_journal "apply-execute.complete" "$EXECUTE_RECOVERY_STATUS" "real apply status=$EXECUTE_RECOVERY_STATUS" "$APPLY_RESULT_JSON_PATH"
     else
       rc=$?
       INSTALLER_EXECUTE_STATUS="failed"
@@ -884,9 +895,20 @@ else
       state_mark_checkpoint "apply-execute-running" "real apply start"
       state_append_journal "apply-execute.start" "running" "real apply start" "$APPLY_RESULT_JSON_PATH"
       if "${EXECUTE_APPLY_CMD[@]}"; then
-        INSTALLER_EXECUTE_STATUS="success"
-        state_mark_checkpoint "apply-execute-success" "real apply success"
-        state_append_journal "apply-execute.complete" "success" "real apply success" "$APPLY_RESULT_JSON_PATH"
+        EXECUTE_RECOVERY_STATUS="$(python3 - "$APPLY_RESULT_JSON_PATH" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+if not p.exists():
+    print("success")
+else:
+    data = json.loads(p.read_text(encoding="utf-8"))
+    print((data.get("recovery") or {}).get("installer_status", "success"))
+PY
+)"
+        INSTALLER_EXECUTE_STATUS="$EXECUTE_RECOVERY_STATUS"
+        state_mark_checkpoint "apply-execute-success" "real apply status=$EXECUTE_RECOVERY_STATUS"
+        state_append_journal "apply-execute.complete" "$EXECUTE_RECOVERY_STATUS" "real apply status=$EXECUTE_RECOVERY_STATUS" "$APPLY_RESULT_JSON_PATH"
       else
         rc=$?
         INSTALLER_EXECUTE_STATUS="failed"

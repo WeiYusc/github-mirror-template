@@ -350,6 +350,17 @@ if apply_result:
     nginx_test = apply_result.get("nginx_test", {})
     print(f"- nginx_test.requested: {nginx_test.get('requested', False)}")
     print(f"- nginx_test.status: {nginx_test.get('status', '')}")
+    execution = apply_result.get("execution", {})
+    if execution:
+        print(f"- execution.backup_status: {execution.get('backup_status', '')}")
+        print(f"- execution.copy_status: {execution.get('copy_status', '')}")
+        print(f"- execution.reload_performed: {execution.get('reload_performed', False)}")
+    recovery = apply_result.get("recovery", {})
+    if recovery:
+        print(f"- recovery.installer_status: {recovery.get('installer_status', '')}")
+        print(f"- recovery.resume_strategy: {recovery.get('resume_strategy', '')}")
+        print(f"- recovery.resume_recommended: {recovery.get('resume_recommended', False)}")
+        print(f"- recovery.operator_action: {recovery.get('operator_action', '')}")
     summary = apply_result.get("summary", {})
     for key in ["new", "replace", "same", "conflict", "target_block", "missing_source"]:
         if key in summary:
@@ -374,6 +385,9 @@ if apply_result:
     apply_final = apply_result.get("final_status", "")
     nginx_status = (apply_result.get("nginx_test") or {}).get("status", "")
     summary = apply_result.get("summary") or {}
+    recovery = apply_result.get("recovery") or {}
+    operator_action = recovery.get("operator_action", "")
+    resume_recommended = recovery.get("resume_recommended")
     if apply_final == "blocked":
         if (summary.get("conflict") or 0) > 0:
             suggestion = "apply 结果显示存在冲突项；建议先处理目标文件冲突，再重新执行 apply / resume。"
@@ -381,12 +395,17 @@ if apply_result:
             suggestion = "apply 结果显示存在缺失源文件；建议先检查 generator 输出目录是否完整，再重新执行。"
         else:
             suggestion = apply_result.get("next_step") or "apply 阶段被阻断；建议先处理阻断项后再 resume。"
-    elif status.get("apply_execute") == "success" and nginx_status == "failed":
-        suggestion = "真实 apply 已执行，但 nginx 测试失败；建议优先按备份目录回滚，并手工复查 nginx -t。"
+    elif operator_action == "rollback-or-fix":
+        suggestion = "真实 apply 已落盘，但 nginx 测试失败；当前更适合先人工回滚或修复，再决定是否重跑，而不是直接 resume。"
+    elif operator_action == "manual-nginx-test":
+        suggestion = "真实 apply 已落盘，但尚未执行 nginx -t；建议先手工执行 nginx -t，再决定是否继续。"
     elif status.get("apply_execute") == "success":
         suggestion = apply_result.get("next_step") or "真实 apply 已完成；建议人工确认后再决定是否 reload nginx。"
     elif status.get("apply_dry_run") == "success":
         suggestion = "dry-run 已成功；若人工审核计划无误，可带 --execute-apply 继续真实 apply。"
+
+    if suggestion and resume_recommended is False:
+        suggestion += " 当前不建议把 resume 当作默认下一步。"
 
 if suggestion is None:
     if final_status in {"success", "cancelled"}:

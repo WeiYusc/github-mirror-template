@@ -131,7 +131,9 @@ cp deploy.example.yaml deploy.yaml
 
 - `mode`：`dry-run` / `execute`
 - `final_status`：如 `ok` / `blocked`
+- `execution`：`backup_status` / `copy_status` / `reload_performed`
 - `nginx_test.requested` 与 `nginx_test.status`
+- `recovery`：`installer_status` / `resume_strategy` / `resume_recommended` / `operator_action`
 - `summary`：`new` / `replace` / `same` / `conflict` / `target_block` / `missing_source`
 - `targets`：snippets / vhost / error_root
 - `next_step`：当前建议的下一步动作
@@ -139,7 +141,8 @@ cp deploy.example.yaml deploy.yaml
 这使得 `--doctor` 不再只凭 checkpoint 粗略判断，而能区分：
 
 - dry-run 已成功，但尚未真实 apply
-- 真实 apply 已执行，但 nginx 测试失败
+- 真实 apply 已执行，但尚未做 nginx 自检
+- 真实 apply 已执行，但 nginx 测试失败，当前更适合先人工恢复而不是直接 resume
 - apply 阶段被冲突、缺失源文件或目标阻断
 
 - 调用底层渲染器生成 conf/snippets/errors

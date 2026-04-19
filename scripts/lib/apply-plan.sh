@@ -379,16 +379,45 @@ write_apply_result_json() {
 
   local nginx_summary="not-run"
   local next_step="当前未进入真实执行。"
+  local backup_status="not-started"
+  local copy_status="not-started"
+  local installer_status="success"
+  local resume_strategy="plan-only"
+  local resume_recommended="true"
+  local operator_action="review-plan"
+
   if [[ "$final_status" == "blocked" ]]; then
+    installer_status="blocked"
+    resume_strategy="fix-blockers"
+    operator_action="fix-blockers"
     next_step="请先处理冲突项、缺失目录或目标根路径问题，再重新执行 apply。"
-  elif [[ "$run_nginx_test" == "1" && "$nginx_test_status" == "0" ]]; then
-    nginx_summary="passed"
-    next_step="如需继续，请人工确认后再决定是否 reload nginx。"
-  elif [[ "$run_nginx_test" == "1" && "$nginx_test_status" != "not-run" ]]; then
-    nginx_summary="failed"
-    next_step="建议先按备份目录回滚，再重新执行 nginx -t。"
   elif [[ "$mode" == "execute" ]]; then
-    next_step="已完成文件级备份与复制；如需继续，请手工执行 nginx -t。"
+    backup_status="completed"
+    copy_status="completed"
+    resume_recommended="false"
+    if [[ "$run_nginx_test" == "1" && "$nginx_test_status" == "0" ]]; then
+      nginx_summary="passed"
+      installer_status="success"
+      resume_strategy="post-apply-review"
+      operator_action="manual-review"
+      next_step="如需继续，请人工确认后再决定是否 reload nginx。"
+    elif [[ "$run_nginx_test" == "1" && "$nginx_test_status" != "not-run" ]]; then
+      nginx_summary="failed"
+      installer_status="needs-attention"
+      resume_strategy="manual-recovery-first"
+      operator_action="rollback-or-fix"
+      next_step="建议先按备份目录回滚或修复配置，再重新执行 nginx -t。"
+    else
+      installer_status="needs-attention"
+      resume_strategy="run-nginx-test-first"
+      operator_action="manual-nginx-test"
+      next_step="已完成文件级备份与复制；请先手工执行 nginx -t，再决定是否继续。"
+    fi
+  elif [[ "$mode" == "dry-run" ]]; then
+    installer_status="success"
+    resume_strategy="dry-run-ok"
+    operator_action="review-plan"
+    next_step="当前未进入真实执行。"
   fi
 
   {
@@ -397,9 +426,20 @@ write_apply_result_json() {
     printf '  "platform": %s,\n' "$(apply_plan_json_escape "$platform")"
     printf '  "final_status": %s,\n' "$(apply_plan_json_escape "$final_status")"
     printf '  "backup_dir": %s,\n' "$(apply_plan_json_escape "$backup_dir")"
+    printf '  "execution": {\n'
+    printf '    "backup_status": %s,\n' "$(apply_plan_json_escape "$backup_status")"
+    printf '    "copy_status": %s,\n' "$(apply_plan_json_escape "$copy_status")"
+    printf '    "reload_performed": false\n'
+    echo '  },'
     printf '  "nginx_test": {\n'
     printf '    "requested": %s,\n' "$(if [[ "$run_nginx_test" == "1" ]]; then echo true; else echo false; fi)"
     printf '    "status": %s\n' "$(apply_plan_json_escape "$nginx_summary")"
+    echo '  },'
+    printf '  "recovery": {\n'
+    printf '    "installer_status": %s,\n' "$(apply_plan_json_escape "$installer_status")"
+    printf '    "resume_strategy": %s,\n' "$(apply_plan_json_escape "$resume_strategy")"
+    printf '    "resume_recommended": %s,\n' "$resume_recommended"
+    printf '    "operator_action": %s\n' "$(apply_plan_json_escape "$operator_action")"
     echo '  },'
     echo '  "targets": {'
     printf '    "snippets": %s,\n' "$(apply_plan_json_escape "$snippets_target")"
@@ -483,6 +523,7 @@ write_apply_result_markdown() {
 - 错误页目标：$error_root
 - nginx 测试：$nginx_summary
 - reload：未执行
+- 执行落盘：$(if [[ "$mode" == "execute" && "$final_status" != "blocked" ]]; then echo "已执行"; else echo "未执行"; fi)
 
 ## 变更计划摘要
 
