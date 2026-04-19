@@ -2,6 +2,7 @@
 
 > 状态：本地阶段性收口说明
 > 分支：`weiyusc/exp/interactive-installer`
+> 说明：这份 round-up 只覆盖当时那一轮早期 recovery / final-status 语义收口提交；后续新增的 repair / rollback helper、state artifact 回写、resume inspection strategy 门控与文档同步，不在本文覆盖范围内，应以 `README.md`、`INSTALL.md` 与 `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md` 的当前口径为准。
 > 覆盖提交：
 > - `044ff26 feat: refine apply execute recovery semantics`
 > - `b85b2e4 feat: make resume conservative after apply warnings`

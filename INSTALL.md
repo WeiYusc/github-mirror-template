@@ -185,6 +185,7 @@ LOG_DIR=/www/wwwlogs
 - `--resume` 会优先消费 run 级 `repair` / `rollback` 结果语义
 - 如果源运行的 `APPLY-RESULT.json` 已标记 `resume_recommended=false`，resume 默认不会继承上次的真实 apply / nginx test 执行意图
 - 在这些 inspection-first 的 resume 策略下，仍允许显式传 `--run-apply-dry-run` 做只读预演；但若显式传 `--execute-apply`，当前会直接拒绝
+- 目前常见的 inspection-first 语义包括：`inspect-after-apply-attention`、`post-repair-verification`、`repair-review-first`、`post-rollback-inspection`
 
 一个最小脚本化示例：
 
