@@ -307,6 +307,22 @@ if jp.exists():
         except Exception:
             pass
 
+
+def load_json_if_exists(path_str: str, label: str):
+    if not path_str:
+        return None
+    path = Path(path_str)
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"[doctor] {label}")
+        print(f"- 读取失败: {path} ({exc})")
+        print()
+        return None
+
+
 print("[doctor] 运行摘要")
 print(f"- run_id: {state.get('run_id', '')}")
 print(f"- state_dir: {state.get('state_dir', '')}")
@@ -345,15 +361,18 @@ for key, value in artifacts.items():
         print(f"- {key}: {value} ({exists})")
 print()
 
-apply_result = None
-apply_result_json_path = artifacts.get("apply_result_json")
-if apply_result_json_path and Path(apply_result_json_path).exists():
-    try:
-        apply_result = json.loads(Path(apply_result_json_path).read_text(encoding="utf-8"))
-    except Exception as exc:
-        print("[doctor] apply result json")
-        print(f"- 读取失败: {apply_result_json_path} ({exc})")
-        print()
+apply_result_json_path = artifacts.get("apply_result_json") or ""
+apply_result = load_json_if_exists(apply_result_json_path, "apply result json")
+
+repair_result_json_path = ""
+rollback_result_json_path = ""
+if apply_result_json_path:
+    apply_result_dir = Path(apply_result_json_path).parent
+    repair_result_json_path = str(apply_result_dir / "REPAIR-RESULT.json")
+    rollback_result_json_path = str(apply_result_dir / "ROLLBACK-RESULT.json")
+
+repair_result = load_json_if_exists(repair_result_json_path, "repair result json")
+rollback_result = load_json_if_exists(rollback_result_json_path, "rollback result json")
 
 if apply_result:
     print("[doctor] apply result json")
@@ -383,6 +402,47 @@ if apply_result:
         print(f"- next_step: {next_step}")
     print()
 
+if repair_result:
+    print("[doctor] repair result json")
+    print(f"- path: {repair_result_json_path}")
+    print(f"- mode: {repair_result.get('mode', '')}")
+    print(f"- final_status: {repair_result.get('final_status', '')}")
+    source_recovery = repair_result.get("source_recovery", {})
+    if source_recovery:
+        print(f"- source_recovery.installer_status: {source_recovery.get('installer_status', '')}")
+        print(f"- source_recovery.resume_recommended: {source_recovery.get('resume_recommended', False)}")
+        print(f"- source_recovery.operator_action: {source_recovery.get('operator_action', '')}")
+    execution = repair_result.get("execution", {})
+    if execution:
+        print(f"- execution.nginx_test_rerun_status: {execution.get('nginx_test_rerun_status', '')}")
+        print(f"- execution.nginx_test_rerun_exit_code: {execution.get('nginx_test_rerun_exit_code', '')}")
+    diagnosis = repair_result.get("diagnosis", {})
+    for key in ["items_total", "targets_present", "targets_missing", "targets_non_regular", "replace_backups_present", "replace_backups_missing"]:
+        if key in diagnosis:
+            print(f"- diagnosis.{key}: {diagnosis.get(key)}")
+    next_step = repair_result.get("next_step")
+    if next_step:
+        print(f"- next_step: {next_step}")
+    print()
+
+if rollback_result:
+    print("[doctor] rollback result json")
+    print(f"- path: {rollback_result_json_path}")
+    print(f"- mode: {rollback_result.get('mode', '')}")
+    print(f"- final_status: {rollback_result.get('final_status', '')}")
+    flags = rollback_result.get("flags", {})
+    if flags:
+        print(f"- flags.delete_new: {flags.get('delete_new', False)}")
+        print(f"- flags.execute: {flags.get('execute', False)}")
+    summary = rollback_result.get("summary", {})
+    for key in ["restore", "delete", "skip", "blocked", "pending", "restored", "deleted"]:
+        if key in summary:
+            print(f"- summary.{key}: {summary.get(key)}")
+    next_step = rollback_result.get("next_step")
+    if next_step:
+        print(f"- next_step: {next_step}")
+    print()
+
 print("[doctor] journal")
 print(f"- entries: {journal_entries}")
 if last_event:
@@ -396,12 +456,10 @@ checkpoint = state.get("checkpoint", "")
 suggestion = None
 if apply_result:
     apply_final = apply_result.get("final_status", "")
-    nginx_status = (apply_result.get("nginx_test") or {}).get("status", "")
     summary = apply_result.get("summary") or {}
     recovery = apply_result.get("recovery") or {}
     operator_action = recovery.get("operator_action", "")
     resume_recommended = recovery.get("resume_recommended")
-    apply_result_json_path = artifacts.get("apply_result_json", "")
     if apply_final == "blocked":
         if (summary.get("conflict") or 0) > 0:
             suggestion = "apply 结果显示存在冲突项；建议先处理目标文件冲突，再重新执行 apply / resume。"
@@ -433,6 +491,28 @@ if apply_result:
 
     if suggestion and resume_recommended is False:
         suggestion += " 当前不建议把 resume 当作默认下一步。"
+
+if repair_result:
+    repair_final = repair_result.get("final_status", "")
+    repair_execution = repair_result.get("execution") or {}
+    rerun_status = repair_execution.get("nginx_test_rerun_status", "")
+    if rerun_status == "passed":
+        suggestion = repair_result.get("next_step") or "已存在 repair 结果且 nginx -t 重跑已通过；建议人工确认后，再决定是否继续后续操作。"
+    elif rerun_status == "failed":
+        suggestion = repair_result.get("next_step") or "已存在 repair 结果且 nginx -t 重跑仍失败；建议优先查看 REPAIR-RESULT，再决定 selective rollback 还是人工修复。"
+    elif repair_final in {"blocked", "needs-attention"}:
+        suggestion = repair_result.get("next_step") or "已有 repair 结果；建议先按 repair 结论决定 rollback 还是人工修复。"
+
+if rollback_result:
+    rollback_final = rollback_result.get("final_status", "")
+    rollback_mode = rollback_result.get("mode", "")
+    rollback_flags = rollback_result.get("flags") or {}
+    if rollback_mode == "execute" and rollback_final == "ok":
+        suggestion = rollback_result.get("next_step") or "selective rollback 已执行完成；请先手工运行 nginx -t，再决定是否 reload。"
+    elif rollback_final in {"blocked", "needs-attention"}:
+        suggestion = rollback_result.get("next_step") or "已存在 rollback 结果；建议先处理 rollback 结果里提示的阻断项或待确认项。"
+    elif rollback_flags.get("execute"):
+        suggestion = rollback_result.get("next_step") or "已存在 rollback 执行结果；建议先按 rollback 结果复核当前系统状态。"
 
 if suggestion is None:
     if final_status in {"success", "cancelled"}:

@@ -64,6 +64,7 @@ doctor 的用途是：
 - 看当前 run 的 checkpoint
 - 看当前 `status.preflight / generator / apply_plan / apply_dry_run / apply_execute / final`
 - 看有没有 `APPLY-RESULT.json`
+- 如果同目录已经存在 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`，也会一起显示
 - 看脚本给出的下一步建议
 
 ---
@@ -93,7 +94,7 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
 
 ---
 
-### 第三步：如果存在 `APPLY-RESULT.json`，优先读它
+### 第三步：如果存在 `APPLY-RESULT.json`，优先读它（以及同目录 companion result）
 
 ```bash
 cat scripts/generated/runs/<run_id>/APPLY-RESULT.json
@@ -114,6 +115,17 @@ cat scripts/generated/runs/<run_id>/APPLY-RESULT.json
 - `next_step`
 
 它比单看 checkpoint 更接近真实处境。
+
+如果你已经跑过 repair / rollback，还应顺手看同目录下这些结果：
+
+- `REPAIR-RESULT.json`
+- `ROLLBACK-RESULT.json`
+
+现在 `--doctor` 也会自动把这两个结果纳入摘要：
+
+- 若 repair 已重跑 `nginx -t` 且通过，会优先提示“人工确认后决定是否继续”
+- 若 repair 已重跑 `nginx -t` 且仍失败，会优先提示先按 repair 结论决定 rollback 还是人工修配置
+- 若 rollback 已实际执行，也会优先提示先手工 `nginx -t`，再判断是否继续
 
 ---
 

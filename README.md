@@ -98,7 +98,7 @@ cp deploy.example.yaml deploy.yaml
 - 可选执行 nginx 测试，并显式指定 `nginx-test-cmd`
 - 写出 `APPLY-RESULT.md`
 - 写出 `APPLY-RESULT.json`
-- `--doctor` 会读取 `APPLY-RESULT.json`，给出更贴近 apply dry-run / execute 结果的下一步建议
+- `--doctor` 会优先读取 `APPLY-RESULT.json`，并在同目录存在 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` 时一并纳入摘要与下一步建议
 
 它当前明确**不会**自动做这些事：
 
@@ -171,6 +171,8 @@ cp deploy.example.yaml deploy.yaml
 - dry-run 已成功，但尚未真实 apply
 - 真实 apply 已执行，但尚未做 nginx 自检
 - 真实 apply 已执行，但 nginx 测试失败，当前更适合先人工恢复而不是直接 resume
+- 已经做过 repair，且 `nginx -t` 重跑通过 / 失败 / 尚未重跑
+- 已经产出 rollback 计划，或 selective rollback 已实际执行
 - apply 阶段被冲突、缺失源文件或目标阻断
 - `--resume` 在 `needs-attention` 场景下默认只做保守续接，不把 apply 重放当默认动作
 
