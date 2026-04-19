@@ -122,6 +122,10 @@ cp deploy.example.yaml deploy.yaml
 ./apply-generated-package.sh --help
 ```
 
+另外，如果你需要针对异常状态做人工判断，现已补一份单独的操作者手册：
+
+- `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`：面向 `needs-attention` / `blocked` / `failed` / `cancelled` 的检查顺序、建议动作与禁止误操作说明
+
 其中 apply 阶段现在会同时产出：
 
 - `APPLY-RESULT.md`：给人读的摘要
