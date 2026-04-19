@@ -62,9 +62,10 @@
 doctor 的用途是：
 
 - 看当前 run 的 checkpoint
-- 看当前 `status.preflight / generator / apply_plan / apply_dry_run / apply_execute / final`
+- 看当前 `status.preflight / generator / apply_plan / apply_dry_run / apply_execute / repair / rollback / final`
 - 看有没有 `APPLY-RESULT.json`
-- 如果同目录已经存在 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`，也会一起显示
+- 如果 `state.json` 已登记 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`，会优先直接读取
+- 对旧 run，如果同目录已经存在 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`，也会一起显示
 - 看脚本给出的下一步建议
 
 ---

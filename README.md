@@ -98,7 +98,7 @@ cp deploy.example.yaml deploy.yaml
 - 可选执行 nginx 测试，并显式指定 `nginx-test-cmd`
 - 写出 `APPLY-RESULT.md`
 - 写出 `APPLY-RESULT.json`
-- `--doctor` 会优先读取 `APPLY-RESULT.json`，并在同目录存在 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` 时一并纳入摘要与下一步建议
+- `--doctor` 会优先读取 `APPLY-RESULT.json`，并优先消费 `state.json` 中已登记的 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`；若旧 run 尚未登记，也会退回到同目录自动发现
 
 它当前明确**不会**自动做这些事：
 
@@ -151,6 +151,7 @@ cp deploy.example.yaml deploy.yaml
 - `REPLACE` 类文件优先从备份恢复
 - `NEW` 类文件默认**不会删除**；只有显式传入 `--delete-new`，且当前目标仍与原始部署源一致时，才会纳入删除计划
 - 当前同样**不会**自动 reload nginx
+- 若来源 run 可定位到 `state.json`，rollback 结果还会自动回写到该 run 的 `artifacts` / `status.rollback`，供后续 `--doctor` 直接消费
 
 另外，还补了一个更轻量的 repair helper：
 
@@ -158,6 +159,7 @@ cp deploy.example.yaml deploy.yaml
 - 重点适用于 `needs-attention` 场景，帮助判断当前更适合 **selective rollback** 还是 **人工修复后重跑 nginx -t**
 - `--execute` 当前也只会重跑 `nginx -t`（或你指定的 `--nginx-test-cmd`）并把结果落盘，不会自动 reload nginx
 - 会输出 `REPAIR-RESULT.md` / `REPAIR-RESULT.json`
+- 若来源 run 可定位到 `state.json`，repair 结果还会自动回写到该 run 的 `artifacts` / `status.repair`，供后续 `--doctor` 直接消费
 
 另外，`--resume <run_id>` 现在有一个更保守的新约束：
 

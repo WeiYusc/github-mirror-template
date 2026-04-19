@@ -25,6 +25,8 @@ ROOT_DIR="$SCRIPT_DIR"
 
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/apply-plan.sh"
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib/state.sh"
 
 RESULT_JSON=""
 DRY_RUN="0"
@@ -465,6 +467,27 @@ EOF
 
 write_rollback_result_markdown "$RESULT_FILE"
 write_rollback_result_json "$RESULT_JSON_OUTPUT"
+
+STATE_JSON_HINT="$(python3 - "$(dirname "$RESULT_JSON")/INSTALLER-SUMMARY.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+summary_path = Path(sys.argv[1])
+if not summary_path.exists():
+    print("")
+    raise SystemExit(0)
+
+data = json.loads(summary_path.read_text(encoding="utf-8"))
+artifacts = data.get("artifacts") or {}
+print(artifacts.get("state_json", ""))
+PY
+)"
+if [[ -n "$STATE_JSON_HINT" && -f "$STATE_JSON_HINT" ]]; then
+  STATE_JSON_PATH="$STATE_JSON_HINT"
+  STATE_JOURNAL_PATH="$(dirname "$STATE_JSON_HINT")/journal.jsonl"
+  state_record_companion_result "rollback" "$RESULT_FILE" "$RESULT_JSON_OUTPUT" "$ROLLBACK_FINAL_STATUS" "rollback result recorded"
+fi
 
 cat <<EOF
 [rollback] 当前模式：$MODE_LABEL
