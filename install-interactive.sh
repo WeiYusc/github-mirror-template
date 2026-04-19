@@ -188,6 +188,26 @@ installer_json_bool() {
   fi
 }
 
+installer_determine_final_status() {
+  if [[ "${INSTALLER_PREFLIGHT_STATUS:-pending}" == "blocked" ]]; then
+    printf 'blocked'
+  elif [[ "${INSTALLER_GENERATOR_STATUS:-pending}" == "failed" ]]; then
+    printf 'failed'
+  elif [[ "${INSTALLER_DRY_RUN_STATUS:-not-requested}" == "failed" ]]; then
+    printf 'failed'
+  elif [[ "${INSTALLER_EXECUTE_STATUS:-not-requested}" == "failed" ]]; then
+    printf 'failed'
+  elif [[ "${INSTALLER_EXECUTE_STATUS:-not-requested}" == "needs-attention" ]]; then
+    printf 'needs-attention'
+  elif [[ "${INSTALLER_EXECUTE_STATUS:-not-requested}" == "cancelled" ]]; then
+    printf 'cancelled'
+  elif [[ "${INSTALLER_FINAL_STATUS:-running}" == "cancelled" ]]; then
+    printf 'cancelled'
+  else
+    printf 'success'
+  fi
+}
+
 write_installer_summary_json() {
   local target_path="$1"
   local exit_code="${2:-0}"
@@ -197,7 +217,7 @@ write_installer_summary_json() {
 
   if [[ "$final_status" == "running" ]]; then
     if [[ "$exit_code" == "0" ]]; then
-      final_status="success"
+      final_status="$(installer_determine_final_status)"
     elif [[ "${INSTALLER_PREFLIGHT_STATUS:-pending}" == "blocked" ]]; then
       final_status="blocked"
     else
@@ -941,7 +961,7 @@ PY
   fi
 fi
 
-INSTALLER_FINAL_STATUS="success"
-state_mark_checkpoint "completed" "installer completed"
-state_append_journal "run.complete" "success" "installer completed" "$SUMMARY_JSON_SECONDARY"
+INSTALLER_FINAL_STATUS="$(installer_determine_final_status)"
+state_mark_checkpoint "completed" "installer completed status=$INSTALLER_FINAL_STATUS"
+state_append_journal "run.complete" "$INSTALLER_FINAL_STATUS" "installer completed status=$INSTALLER_FINAL_STATUS" "$SUMMARY_JSON_SECONDARY"
 ui_info "骨架阶段完成：已打通交互输入、配置生成、generator 调用，以及 apply dry-run / 保守式真实 apply 流程。"

@@ -126,6 +126,7 @@ cp deploy.example.yaml deploy.yaml
 
 - `APPLY-RESULT.md`：给人读的摘要
 - `APPLY-RESULT.json`：给 `state.json` / `--doctor` / 后续 resume 策略消费的机器可读结果
+- `INSTALLER-SUMMARY.json` / `state.json` 中的 `status.final` 现在会按整轮实际结果归一，可能是 `success` / `cancelled` / `blocked` / `failed` / `needs-attention`
 
 `APPLY-RESULT.json` 当前会记录至少这些关键信息：
 
