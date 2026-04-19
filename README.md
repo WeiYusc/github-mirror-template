@@ -83,6 +83,7 @@ cp deploy.example.yaml deploy.yaml
 - 也支持用 flags 直接覆盖常用输入
 - 支持为每次 installer 运行生成 `run_id` 与运行状态目录（`scripts/generated/runs/<run_id>/`）
 - 支持 `--doctor <run_id>` 查看某次运行的 state/journal/产物摘要
+- `--doctor` 现在会额外输出一段 **lineage 摘要**，把这轮 run 是否来自历史 resume、源 run 停点、源 run 是否本身又来自更早 run、当前 resume strategy 与 strategy reason 用人话总结出来
 - 支持 `--resume <run_id>` 复用上次输入，并在条件满足时跳过已完成的 preflight / generator / apply plan 阶段
 - `--resume` 现在会优先消费 run 级 `repair` / `rollback` 结果语义：若已执行 rollback，或 repair 的 nginx `-t` 重跑已通过 / 仍需人工处理，会默认收紧为“复查优先”，而不是继续把真实 apply 当默认下一步
 - 在这些 inspection-first 的 resume 策略下，仍允许你显式传 `--run-apply-dry-run` 做只读预演；但若显式传 `--execute-apply`，installer 现在会直接拒绝，避免把“继续看看”误变成“继续落地改写”
@@ -186,6 +187,7 @@ cp deploy.example.yaml deploy.yaml
 - 已经产出 rollback 计划，或 selective rollback 已实际执行
 - apply 阶段被冲突、缺失源文件或目标阻断
 - `--resume` 在 `needs-attention` 场景下默认只做保守续接，不把 apply 重放当默认动作
+- 这轮 run 是否来自更早 run 的续接、源 run 停在何处、当前为何采用这条 resume strategy
 
 - 调用底层渲染器生成 conf/snippets/errors
 - 调用底层校验器做静态自检

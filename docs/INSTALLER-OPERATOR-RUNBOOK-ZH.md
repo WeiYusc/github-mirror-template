@@ -96,6 +96,10 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
 - `artifacts.apply_result_json`
 - `artifacts.summary_output`
 - `resumed_from`
+- `lineage.source_run_id`
+- `lineage.source_checkpoint`
+- `lineage.resume_strategy`
+- `lineage.resume_strategy_reason`
 
 ---
 
@@ -120,6 +124,13 @@ cat scripts/generated/runs/<run_id>/APPLY-RESULT.json
 - `next_step`
 
 它比单看 checkpoint 更接近真实处境。
+
+如果这是 resumed run，`state.json` 里的 `lineage.*` 字段还可以回答另外一类问题：
+
+- 这轮 run 是从哪次 run 续出来的
+- 源 run 当时停在什么 checkpoint
+- 源 run 本身是否也来自更早的一轮
+- 当前为什么落到了这条 resume strategy
 
 如果你已经跑过 repair / rollback，还应顺手看同目录下这些结果：
 
@@ -194,6 +205,7 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
 - `recovery.operator_action` 要你先做什么
 - `nginx_test.status` 是失败、未执行，还是不适用
 - 备份是否已经生成
+- 如果这是 resumed run：`lineage.source_run_id`、`lineage.source_checkpoint`、`lineage.resume_strategy` / `lineage.resume_strategy_reason` 是否说明了当前为什么是“复查优先”而不是“继续执行优先”
 
 4. 人工检查目标机上实际状态：
 

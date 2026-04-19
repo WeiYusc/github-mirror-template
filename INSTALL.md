@@ -160,6 +160,7 @@ LOG_DIR=/www/wwwlogs
 - 也支持用 flags 直接覆盖常用输入
 - 为每次运行生成 `run_id` 与状态目录（`scripts/generated/runs/<run_id>/`）
 - 支持 `--doctor <run_id>` 查看某次运行的 state / journal / 产物摘要
+- `--doctor` 现在还会输出一段 **lineage 摘要**，说明当前 run 是否是 resumed run、源 run 停在哪个 checkpoint、源 run 是否还承接了更早 run、以及当前 resume strategy / reason
 - 支持 `--resume <run_id>` 复用上次输入，并在条件满足时跳过已完成的 preflight / generator / apply plan 阶段
 - preflight 摘要
 - 额外落盘 `scripts/generated/preflight.generated.md`
@@ -182,6 +183,7 @@ LOG_DIR=/www/wwwlogs
 
 - `--doctor` 会优先读取 `APPLY-RESULT.json`
 - 如果 `state.json` 已登记 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`，`--doctor` 会优先直接消费；旧 run 未登记时，也会退回到同目录自动发现
+- `--doctor` 会把当前 run 的 lineage 也纳入摘要：不只告诉你“现在状态是什么”，还会告诉你“这轮是从哪一轮续出来的、为什么走这条 resume strategy”
 - `--resume` 会优先消费 run 级 `repair` / `rollback` 结果语义
 - 如果源运行的 `APPLY-RESULT.json` 已标记 `resume_recommended=false`，resume 默认不会继承上次的真实 apply / nginx test 执行意图
 - 在这些 inspection-first 的 resume 策略下，仍允许显式传 `--run-apply-dry-run` 做只读预演；但若显式传 `--execute-apply`，当前会直接拒绝
