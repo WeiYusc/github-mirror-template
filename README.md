@@ -138,12 +138,20 @@ cp deploy.example.yaml deploy.yaml
 - `targets`：snippets / vhost / error_root
 - `next_step`：当前建议的下一步动作
 
+另外，`--resume <run_id>` 现在有一个更保守的新约束：
+
+- 如果源运行的 `APPLY-RESULT.json` 标记 `resume_recommended=false`
+- 那么 resume 仍会复用输入和已完成产物
+- 但**不会默认继承上次的真实 apply / nginx test 执行意图**
+- 默认会收紧为“检查/提示优先”，避免在 `needs-attention` 场景下把 resume 当成重放 apply 的快捷键
+
 这使得 `--doctor` 不再只凭 checkpoint 粗略判断，而能区分：
 
 - dry-run 已成功，但尚未真实 apply
 - 真实 apply 已执行，但尚未做 nginx 自检
 - 真实 apply 已执行，但 nginx 测试失败，当前更适合先人工恢复而不是直接 resume
 - apply 阶段被冲突、缺失源文件或目标阻断
+- `--resume` 在 `needs-attention` 场景下默认只做保守续接，不把 apply 重放当默认动作
 
 - 调用底层渲染器生成 conf/snippets/errors
 - 调用底层校验器做静态自检

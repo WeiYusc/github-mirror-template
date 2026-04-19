@@ -134,6 +134,14 @@ from pathlib import Path
 state = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 status = state.get("status", {})
 artifacts = state.get("artifacts", {})
+apply_result_path = artifacts.get("apply_result_json", "")
+apply_result = {}
+if apply_result_path and Path(apply_result_path).exists():
+    try:
+        apply_result = json.loads(Path(apply_result_path).read_text(encoding="utf-8"))
+    except Exception:
+        apply_result = {}
+recovery = apply_result.get("recovery") or {}
 values = {
     "RESUME_SOURCE_RUN_ID": state.get("run_id", ""),
     "RESUME_SOURCE_CHECKPOINT": state.get("checkpoint", ""),
@@ -151,6 +159,11 @@ values = {
     "RESUME_SOURCE_APPLY_PLAN_JSON_PATH": artifacts.get("apply_plan_json", ""),
     "RESUME_SOURCE_APPLY_RESULT_PATH": artifacts.get("apply_result", ""),
     "RESUME_SOURCE_APPLY_RESULT_JSON_PATH": artifacts.get("apply_result_json", ""),
+    "RESUME_SOURCE_APPLY_RECOVERY_STATUS": recovery.get("installer_status", ""),
+    "RESUME_SOURCE_APPLY_RESUME_STRATEGY": recovery.get("resume_strategy", ""),
+    "RESUME_SOURCE_APPLY_RESUME_RECOMMENDED": "1" if recovery.get("resume_recommended", True) else "0",
+    "RESUME_SOURCE_APPLY_OPERATOR_ACTION": recovery.get("operator_action", ""),
+    "RESUME_SOURCE_APPLY_NEXT_STEP": apply_result.get("next_step", ""),
     "RESUME_SOURCE_SUMMARY_JSON_PRIMARY": artifacts.get("summary_generated", ""),
     "RESUME_SOURCE_SUMMARY_JSON_SECONDARY": artifacts.get("summary_output", ""),
     "RESUME_SOURCE_INPUTS_ENV": artifacts.get("inputs_env", ""),

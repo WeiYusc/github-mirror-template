@@ -324,6 +324,11 @@ RESUME_SOURCE_APPLY_PLAN_PATH=""
 RESUME_SOURCE_APPLY_PLAN_JSON_PATH=""
 RESUME_SOURCE_APPLY_RESULT_PATH=""
 RESUME_SOURCE_APPLY_RESULT_JSON_PATH=""
+RESUME_SOURCE_APPLY_RECOVERY_STATUS=""
+RESUME_SOURCE_APPLY_RESUME_STRATEGY=""
+RESUME_SOURCE_APPLY_RESUME_RECOMMENDED="1"
+RESUME_SOURCE_APPLY_OPERATOR_ACTION=""
+RESUME_SOURCE_APPLY_NEXT_STEP=""
 RESUME_SOURCE_SUMMARY_JSON_PRIMARY=""
 RESUME_SOURCE_SUMMARY_JSON_SECONDARY=""
 RESUME_SOURCE_INPUTS_ENV=""
@@ -429,6 +434,10 @@ if [[ -n "$RESUME_RUN_ID" ]]; then
   state_load_resume_context "$RESUME_RUN_ID"
   ui_info "已读取历史运行输入：$RESUME_RUN_ID"
 
+  RUN_APPLY_DRY_RUN="0"
+  EXECUTE_APPLY="0"
+  RUN_NGINX_TEST_AFTER_EXECUTE="0"
+
   if [[ "$RESUME_SOURCE_PREFLIGHT_STATUS" != "blocked" && -n "$RESUME_SOURCE_CONFIG_PATH" && -f "$RESUME_SOURCE_CONFIG_PATH" ]]; then
     SHOULD_SKIP_INPUTS="1"
     SHOULD_SKIP_PREFLIGHT="1"
@@ -442,7 +451,9 @@ if [[ -n "$RESUME_RUN_ID" ]]; then
     SHOULD_SKIP_APPLY_PLAN="1"
   fi
 
-  if [[ "$SHOULD_SKIP_APPLY_PLAN" == "1" ]]; then
+  if [[ "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" != "1" ]]; then
+    RESUME_STRATEGY="inspect-after-apply-attention"
+  elif [[ "$SHOULD_SKIP_APPLY_PLAN" == "1" ]]; then
     RESUME_STRATEGY="reuse-apply-plan"
   elif [[ "$SHOULD_SKIP_GENERATOR" == "1" ]]; then
     RESUME_STRATEGY="reuse-generated-output"
@@ -468,6 +479,12 @@ ui_info "运行状态目录：$STATE_DIR"
 if [[ "$INSTALLER_MODE" == "resume" ]]; then
   ui_info "当前以 resume 模式启动：将复用历史输入并尽量跳过已完成阶段。"
   ui_info "本次 resume 策略：$RESUME_STRATEGY（源运行：${RESUME_SOURCE_RUN_ID:-$RESUME_RUN_ID}，源 checkpoint：${RESUME_SOURCE_CHECKPOINT:-unknown}）"
+  if [[ "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" != "1" ]]; then
+    ui_warn "源运行的 apply 结果标记为需人工处理：默认不会继承上次的真实 apply / nginx test 执行意图。"
+    if [[ -n "$RESUME_SOURCE_APPLY_NEXT_STEP" ]]; then
+      ui_warn "源运行建议：$RESUME_SOURCE_APPLY_NEXT_STEP"
+    fi
+  fi
 fi
 ui_info "当前阶段已打通：交互输入 → 配置生成 → 调 generator → apply dry-run / 保守式真实 apply"
 ui_info "本轮已新增输入分层：默认优先基础模式，仅在需要时进入高级路径配置。"
