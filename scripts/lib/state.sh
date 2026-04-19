@@ -142,6 +142,33 @@ if apply_result_path and Path(apply_result_path).exists():
     except Exception:
         apply_result = {}
 recovery = apply_result.get("recovery") or {}
+
+repair_result_json_path = artifacts.get("repair_result_json", "")
+rollback_result_json_path = artifacts.get("rollback_result_json", "")
+if not repair_result_json_path and apply_result_path:
+    repair_result_json_path = str(Path(apply_result_path).with_name("REPAIR-RESULT.json"))
+if not rollback_result_json_path and apply_result_path:
+    rollback_result_json_path = str(Path(apply_result_path).with_name("ROLLBACK-RESULT.json"))
+
+repair_result = {}
+if repair_result_json_path and Path(repair_result_json_path).exists():
+    try:
+        repair_result = json.loads(Path(repair_result_json_path).read_text(encoding="utf-8"))
+    except Exception:
+        repair_result = {}
+
+rollback_result = {}
+if rollback_result_json_path and Path(rollback_result_json_path).exists():
+    try:
+        rollback_result = json.loads(Path(rollback_result_json_path).read_text(encoding="utf-8"))
+    except Exception:
+        rollback_result = {}
+
+repair_execution = repair_result.get("execution") or {}
+rollback_flags = rollback_result.get("flags") or {}
+repair_result_path = artifacts.get("repair_result") or (str(Path(repair_result_json_path).with_name("REPAIR-RESULT.md")) if repair_result_json_path else "")
+rollback_result_path = artifacts.get("rollback_result") or (str(Path(rollback_result_json_path).with_name("ROLLBACK-RESULT.md")) if rollback_result_json_path else "")
+
 values = {
     "RESUME_SOURCE_RUN_ID": state.get("run_id", ""),
     "RESUME_SOURCE_CHECKPOINT": state.get("checkpoint", ""),
@@ -151,6 +178,8 @@ values = {
     "RESUME_SOURCE_DRY_RUN_STATUS": status.get("apply_dry_run", ""),
     "RESUME_SOURCE_EXECUTE_STATUS": status.get("apply_execute", ""),
     "RESUME_SOURCE_FINAL_STATUS": status.get("final", ""),
+    "RESUME_SOURCE_REPAIR_STATUS": status.get("repair", ""),
+    "RESUME_SOURCE_ROLLBACK_STATUS": status.get("rollback", ""),
     "RESUME_SOURCE_CONFIG_PATH": artifacts.get("config", ""),
     "RESUME_SOURCE_OUTPUT_DIR_ABS": artifacts.get("output_dir_abs", ""),
     "RESUME_SOURCE_PREFLIGHT_REPORT_MD": artifacts.get("preflight_markdown", ""),
@@ -159,11 +188,23 @@ values = {
     "RESUME_SOURCE_APPLY_PLAN_JSON_PATH": artifacts.get("apply_plan_json", ""),
     "RESUME_SOURCE_APPLY_RESULT_PATH": artifacts.get("apply_result", ""),
     "RESUME_SOURCE_APPLY_RESULT_JSON_PATH": artifacts.get("apply_result_json", ""),
+    "RESUME_SOURCE_REPAIR_RESULT_PATH": repair_result_path,
+    "RESUME_SOURCE_REPAIR_RESULT_JSON_PATH": repair_result_json_path,
+    "RESUME_SOURCE_ROLLBACK_RESULT_PATH": rollback_result_path,
+    "RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH": rollback_result_json_path,
     "RESUME_SOURCE_APPLY_RECOVERY_STATUS": recovery.get("installer_status", ""),
     "RESUME_SOURCE_APPLY_RESUME_STRATEGY": recovery.get("resume_strategy", ""),
     "RESUME_SOURCE_APPLY_RESUME_RECOMMENDED": "1" if recovery.get("resume_recommended", True) else "0",
     "RESUME_SOURCE_APPLY_OPERATOR_ACTION": recovery.get("operator_action", ""),
     "RESUME_SOURCE_APPLY_NEXT_STEP": apply_result.get("next_step", ""),
+    "RESUME_SOURCE_REPAIR_FINAL_STATUS": repair_result.get("final_status", ""),
+    "RESUME_SOURCE_REPAIR_MODE": repair_result.get("mode", ""),
+    "RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS": repair_execution.get("nginx_test_rerun_status", ""),
+    "RESUME_SOURCE_REPAIR_NEXT_STEP": repair_result.get("next_step", ""),
+    "RESUME_SOURCE_ROLLBACK_FINAL_STATUS": rollback_result.get("final_status", ""),
+    "RESUME_SOURCE_ROLLBACK_MODE": rollback_result.get("mode", ""),
+    "RESUME_SOURCE_ROLLBACK_EXECUTE": "1" if rollback_flags.get("execute", False) else "0",
+    "RESUME_SOURCE_ROLLBACK_NEXT_STEP": rollback_result.get("next_step", ""),
     "RESUME_SOURCE_SUMMARY_JSON_PRIMARY": artifacts.get("summary_generated", ""),
     "RESUME_SOURCE_SUMMARY_JSON_SECONDARY": artifacts.get("summary_output", ""),
     "RESUME_SOURCE_INPUTS_ENV": artifacts.get("inputs_env", ""),
@@ -207,6 +248,8 @@ payload = {
         "apply_plan": env("INSTALLER_APPLY_PLAN_STATUS", "pending"),
         "apply_dry_run": env("INSTALLER_DRY_RUN_STATUS", "not-requested"),
         "apply_execute": env("INSTALLER_EXECUTE_STATUS", "not-requested"),
+        "repair": env("INSTALLER_REPAIR_STATUS"),
+        "rollback": env("INSTALLER_ROLLBACK_STATUS"),
         "final": env("INSTALLER_FINAL_STATUS", "running"),
     },
     "inputs": {
@@ -309,7 +352,7 @@ state_mark_checkpoint() {
   export ERROR_ROOT LOG_DIR OUTPUT_DIR NGINX_SNIPPETS_TARGET_HINT NGINX_VHOST_TARGET_HINT
   export RUN_APPLY_DRY_RUN EXECUTE_APPLY BACKUP_DIR RUN_NGINX_TEST_AFTER_EXECUTE NGINX_TEST_CMD ASSUME_YES
   export DEFAULT_ERROR_ROOT DEFAULT_LOG_DIR DEFAULT_OUTPUT_DIR DEFAULT_NGINX_SNIPPETS_TARGET_HINT DEFAULT_NGINX_VHOST_TARGET_HINT
-  export INSTALLER_PREFLIGHT_STATUS INSTALLER_GENERATOR_STATUS INSTALLER_APPLY_PLAN_STATUS INSTALLER_DRY_RUN_STATUS INSTALLER_EXECUTE_STATUS INSTALLER_FINAL_STATUS
+  export INSTALLER_PREFLIGHT_STATUS INSTALLER_GENERATOR_STATUS INSTALLER_APPLY_PLAN_STATUS INSTALLER_DRY_RUN_STATUS INSTALLER_EXECUTE_STATUS INSTALLER_REPAIR_STATUS INSTALLER_ROLLBACK_STATUS INSTALLER_FINAL_STATUS
   export GENERATED_DIR PREFLIGHT_REPORT_MD PREFLIGHT_REPORT_JSON SUMMARY_JSON_PRIMARY SUMMARY_JSON_SECONDARY CONFIG_PATH OUTPUT_DIR_ABS APPLY_PLAN_PATH APPLY_PLAN_JSON_PATH APPLY_RESULT_PATH APPLY_RESULT_JSON_PATH REPAIR_RESULT_PATH REPAIR_RESULT_JSON_PATH ROLLBACK_RESULT_PATH ROLLBACK_RESULT_JSON_PATH
 
   state_write_inputs_env

@@ -248,6 +248,12 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
 - 复用输入和已完成产物
 - 默认收紧执行意图
 - 不把“重放 apply”当默认动作
+- 如果已经有 `REPAIR-RESULT.json`：
+  - `nginx_test_rerun_status=passed` 时，会优先进入“post-repair verification”语义
+  - 仍为 `failed / blocked / needs-attention` 时，会优先进入“repair-review-first”语义
+- 如果已经有 `ROLLBACK-RESULT.json` 且 rollback 已执行成功：
+  - 会优先进入“post-rollback inspection”语义
+  - 默认继续保持不继承真实 apply 意图
 
 所以它更像“带上下文的保守续接”，不是“一键重试执行器”。
 
