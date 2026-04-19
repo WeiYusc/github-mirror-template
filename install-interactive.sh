@@ -193,6 +193,7 @@ write_installer_summary_json() {
   local exit_code="${2:-0}"
   local final_status="${INSTALLER_FINAL_STATUS:-running}"
   local apply_result_exists="false"
+  local apply_result_json_exists="false"
 
   if [[ "$final_status" == "running" ]]; then
     if [[ "$exit_code" == "0" ]]; then
@@ -206,6 +207,9 @@ write_installer_summary_json() {
 
   if [[ -n "${APPLY_RESULT_PATH:-}" && -f "$APPLY_RESULT_PATH" ]]; then
     apply_result_exists="true"
+  fi
+  if [[ -n "${APPLY_RESULT_JSON_PATH:-}" && -f "$APPLY_RESULT_JSON_PATH" ]]; then
+    apply_result_json_exists="true"
   fi
 
   mkdir -p "$(dirname "$target_path")"
@@ -240,13 +244,15 @@ write_installer_summary_json() {
     printf '    "apply_plan_markdown": %s,\n' "$(apply_plan_json_escape "${APPLY_PLAN_PATH:-}")"
     printf '    "apply_plan_json": %s,\n' "$(apply_plan_json_escape "${APPLY_PLAN_JSON_PATH:-}")"
     printf '    "apply_result": %s,\n' "$(apply_plan_json_escape "${APPLY_RESULT_PATH:-}")"
+    printf '    "apply_result_json": %s,\n' "$(apply_plan_json_escape "${APPLY_RESULT_JSON_PATH:-}")"
     printf '    "summary_generated": %s,\n' "$(apply_plan_json_escape "${SUMMARY_JSON_PRIMARY:-}")"
     printf '    "summary_output": %s,\n' "$(apply_plan_json_escape "${SUMMARY_JSON_SECONDARY:-}")"
     printf '    "state_dir": %s,\n' "$(apply_plan_json_escape "${STATE_DIR:-}")"
     printf '    "state_json": %s,\n' "$(apply_plan_json_escape "${STATE_JSON_PATH:-}")"
     printf '    "journal_jsonl": %s,\n' "$(apply_plan_json_escape "${STATE_JOURNAL_PATH:-}")"
     printf '    "run_id": %s,\n' "$(apply_plan_json_escape "${RUN_ID:-}")"
-    printf '    "apply_result_exists": %s\n' "$apply_result_exists"
+    printf '    "apply_result_exists": %s,\n' "$apply_result_exists"
+    printf '    "apply_result_json_exists": %s\n' "$apply_result_json_exists"
     echo '  }'
     echo "}"
   } > "$target_path"
@@ -317,6 +323,7 @@ RESUME_SOURCE_PREFLIGHT_REPORT_JSON=""
 RESUME_SOURCE_APPLY_PLAN_PATH=""
 RESUME_SOURCE_APPLY_PLAN_JSON_PATH=""
 RESUME_SOURCE_APPLY_RESULT_PATH=""
+RESUME_SOURCE_APPLY_RESULT_JSON_PATH=""
 RESUME_SOURCE_SUMMARY_JSON_PRIMARY=""
 RESUME_SOURCE_SUMMARY_JSON_SECONDARY=""
 RESUME_SOURCE_INPUTS_ENV=""
@@ -349,6 +356,7 @@ OUTPUT_DIR_ABS=""
 APPLY_PLAN_PATH=""
 APPLY_PLAN_JSON_PATH=""
 APPLY_RESULT_PATH=""
+APPLY_RESULT_JSON_PATH=""
 
 trap installer_on_exit EXIT
 
@@ -671,6 +679,7 @@ fi
 APPLY_PLAN_PATH="$OUTPUT_DIR_ABS/APPLY-PLAN.md"
 APPLY_PLAN_JSON_PATH="$OUTPUT_DIR_ABS/APPLY-PLAN.json"
 APPLY_RESULT_PATH="$OUTPUT_DIR_ABS/APPLY-RESULT.md"
+APPLY_RESULT_JSON_PATH="$OUTPUT_DIR_ABS/APPLY-RESULT.json"
 SUMMARY_JSON_SECONDARY="$OUTPUT_DIR_ABS/INSTALLER-SUMMARY.json"
 RENDERED_VALUES_PATH="$OUTPUT_DIR_ABS/RENDERED-VALUES.env"
 if [[ "$SHOULD_SKIP_APPLY_PLAN" == "1" ]]; then
@@ -683,6 +692,9 @@ if [[ "$SHOULD_SKIP_APPLY_PLAN" == "1" ]]; then
   fi
   if [[ -n "$RESUME_SOURCE_APPLY_RESULT_PATH" ]]; then
     APPLY_RESULT_PATH="$RESUME_SOURCE_APPLY_RESULT_PATH"
+  fi
+  if [[ -n "$RESUME_SOURCE_APPLY_RESULT_JSON_PATH" ]]; then
+    APPLY_RESULT_JSON_PATH="$RESUME_SOURCE_APPLY_RESULT_JSON_PATH"
   fi
   if [[ -n "$RESUME_SOURCE_SUMMARY_JSON_SECONDARY" ]]; then
     SUMMARY_JSON_SECONDARY="$RESUME_SOURCE_SUMMARY_JSON_SECONDARY"
@@ -733,7 +745,7 @@ if [[ "$RUN_APPLY_DRY_RUN" == "1" ]]; then
   if "${APPLY_CMD[@]}"; then
     INSTALLER_DRY_RUN_STATUS="success"
     state_mark_checkpoint "apply-dry-run-success" "apply dry-run success"
-    state_append_journal "apply-dry-run.complete" "success" "apply dry-run success" "$APPLY_RESULT_PATH"
+    state_append_journal "apply-dry-run.complete" "success" "apply dry-run success" "$APPLY_RESULT_JSON_PATH"
   else
     rc=$?
     INSTALLER_DRY_RUN_STATUS="failed"
@@ -751,7 +763,7 @@ else
     if "${APPLY_CMD[@]}"; then
       INSTALLER_DRY_RUN_STATUS="success"
       state_mark_checkpoint "apply-dry-run-success" "apply dry-run success"
-      state_append_journal "apply-dry-run.complete" "success" "apply dry-run success" "$APPLY_RESULT_PATH"
+      state_append_journal "apply-dry-run.complete" "success" "apply dry-run success" "$APPLY_RESULT_JSON_PATH"
     else
       rc=$?
       INSTALLER_DRY_RUN_STATUS="failed"
@@ -812,11 +824,11 @@ if [[ "$EXECUTE_APPLY" == "1" ]]; then
     printf '\n'
     INSTALLER_EXECUTE_STATUS="running"
     state_mark_checkpoint "apply-execute-running" "real apply start"
-    state_append_journal "apply-execute.start" "running" "real apply start" "$APPLY_RESULT_PATH"
+    state_append_journal "apply-execute.start" "running" "real apply start" "$APPLY_RESULT_JSON_PATH"
     if "${EXECUTE_APPLY_CMD[@]}"; then
       INSTALLER_EXECUTE_STATUS="success"
       state_mark_checkpoint "apply-execute-success" "real apply success"
-      state_append_journal "apply-execute.complete" "success" "real apply success" "$APPLY_RESULT_PATH"
+      state_append_journal "apply-execute.complete" "success" "real apply success" "$APPLY_RESULT_JSON_PATH"
     else
       rc=$?
       INSTALLER_EXECUTE_STATUS="failed"
@@ -870,11 +882,11 @@ else
       printf '\n'
       INSTALLER_EXECUTE_STATUS="running"
       state_mark_checkpoint "apply-execute-running" "real apply start"
-      state_append_journal "apply-execute.start" "running" "real apply start" "$APPLY_RESULT_PATH"
+      state_append_journal "apply-execute.start" "running" "real apply start" "$APPLY_RESULT_JSON_PATH"
       if "${EXECUTE_APPLY_CMD[@]}"; then
         INSTALLER_EXECUTE_STATUS="success"
         state_mark_checkpoint "apply-execute-success" "real apply success"
-        state_append_journal "apply-execute.complete" "success" "real apply success" "$APPLY_RESULT_PATH"
+        state_append_journal "apply-execute.complete" "success" "real apply success" "$APPLY_RESULT_JSON_PATH"
       else
         rc=$?
         INSTALLER_EXECUTE_STATUS="failed"

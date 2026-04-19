@@ -363,6 +363,84 @@ print_execute_summary() {
   fi
 }
 
+write_apply_result_json() {
+  local result_json="$1"
+  local mode="$2"
+  local platform="$3"
+  local backup_dir="$4"
+  local run_nginx_test="$5"
+  local nginx_test_status="$6"
+  local snippets_target="$7"
+  local vhost_target="$8"
+  local error_root="$9"
+  local final_status="${10:-ok}"
+
+  mkdir -p "$(dirname "$result_json")"
+
+  local nginx_summary="not-run"
+  local next_step="当前未进入真实执行。"
+  if [[ "$final_status" == "blocked" ]]; then
+    next_step="请先处理冲突项、缺失目录或目标根路径问题，再重新执行 apply。"
+  elif [[ "$run_nginx_test" == "1" && "$nginx_test_status" == "0" ]]; then
+    nginx_summary="passed"
+    next_step="如需继续，请人工确认后再决定是否 reload nginx。"
+  elif [[ "$run_nginx_test" == "1" && "$nginx_test_status" != "not-run" ]]; then
+    nginx_summary="failed"
+    next_step="建议先按备份目录回滚，再重新执行 nginx -t。"
+  elif [[ "$mode" == "execute" ]]; then
+    next_step="已完成文件级备份与复制；如需继续，请手工执行 nginx -t。"
+  fi
+
+  {
+    echo '{'
+    printf '  "mode": %s,\n' "$(apply_plan_json_escape "$mode")"
+    printf '  "platform": %s,\n' "$(apply_plan_json_escape "$platform")"
+    printf '  "final_status": %s,\n' "$(apply_plan_json_escape "$final_status")"
+    printf '  "backup_dir": %s,\n' "$(apply_plan_json_escape "$backup_dir")"
+    printf '  "nginx_test": {\n'
+    printf '    "requested": %s,\n' "$(if [[ "$run_nginx_test" == "1" ]]; then echo true; else echo false; fi)"
+    printf '    "status": %s\n' "$(apply_plan_json_escape "$nginx_summary")"
+    echo '  },'
+    echo '  "targets": {'
+    printf '    "snippets": %s,\n' "$(apply_plan_json_escape "$snippets_target")"
+    printf '    "vhost": %s,\n' "$(apply_plan_json_escape "$vhost_target")"
+    printf '    "error_root": %s\n' "$(apply_plan_json_escape "$error_root")"
+    echo '  },'
+    echo '  "summary": {'
+    printf '    "new": %s,\n' "$APPLY_PLAN_COUNT_NEW"
+    printf '    "replace": %s,\n' "$APPLY_PLAN_COUNT_REPLACE"
+    printf '    "same": %s,\n' "$APPLY_PLAN_COUNT_SAME"
+    printf '    "conflict": %s,\n' "$APPLY_PLAN_COUNT_CONFLICT"
+    printf '    "target_block": %s,\n' "$APPLY_PLAN_COUNT_TARGET_BLOCK"
+    printf '    "missing_source": %s\n' "$APPLY_PLAN_COUNT_MISSING_SOURCE"
+    echo '  },'
+    printf '  "next_step": %s,\n' "$(apply_plan_json_escape "$next_step")"
+    echo '  "items": ['
+
+    local row_count="${#APPLY_PLAN_ROWS[@]}"
+    local idx=0
+    local row category source dest status note
+    for row in "${APPLY_PLAN_ROWS[@]}"; do
+      idx=$((idx + 1))
+      IFS=$'\t' read -r category source dest status note <<< "$row"
+      echo '    {'
+      printf '      "category": %s,\n' "$(apply_plan_json_escape "$category")"
+      printf '      "source": %s,\n' "$(apply_plan_json_escape "$source")"
+      printf '      "dest": %s,\n' "$(apply_plan_json_escape "$dest")"
+      printf '      "status": %s,\n' "$(apply_plan_json_escape "$status")"
+      printf '      "note": %s\n' "$(apply_plan_json_escape "$note")"
+      if [[ "$idx" -lt "$row_count" ]]; then
+        echo '    },'
+      else
+        echo '    }'
+      fi
+    done
+
+    echo '  ]'
+    echo '}'
+  } > "$result_json"
+}
+
 write_apply_result_markdown() {
   local result_file="$1"
   local mode="$2"

@@ -97,6 +97,8 @@ cp deploy.example.yaml deploy.yaml
 - 显式确认 `backup_dir`
 - 可选执行 nginx 测试，并显式指定 `nginx-test-cmd`
 - 写出 `APPLY-RESULT.md`
+- 写出 `APPLY-RESULT.json`
+- `--doctor` 会读取 `APPLY-RESULT.json`，给出更贴近 apply dry-run / execute 结果的下一步建议
 
 它当前明确**不会**自动做这些事：
 
@@ -120,7 +122,25 @@ cp deploy.example.yaml deploy.yaml
 ./apply-generated-package.sh --help
 ```
 
-这条 v0.2 生成流程会：
+其中 apply 阶段现在会同时产出：
+
+- `APPLY-RESULT.md`：给人读的摘要
+- `APPLY-RESULT.json`：给 `state.json` / `--doctor` / 后续 resume 策略消费的机器可读结果
+
+`APPLY-RESULT.json` 当前会记录至少这些关键信息：
+
+- `mode`：`dry-run` / `execute`
+- `final_status`：如 `ok` / `blocked`
+- `nginx_test.requested` 与 `nginx_test.status`
+- `summary`：`new` / `replace` / `same` / `conflict` / `target_block` / `missing_source`
+- `targets`：snippets / vhost / error_root
+- `next_step`：当前建议的下一步动作
+
+这使得 `--doctor` 不再只凭 checkpoint 粗略判断，而能区分：
+
+- dry-run 已成功，但尚未真实 apply
+- 真实 apply 已执行，但 nginx 测试失败
+- apply 阶段被冲突、缺失源文件或目标阻断
 
 - 调用底层渲染器生成 conf/snippets/errors
 - 调用底层校验器做静态自检

@@ -45,6 +45,7 @@ EXECUTE="0"
 RUN_NGINX_TEST="0"
 NGINX_TEST_CMD="nginx -t"
 RESULT_FILE=""
+RESULT_JSON_FILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --from)
@@ -108,6 +109,10 @@ fi
 if [[ -z "$RESULT_FILE" ]]; then
   RESULT_FILE="$FROM_PATH/APPLY-RESULT.md"
 fi
+RESULT_JSON_FILE="${RESULT_FILE%.md}.json"
+if [[ "$RESULT_JSON_FILE" == "$RESULT_FILE" ]]; then
+  RESULT_JSON_FILE="$RESULT_FILE.json"
+fi
 
 case "$PLATFORM" in
   bt-panel-nginx)
@@ -143,11 +148,14 @@ cat <<EOF
 [apply] 备份目录：$BACKUP_DIR
 [apply] nginx 测试命令：$NGINX_TEST_CMD
 [apply] 结果摘要文件：$RESULT_FILE
+[apply] 结果 JSON 文件：$RESULT_JSON_FILE
 EOF
 
 if ! validate_apply_inputs "$FROM_PATH" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"; then
   write_apply_result_markdown "$RESULT_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "not-run" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT" "blocked"
+  write_apply_result_json "$RESULT_JSON_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "not-run" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT" "blocked"
   echo "[apply] 已写出结果摘要：$RESULT_FILE" >&2
+  echo "[apply] 已写出结果 JSON：$RESULT_JSON_FILE" >&2
   echo "[apply] 存在阻断项，停止继续。" >&2
   exit 6
 fi
@@ -193,10 +201,14 @@ if [[ "$EXECUTE" == "1" ]]; then
   echo
   print_execute_summary "$BACKUP_DIR" "$RUN_NGINX_TEST" "$local_nginx_test_status"
   write_apply_result_markdown "$RESULT_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "$local_nginx_test_status" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT" "$local_result_status"
+  write_apply_result_json "$RESULT_JSON_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "$local_nginx_test_status" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT" "$local_result_status"
   echo "[apply] 已写出结果摘要：$RESULT_FILE"
+  echo "[apply] 已写出结果 JSON：$RESULT_JSON_FILE"
 else
   run_backup_stub "$BACKUP_DIR" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT"
   write_apply_result_markdown "$RESULT_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "not-run" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT" "ok"
+  write_apply_result_json "$RESULT_JSON_FILE" "$MODE" "$PLATFORM" "$BACKUP_DIR" "$RUN_NGINX_TEST" "not-run" "$SNIPPETS_TARGET" "$VHOST_TARGET" "$ERROR_ROOT" "ok"
   echo "[apply] 已写出结果摘要：$RESULT_FILE"
+  echo "[apply] 已写出结果 JSON：$RESULT_JSON_FILE"
   echo "[apply] 当前不会执行真实复制、不会覆盖线上文件、不会 reload nginx"
 fi

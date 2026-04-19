@@ -150,6 +150,7 @@ values = {
     "RESUME_SOURCE_APPLY_PLAN_PATH": artifacts.get("apply_plan_markdown", ""),
     "RESUME_SOURCE_APPLY_PLAN_JSON_PATH": artifacts.get("apply_plan_json", ""),
     "RESUME_SOURCE_APPLY_RESULT_PATH": artifacts.get("apply_result", ""),
+    "RESUME_SOURCE_APPLY_RESULT_JSON_PATH": artifacts.get("apply_result_json", ""),
     "RESUME_SOURCE_SUMMARY_JSON_PRIMARY": artifacts.get("summary_generated", ""),
     "RESUME_SOURCE_SUMMARY_JSON_SECONDARY": artifacts.get("summary_output", ""),
     "RESUME_SOURCE_INPUTS_ENV": artifacts.get("inputs_env", ""),
@@ -223,6 +224,7 @@ payload = {
         "apply_plan_markdown": env("APPLY_PLAN_PATH"),
         "apply_plan_json": env("APPLY_PLAN_JSON_PATH"),
         "apply_result": env("APPLY_RESULT_PATH"),
+        "apply_result_json": env("APPLY_RESULT_JSON_PATH"),
         "summary_generated": env("SUMMARY_JSON_PRIMARY"),
         "summary_output": env("SUMMARY_JSON_SECONDARY"),
         "state_json": env("STATE_JSON_PATH"),
@@ -247,7 +249,7 @@ state_mark_checkpoint() {
   export RUN_APPLY_DRY_RUN EXECUTE_APPLY BACKUP_DIR RUN_NGINX_TEST_AFTER_EXECUTE NGINX_TEST_CMD ASSUME_YES
   export DEFAULT_ERROR_ROOT DEFAULT_LOG_DIR DEFAULT_OUTPUT_DIR DEFAULT_NGINX_SNIPPETS_TARGET_HINT DEFAULT_NGINX_VHOST_TARGET_HINT
   export INSTALLER_PREFLIGHT_STATUS INSTALLER_GENERATOR_STATUS INSTALLER_APPLY_PLAN_STATUS INSTALLER_DRY_RUN_STATUS INSTALLER_EXECUTE_STATUS INSTALLER_FINAL_STATUS
-  export GENERATED_DIR PREFLIGHT_REPORT_MD PREFLIGHT_REPORT_JSON SUMMARY_JSON_PRIMARY SUMMARY_JSON_SECONDARY CONFIG_PATH OUTPUT_DIR_ABS APPLY_PLAN_PATH APPLY_PLAN_JSON_PATH APPLY_RESULT_PATH
+  export GENERATED_DIR PREFLIGHT_REPORT_MD PREFLIGHT_REPORT_JSON SUMMARY_JSON_PRIMARY SUMMARY_JSON_SECONDARY CONFIG_PATH OUTPUT_DIR_ABS APPLY_PLAN_PATH APPLY_PLAN_JSON_PATH APPLY_RESULT_PATH APPLY_RESULT_JSON_PATH
 
   state_write_inputs_env
   state_write_json "$checkpoint" "$note"
@@ -323,11 +325,40 @@ for key in ["preflight", "generator", "apply_plan", "apply_dry_run", "apply_exec
     print(f"- {key}: {status.get(key, '')}")
 print()
 print("[doctor] 产物")
-for key, value in state.get("artifacts", {}).items():
+artifacts = state.get("artifacts", {})
+for key, value in artifacts.items():
     if value:
         exists = "exists" if Path(value).exists() else "missing"
         print(f"- {key}: {value} ({exists})")
 print()
+
+apply_result = None
+apply_result_json_path = artifacts.get("apply_result_json")
+if apply_result_json_path and Path(apply_result_json_path).exists():
+    try:
+        apply_result = json.loads(Path(apply_result_json_path).read_text(encoding="utf-8"))
+    except Exception as exc:
+        print("[doctor] apply result json")
+        print(f"- 读取失败: {apply_result_json_path} ({exc})")
+        print()
+
+if apply_result:
+    print("[doctor] apply result json")
+    print(f"- path: {apply_result_json_path}")
+    print(f"- mode: {apply_result.get('mode', '')}")
+    print(f"- final_status: {apply_result.get('final_status', '')}")
+    nginx_test = apply_result.get("nginx_test", {})
+    print(f"- nginx_test.requested: {nginx_test.get('requested', False)}")
+    print(f"- nginx_test.status: {nginx_test.get('status', '')}")
+    summary = apply_result.get("summary", {})
+    for key in ["new", "replace", "same", "conflict", "target_block", "missing_source"]:
+        if key in summary:
+            print(f"- summary.{key}: {summary.get(key)}")
+    next_step = apply_result.get("next_step")
+    if next_step:
+        print(f"- next_step: {next_step}")
+    print()
+
 print("[doctor] journal")
 print(f"- entries: {journal_entries}")
 if last_event:
@@ -335,18 +366,40 @@ if last_event:
     if last_event.get("message"):
         print(f"- last_message: {last_event.get('message')}")
 print()
+
 final_status = status.get("final", "")
 checkpoint = state.get("checkpoint", "")
-if final_status in {"success", "cancelled"}:
-    suggestion = "本轮已到稳定停点；若需继续，请基于现有产物开始下一轮迭代。"
-elif status.get("generator") == "failed":
-    suggestion = "建议先检查 generator 配置与输出目录，再用 --resume 重新推进。"
-elif status.get("preflight") == "blocked":
-    suggestion = "建议先修复 preflight BLOCK 项，再用 --resume 重新推进。"
-elif checkpoint:
-    suggestion = f"可尝试执行 ./install-interactive.sh --resume {state.get('run_id', '')} 继续；当前版本会复用已完成阶段，并从较安全的边界继续推进。"
-else:
-    suggestion = "建议先检查运行目录与 inputs/state 文件是否完整。"
+suggestion = None
+if apply_result:
+    apply_final = apply_result.get("final_status", "")
+    nginx_status = (apply_result.get("nginx_test") or {}).get("status", "")
+    summary = apply_result.get("summary") or {}
+    if apply_final == "blocked":
+        if (summary.get("conflict") or 0) > 0:
+            suggestion = "apply 结果显示存在冲突项；建议先处理目标文件冲突，再重新执行 apply / resume。"
+        elif (summary.get("missing_source") or 0) > 0:
+            suggestion = "apply 结果显示存在缺失源文件；建议先检查 generator 输出目录是否完整，再重新执行。"
+        else:
+            suggestion = apply_result.get("next_step") or "apply 阶段被阻断；建议先处理阻断项后再 resume。"
+    elif status.get("apply_execute") == "success" and nginx_status == "failed":
+        suggestion = "真实 apply 已执行，但 nginx 测试失败；建议优先按备份目录回滚，并手工复查 nginx -t。"
+    elif status.get("apply_execute") == "success":
+        suggestion = apply_result.get("next_step") or "真实 apply 已完成；建议人工确认后再决定是否 reload nginx。"
+    elif status.get("apply_dry_run") == "success":
+        suggestion = "dry-run 已成功；若人工审核计划无误，可带 --execute-apply 继续真实 apply。"
+
+if suggestion is None:
+    if final_status in {"success", "cancelled"}:
+        suggestion = "本轮已到稳定停点；若需继续，请基于现有产物开始下一轮迭代。"
+    elif status.get("generator") == "failed":
+        suggestion = "建议先检查 generator 配置与输出目录，再用 --resume 重新推进。"
+    elif status.get("preflight") == "blocked":
+        suggestion = "建议先修复 preflight BLOCK 项，再用 --resume 重新推进。"
+    elif checkpoint:
+        suggestion = f"可尝试执行 ./install-interactive.sh --resume {state.get('run_id', '')} 继续；当前版本会复用已完成阶段，并从较安全的边界继续推进。"
+    else:
+        suggestion = "建议先检查运行目录与 inputs/state 文件是否完整。"
+
 print("[doctor] 下一步建议")
 print(f"- {suggestion}")
 if Path(inputs_path).exists():
