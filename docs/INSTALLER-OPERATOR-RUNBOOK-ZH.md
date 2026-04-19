@@ -10,6 +10,10 @@
 
 这不是功能说明，也不是发布文案。
 
+如果你是从 `INSTALL.md` 第一次顺着 experimental installer 走到这里，先记住一句话：
+
+> 遇到异常 run 时，默认顺序是 **先 doctor，再看 state / apply result，最后才决定要不要 resume / repair / rollback**。
+
 它只回答一个实际问题：
 
 > 当 installer 跑完后，状态不是干净的 `success`，操作者下一步该怎么判断、先看什么、不要乱做什么。

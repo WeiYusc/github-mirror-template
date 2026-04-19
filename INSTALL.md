@@ -136,23 +136,31 @@ LOG_DIR=/www/wwwlogs
 - 想少手写 YAML
 - 想在生成部署包之后，继续走一次受控 apply / dry-run / 最终确认流程
 - 或希望通过最小 flags 做非交互 / 半非交互调用
+- 或需要针对异常 run 做 `doctor / resume / repair / rollback` 一类恢复判断
 
 入口：
 
 - `install-interactive.sh`
 - `apply-generated-package.sh`
+- `repair-applied-package.sh`
+- `rollback-applied-package.sh`
 - `docs/INSTALLER-DESIGN-ZH.md`
 - `docs/INSTALLER-MVP-PLAN-ZH.md`
+- `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
 
 这条路线当前定位是：
 
 - 在现有 generator 之上增加“中文交互 + 受控 apply”的实验性编排层
 - 不是替代人工审查的一键黑盒安装器
+- 更像“把输入、产物、状态、恢复建议说清楚”的保守安装骨架
 
 它当前已经支持：
 
 - 中文交互收集参数
 - 也支持用 flags 直接覆盖常用输入
+- 为每次运行生成 `run_id` 与状态目录（`scripts/generated/runs/<run_id>/`）
+- 支持 `--doctor <run_id>` 查看某次运行的 state / journal / 产物摘要
+- 支持 `--resume <run_id>` 复用上次输入，并在条件满足时跳过已完成的 preflight / generator / apply plan 阶段
 - preflight 摘要
 - 额外落盘 `scripts/generated/preflight.generated.md`
 - 额外落盘 `scripts/generated/preflight.generated.json`
@@ -166,6 +174,17 @@ LOG_DIR=/www/wwwlogs
 - 显式设置 `backup_dir`
 - 可选执行 nginx 测试，并显式设置 `nginx-test-cmd`
 - 输出 `APPLY-RESULT.md`
+- 输出 `APPLY-RESULT.json`
+- 提供保守式 rollback helper：`./rollback-applied-package.sh --result-json <APPLY-RESULT.json>`
+- 提供轻量 repair helper：`./repair-applied-package.sh --result-json <APPLY-RESULT.json>`
+
+其中，当前恢复语义已经明确收紧为：
+
+- `--doctor` 会优先读取 `APPLY-RESULT.json`
+- 如果 `state.json` 已登记 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`，`--doctor` 会优先直接消费；旧 run 未登记时，也会退回到同目录自动发现
+- `--resume` 会优先消费 run 级 `repair` / `rollback` 结果语义
+- 如果源运行的 `APPLY-RESULT.json` 已标记 `resume_recommended=false`，resume 默认不会继承上次的真实 apply / nginx test 执行意图
+- 在这些 inspection-first 的 resume 策略下，仍允许显式传 `--run-apply-dry-run` 做只读预演；但若显式传 `--execute-apply`，当前会直接拒绝
 
 一个最小脚本化示例：
 
@@ -182,6 +201,17 @@ LOG_DIR=/www/wwwlogs
   --yes
 ```
 
+如果想先看帮助或检查某次异常 run，可以先用：
+
+```bash
+./install-interactive.sh --help
+./install-interactive.sh --doctor <run_id>
+./install-interactive.sh --resume <run_id>
+./apply-generated-package.sh --help
+./rollback-applied-package.sh --help
+./repair-applied-package.sh --help
+```
+
 它当前明确不会：
 
 - 不会自动改 DNS
@@ -189,13 +219,13 @@ LOG_DIR=/www/wwwlogs
 - 不会自动接管复杂现网
 - 不会在未确认前直接改写目标目录
 - 不会在 nginx 测试失败后自动回滚
+- 不会把 `needs-attention` 场景下的 `--resume` 当成重放 apply 的快捷键
 
-如果想先看帮助：
+如果你是第一次碰到异常 run，建议先看：
 
-```bash
-./install-interactive.sh --help
-./apply-generated-package.sh --help
-```
+- `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
+
+这份手册专门覆盖 `needs-attention` / `blocked` / `failed` / `cancelled` 的检查顺序、建议动作与禁止误操作说明。
 
 ## 5.3 保留入口：low-level renderer
 
