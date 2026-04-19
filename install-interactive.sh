@@ -339,6 +339,7 @@ DOCTOR_RUN_ID=""
 INSTALLER_MODE="new"
 INSTALLER_CHECKPOINT="initialized"
 RESUME_STRATEGY="fresh"
+RESUME_STRATEGY_REASON="new-run"
 RESUME_SOURCE_RUN_ID=""
 RESUME_SOURCE_CHECKPOINT=""
 RESUME_SOURCE_PREFLIGHT_STATUS=""
@@ -514,24 +515,32 @@ if [[ -n "$RESUME_RUN_ID" ]]; then
 
   if [[ "$RESUME_SOURCE_ROLLBACK_MODE" == "execute" && "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" == "ok" ]]; then
     RESUME_STRATEGY="post-rollback-inspection"
+    RESUME_STRATEGY_REASON="source rollback already executed successfully"
     EXECUTE_APPLY="0"
     RUN_NGINX_TEST_AFTER_EXECUTE="0"
   elif [[ "$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS" == "passed" ]]; then
     RESUME_STRATEGY="post-repair-verification"
+    RESUME_STRATEGY_REASON="source repair rerun nginx test already passed"
     EXECUTE_APPLY="0"
     RUN_NGINX_TEST_AFTER_EXECUTE="0"
   elif [[ "$RESUME_SOURCE_REPAIR_FINAL_STATUS" == "needs-attention" || "$RESUME_SOURCE_REPAIR_FINAL_STATUS" == "blocked" ]]; then
     RESUME_STRATEGY="repair-review-first"
+    RESUME_STRATEGY_REASON="source repair result still needs operator review"
   elif [[ "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" != "1" ]]; then
     RESUME_STRATEGY="inspect-after-apply-attention"
+    RESUME_STRATEGY_REASON="source apply recovery marked resume as not recommended"
   elif [[ "$SHOULD_SKIP_APPLY_PLAN" == "1" ]]; then
     RESUME_STRATEGY="reuse-apply-plan"
+    RESUME_STRATEGY_REASON="source apply plan artifact is reusable"
   elif [[ "$SHOULD_SKIP_GENERATOR" == "1" ]]; then
     RESUME_STRATEGY="reuse-generated-output"
+    RESUME_STRATEGY_REASON="source generated output directory is reusable"
   elif [[ "$SHOULD_SKIP_PREFLIGHT" == "1" ]]; then
     RESUME_STRATEGY="reuse-preflight"
+    RESUME_STRATEGY_REASON="source preflight/config artifacts are reusable"
   else
     RESUME_STRATEGY="re-enter-from-inputs"
+    RESUME_STRATEGY_REASON="resume can only continue from stored inputs"
   fi
 
   if ! resume_strategy_allows_execute "$RESUME_STRATEGY"; then
@@ -551,7 +560,7 @@ fi
 
 state_prepare_run "$INSTALLER_MODE"
 export RUNS_ROOT_DIR RUN_ID STATE_DIR STATE_JSON_PATH STATE_JOURNAL_PATH STATE_INPUTS_PATH
-export INSTALLER_MODE INSTALLER_CHECKPOINT RESUME_RUN_ID RESUME_STRATEGY
+export INSTALLER_MODE INSTALLER_CHECKPOINT RESUME_RUN_ID RESUME_STRATEGY RESUME_STRATEGY_REASON
 
 ui_section "欢迎使用 github-mirror-template v0.3/v0.4 实验性安装编排骨架"
 ui_info "当前运行 ID：$RUN_ID"
@@ -559,6 +568,7 @@ ui_info "运行状态目录：$STATE_DIR"
 if [[ "$INSTALLER_MODE" == "resume" ]]; then
   ui_info "当前以 resume 模式启动：将复用历史输入并尽量跳过已完成阶段。"
   ui_info "本次 resume 策略：$RESUME_STRATEGY（源运行：${RESUME_SOURCE_RUN_ID:-$RESUME_RUN_ID}，源 checkpoint：${RESUME_SOURCE_CHECKPOINT:-unknown}）"
+  ui_info "策略原因：$RESUME_STRATEGY_REASON"
   if [[ "$RESUME_SOURCE_ROLLBACK_MODE" == "execute" && "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" == "ok" ]]; then
     ui_warn "源运行已执行 selective rollback；当前默认只做复查/续接，不会继承真实 apply 意图。"
     if [[ -n "$RESUME_SOURCE_ROLLBACK_NEXT_STEP" ]]; then

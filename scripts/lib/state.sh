@@ -172,6 +172,7 @@ rollback_result_path = artifacts.get("rollback_result") or (str(Path(rollback_re
 values = {
     "RESUME_SOURCE_RUN_ID": state.get("run_id", ""),
     "RESUME_SOURCE_CHECKPOINT": state.get("checkpoint", ""),
+    "RESUME_SOURCE_RESUMED_FROM": state.get("resumed_from", ""),
     "RESUME_SOURCE_PREFLIGHT_STATUS": status.get("preflight", ""),
     "RESUME_SOURCE_GENERATOR_STATUS": status.get("generator", ""),
     "RESUME_SOURCE_APPLY_PLAN_STATUS": status.get("apply_plan", ""),
@@ -220,17 +221,22 @@ state_write_json() {
   local checkpoint="${1:-${INSTALLER_CHECKPOINT:-initialized}}"
   local note="${2:-}"
   local resumed_from="${RESUME_RUN_ID:-}"
+  local resume_source_run_id="${RESUME_SOURCE_RUN_ID:-}"
+  local resume_source_checkpoint="${RESUME_SOURCE_CHECKPOINT:-}"
+  local resume_source_resumed_from="${RESUME_SOURCE_RESUMED_FROM:-}"
+  local resume_strategy="${RESUME_STRATEGY:-fresh}"
+  local resume_strategy_reason="${RESUME_STRATEGY_REASON:-new-run}"
 
   mkdir -p "$(dirname "$STATE_JSON_PATH")"
 
-  python3 - "$STATE_JSON_PATH" "$checkpoint" "$note" "$resumed_from" <<'PY'
+  python3 - "$STATE_JSON_PATH" "$checkpoint" "$note" "$resumed_from" "$resume_source_run_id" "$resume_source_checkpoint" "$resume_source_resumed_from" "$resume_strategy" "$resume_strategy_reason" <<'PY'
 import json
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-state_path, checkpoint, note, resumed_from = sys.argv[1:]
+state_path, checkpoint, note, resumed_from, resume_source_run_id, resume_source_checkpoint, resume_source_resumed_from, resume_strategy, resume_strategy_reason = sys.argv[1:]
 
 def env(name: str, default: str = ""):
     return os.environ.get(name, default)
@@ -242,6 +248,15 @@ payload = {
     "checkpoint": checkpoint,
     "note": note,
     "resumed_from": resumed_from,
+    "lineage": {
+        "mode": env("INSTALLER_MODE", "new"),
+        "source_run_id": resume_source_run_id,
+        "source_checkpoint": resume_source_checkpoint,
+        "source_resumed_from": resume_source_resumed_from,
+        "resume_strategy": resume_strategy,
+        "resume_strategy_reason": resume_strategy_reason,
+        "is_resumed_run": bool(resumed_from),
+    },
     "status": {
         "preflight": env("INSTALLER_PREFLIGHT_STATUS", "pending"),
         "generator": env("INSTALLER_GENERATOR_STATUS", "pending"),
@@ -347,7 +362,7 @@ state_mark_checkpoint() {
   INSTALLER_CHECKPOINT="$checkpoint"
 
   export RUNS_ROOT_DIR RUN_ID STATE_DIR STATE_JSON_PATH STATE_JOURNAL_PATH STATE_INPUTS_PATH
-  export RESUME_RUN_ID INSTALLER_CHECKPOINT INSTALLER_MODE
+  export RESUME_RUN_ID RESUME_SOURCE_RUN_ID RESUME_SOURCE_CHECKPOINT RESUME_SOURCE_RESUMED_FROM INSTALLER_CHECKPOINT INSTALLER_MODE RESUME_STRATEGY RESUME_STRATEGY_REASON
   export DEPLOYMENT_NAME BASE_DOMAIN DOMAIN_MODE PLATFORM TLS_CERT TLS_KEY INPUT_MODE INSTALL_INPUT_MODE
   export ERROR_ROOT LOG_DIR OUTPUT_DIR NGINX_SNIPPETS_TARGET_HINT NGINX_VHOST_TARGET_HINT
   export RUN_APPLY_DRY_RUN EXECUTE_APPLY BACKUP_DIR RUN_NGINX_TEST_AFTER_EXECUTE NGINX_TEST_CMD ASSUME_YES
@@ -420,6 +435,15 @@ print(f"- state_dir: {state.get('state_dir', '')}")
 print(f"- updated_at: {state.get('updated_at', '')}")
 print(f"- checkpoint: {state.get('checkpoint', '')}")
 print(f"- resumed_from: {state.get('resumed_from', '') or '无'}")
+lineage = state.get("lineage") or {}
+if lineage:
+    print(f"- lineage.mode: {lineage.get('mode', '')}")
+    print(f"- lineage.is_resumed_run: {lineage.get('is_resumed_run', False)}")
+    print(f"- lineage.source_run_id: {lineage.get('source_run_id', '') or '无'}")
+    print(f"- lineage.source_checkpoint: {lineage.get('source_checkpoint', '') or '无'}")
+    print(f"- lineage.source_resumed_from: {lineage.get('source_resumed_from', '') or '无'}")
+    print(f"- lineage.resume_strategy: {lineage.get('resume_strategy', '')}")
+    print(f"- lineage.resume_strategy_reason: {lineage.get('resume_strategy_reason', '')}")
 print()
 print("[doctor] 输入")
 inputs = state.get("inputs", {})
