@@ -1,0 +1,45 @@
+{
+  "schema_kind": "repair-result",
+  "schema_version": 1,
+  "mode": "dry-run",
+  "final_status": "blocked",
+  "source_apply_result": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/APPLY-RESULT.json",
+  "source_mode": "dry-run",
+  "source_final_status": "ok",
+  "platform": "plain-nginx",
+  "backup_dir": "/tmp/backup",
+  "nginx_test_cmd": "nginx -t",
+  "next_step": "来源 APPLY-RESULT.json 不是 execute 模式；repair helper 当前不把 dry-run 结果当作 post-apply repair 依据。",
+  "source_recovery": {
+    "installer_status": "",
+    "resume_strategy": "",
+    "resume_recommended": false,
+    "operator_action": ""
+  },
+  "execution": {
+    "source_backup_status": "not-started",
+    "source_copy_status": "not-started",
+    "source_reload_performed": false,
+    "nginx_test_rerun_status": "not-run",
+    "nginx_test_rerun_exit_code": "",
+    "nginx_test_rerun_output": ""
+  },
+  "source_summary": {
+    "new": 0,
+    "replace": 0,
+    "same": 20,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0
+  },
+  "diagnosis": {
+    "items_total": 0,
+    "targets_present": 0,
+    "targets_missing": 0,
+    "targets_non_regular": 0,
+    "sources_missing": 0,
+    "replace_backups_present": 0,
+    "replace_backups_missing": 0
+  },
+  "items": []
+}

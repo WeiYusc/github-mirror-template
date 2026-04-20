@@ -1,0 +1,68 @@
+{
+  "schema_kind": "installer-state",
+  "schema_version": 1,
+  "run_id": "fixture-post-rollback-inspection",
+  "state_dir": "__FIXTURE_ROOT__/runs/fixture-post-rollback-inspection",
+  "updated_at": "2026-04-21T01:32:00Z",
+  "checkpoint": "completed",
+  "note": "fixture post rollback inspection run",
+  "resumed_from": "fixture-legacy-fallback",
+  "lineage": {
+    "mode": "resume",
+    "source_run_id": "fixture-legacy-fallback",
+    "source_checkpoint": "completed",
+    "source_resumed_from": "",
+    "resume_strategy": "post-rollback-inspection",
+    "resume_strategy_reason": "source rollback already executed successfully",
+    "is_resumed_run": true
+  },
+  "status": {
+    "preflight": "warn",
+    "generator": "success",
+    "apply_plan": "generated",
+    "apply_dry_run": "skipped",
+    "apply_execute": "skipped",
+    "repair": "",
+    "rollback": "ok",
+    "final": "success"
+  },
+  "inputs": {
+    "deployment_name": "fixture-post-rollback-inspection",
+    "base_domain": "github.example.com",
+    "domain_mode": "flat-siblings",
+    "platform": "plain-nginx",
+    "input_mode": "advanced",
+    "tls_cert": "/tmp/cert.pem",
+    "tls_key": "/tmp/key.pem",
+    "error_root": "/tmp/errors",
+    "log_dir": "/tmp/logs",
+    "output_dir": "./dist/fixture-post-rollback-inspection",
+    "snippets_target": "/tmp/snippets",
+    "vhost_target": "/tmp/conf.d"
+  },
+  "flags": {
+    "assume_yes": true,
+    "run_apply_dry_run": true,
+    "execute_apply": false,
+    "run_nginx_test_after_execute": false
+  },
+  "artifacts": {
+    "config": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/deploy.generated.yaml",
+    "output_dir_abs": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection",
+    "preflight_markdown": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/preflight.generated.md",
+    "preflight_json": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/preflight.generated.json",
+    "apply_plan_markdown": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/APPLY-PLAN.md",
+    "apply_plan_json": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/APPLY-PLAN.json",
+    "apply_result": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/APPLY-RESULT.md",
+    "apply_result_json": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/APPLY-RESULT.json",
+    "repair_result": "",
+    "repair_result_json": "",
+    "rollback_result": "",
+    "rollback_result_json": "",
+    "summary_generated": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/INSTALLER-SUMMARY.generated.json",
+    "summary_output": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/INSTALLER-SUMMARY.json",
+    "state_json": "__FIXTURE_ROOT__/runs/fixture-post-rollback-inspection/state.json",
+    "inputs_env": "__FIXTURE_ROOT__/runs/fixture-post-rollback-inspection/inputs.env",
+    "journal_jsonl": "__FIXTURE_ROOT__/runs/fixture-post-rollback-inspection/journal.jsonl"
+  }
+}

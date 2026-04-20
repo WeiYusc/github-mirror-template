@@ -217,6 +217,19 @@ LOG_DIR=/www/wwwlogs
 ./repair-applied-package.sh --help
 ```
 
+如果你准备修改 installer 的状态/结果契约，建议提交前顺手跑一次：
+
+```bash
+bash tests/installer-contracts-regression.sh
+```
+
+这条轻量回归当前主要钉住：
+
+- 6 类 JSON 的 `schema_kind` / `schema_version`
+- `state_doctor()` / `state_load_resume_context()` 当前依赖的关键字段
+- 旧 run companion result 未登记时的同目录 fallback
+- inspection-first resume 语义（包括 `repair-review-first` / `post-rollback-inspection`）
+
 它当前明确不会：
 
 - 不会自动改 DNS

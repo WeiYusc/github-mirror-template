@@ -91,6 +91,7 @@ RUNS_ROOT_DIR="$WORKDIR/runs"
 
 check_contract_set "fixture-legacy-fallback"
 check_contract_set "fixture-resumed-repair-review"
+check_contract_set "fixture-post-rollback-inspection"
 
 state_load_resume_context "fixture-legacy-fallback"
 assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json" "legacy fallback repair json path"
@@ -106,6 +107,13 @@ assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "needs-attention" "resumed ru
 assert_equals "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" "ok" "resumed run rollback final status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "0" "resumed run rollback execute flag"
 
+state_load_resume_context "fixture-post-rollback-inspection"
+assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-legacy-fallback" "post rollback run resumed_from"
+assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-post-rollback-inspection/ROLLBACK-RESULT.json" "post rollback rollback json path"
+assert_equals "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" "ok" "post rollback final status"
+assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "1" "post rollback execute flag"
+assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "blocked" "post rollback repair final status"
+
 doctor_legacy_output="$(state_doctor "fixture-legacy-fallback")"
 assert_contains "$doctor_legacy_output" "[doctor] repair result json" "legacy doctor prints repair section"
 assert_contains "$doctor_legacy_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json" "legacy doctor resolves repair fallback path"
@@ -117,5 +125,11 @@ assert_contains "$doctor_resumed_output" "当前 resume 策略：repair-review-f
 assert_contains "$doctor_resumed_output" "最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。" "resumed doctor prints abnormal ancestor"
 assert_contains "$doctor_resumed_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]" "resumed doctor points to ancestor repair artifact"
 assert_contains "$doctor_resumed_output" "- lineage.source_run_id: fixture-legacy-fallback" "resumed doctor machine summary source run"
+
+doctor_post_rollback_output="$(state_doctor "fixture-post-rollback-inspection")"
+assert_contains "$doctor_post_rollback_output" "当前 resume 策略：post-rollback-inspection。" "post rollback doctor prints resume strategy"
+assert_contains "$doctor_post_rollback_output" "操作建议：优先核对 rollback 结果与当前落地文件状态，确认是否适合继续后续动作。" "post rollback doctor prints operator guidance"
+assert_contains "$doctor_post_rollback_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]" "post rollback doctor points to ancestor repair artifact"
+assert_contains "$doctor_post_rollback_output" "最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。" "post rollback doctor still highlights abnormal ancestor"
 
 echo "[PASS] installer contract regression"

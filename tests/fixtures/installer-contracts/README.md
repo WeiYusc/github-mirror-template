@@ -40,6 +40,21 @@
 - repair 优先产物提示
 - `state_load_resume_context()` 对 repair/rollback 关键字段的提取
 
+### 3. `fixture-post-rollback-inspection`
+
+模拟 rollback 已实际执行后的 resumed run：
+
+- `lineage.resume_strategy=post-rollback-inspection`
+- `resumed_from=fixture-legacy-fallback`
+- `ROLLBACK-RESULT.json.flags.execute=true`
+- 当前 run 语义是“先复查现场”，而不是继续真实 apply
+
+用于验证：
+
+- `state_doctor()` 对 `post-rollback-inspection` 的摘要文案
+- rollback 已执行后的关键字段提取
+- inspection-first resume 场景下的祖先产物指引
+
 ## 运行方式
 
 在仓库根目录执行：
