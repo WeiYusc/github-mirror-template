@@ -147,6 +147,7 @@ LOG_DIR=/www/wwwlogs
 - `docs/INSTALLER-DESIGN-ZH.md`
 - `docs/INSTALLER-MVP-PLAN-ZH.md`
 - `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
+- `docs/INSTALLER-STATE-MODEL-ZH.md`
 
 这条路线当前定位是：
 
@@ -227,6 +228,12 @@ LOG_DIR=/www/wwwlogs
 如果你是第一次碰到异常 run，建议先看：
 
 - `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
+- `docs/INSTALLER-STATE-MODEL-ZH.md`
+
+其中：
+
+- runbook 负责回答“现在该怎么处理”
+- state model 负责回答“这些 checkpoint / status.* / final / lineage / companion result 到底是什么意思”
 
 这份手册专门覆盖 `needs-attention` / `blocked` / `failed` / `cancelled` 的检查顺序、建议动作与禁止误操作说明。
 

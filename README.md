@@ -127,9 +127,10 @@ cp deploy.example.yaml deploy.yaml
 ./repair-applied-package.sh --help
 ```
 
-另外，如果你需要针对异常状态做人工判断，现已补一份单独的操作者手册：
+另外，如果你需要针对异常状态做人工判断，现已补两份配套文档：
 
 - `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`：面向 `needs-attention` / `blocked` / `failed` / `cancelled` 的检查顺序、建议动作与禁止误操作说明
+- `docs/INSTALLER-STATE-MODEL-ZH.md`：面向 `state.json` / `checkpoint` / `status.final` / `lineage` / `resume_strategy` / companion result 的实现语义说明
 
 其中 apply 阶段现在会同时产出：
 
@@ -230,6 +231,8 @@ cp deploy.example.yaml deploy.yaml
 - `DEPLOY-CONFIG.md`
 - `BT-PANEL-DEPLOYMENT-v1.md`
 - `DEPLOY-CHECKLIST.md`
+- `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
+- `docs/INSTALLER-STATE-MODEL-ZH.md`
 - `V0.2-SIMPLIFIED-DEPLOYMENT-DESIGN.md`
 
 ---

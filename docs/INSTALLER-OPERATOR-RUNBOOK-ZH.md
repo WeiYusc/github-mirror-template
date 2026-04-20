@@ -14,6 +14,11 @@
 
 > 遇到异常 run 时，默认顺序是 **先 doctor，再看 state / apply result，最后才决定要不要 resume / repair / rollback**。
 
+如果你需要先统一术语，再回来做操作判断，建议并排打开：
+
+- `docs/INSTALLER-STATE-MODEL-ZH.md`
+- `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
+
 它只回答一个实际问题：
 
 > 当 installer 跑完后，状态不是干净的 `success`，操作者下一步该怎么判断、先看什么、不要乱做什么。
@@ -71,6 +76,10 @@ doctor 的用途是：
 - 如果 `state.json` 已登记 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`，会优先直接读取
 - 对旧 run，如果同目录已经存在 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`，也会一起显示
 - 看脚本给出的下一步建议
+
+如果你分不清 `checkpoint` 和 `status.final`、或看不懂 `lineage.resume_strategy` 的语义，先回看：
+
+- `docs/INSTALLER-STATE-MODEL-ZH.md`
 
 ---
 
