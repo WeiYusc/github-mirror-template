@@ -516,11 +516,256 @@ def summarize_artifact_priority(item: dict):
     return None
 
 
+def print_priority_artifact_hint(prefix: str, priority_artifact, missing_hint: str = ""):
+    if priority_artifact is not None:
+        kind, path, note = priority_artifact
+        print(f"- {prefix}：{path} [{kind}]")
+        print(f"- 说明：{note}")
+    elif missing_hint:
+        print(f"- {missing_hint}")
+
+
+def collect_abnormal_status_alerts(status: dict):
+    alerts = []
+    abnormal_statuses = {"needs-attention", "blocked", "failed"}
+    for key in ["preflight", "generator", "apply_plan", "apply_dry_run", "apply_execute", "repair", "rollback", "final"]:
+        value = status.get(key, "")
+        if value in abnormal_statuses:
+            alerts.append(f"{key}={value}")
+    return alerts
+
+
+def find_nearest_abnormal_ancestor(lineage_chain):
+    return next((item for item in lineage_chain[1:] if item.get("alerts")), None)
+
+
+def print_nearest_abnormal_ancestor_summary(lineage_chain):
+    nearest_abnormal_ancestor = find_nearest_abnormal_ancestor(lineage_chain)
+    if nearest_abnormal_ancestor is not None:
+        print(
+            "- 最近的异常祖先节点："
+            f"{nearest_abnormal_ancestor['run_id']} "
+            f"（{', '.join(nearest_abnormal_ancestor.get('alerts') or [])}）。"
+        )
+        priority_artifact = summarize_artifact_priority(nearest_abnormal_ancestor)
+        print_priority_artifact_hint("优先查看产物", priority_artifact)
+    else:
+        print("- 已解析的祖先链中未发现 `needs-attention` / `blocked` / `failed` 异常状态。")
+
+
+def print_lineage_chain(lineage_chain, include_resume_metadata: bool):
+    print("[doctor] lineage chain")
+    print(f"- depth: {len(lineage_chain)}")
+    for idx, item in enumerate(lineage_chain, start=1):
+        role = "current"
+        if idx > 1:
+            role = f"ancestor-{idx-1}"
+        extra = []
+        if include_resume_metadata:
+            if item.get("resume_strategy"):
+                extra.append(f"strategy={item['resume_strategy']}")
+            if item.get("resume_strategy_reason"):
+                extra.append(f"reason={item['resume_strategy_reason']}")
+        if item.get("alerts"):
+            extra.append(f"alerts={','.join(item['alerts'])}")
+        extra_text = f"; {'; '.join(extra)}" if extra else ""
+        print(
+            f"- {idx}. [{role}] {item['run_id']} "
+            f"(checkpoint={item['checkpoint']}, final={item['final']}{extra_text})"
+        )
+
+
+def print_resume_lineage_summary(state: dict, lineage: dict, lineage_chain):
+    source_run_id = lineage.get("source_run_id", "") or state.get("resumed_from", "") or "未知"
+    source_checkpoint = lineage.get("source_checkpoint", "") or "未知"
+    source_resumed_from = lineage.get("source_resumed_from", "") or "无"
+    resume_strategy = lineage.get("resume_strategy", "") or "未记录"
+    resume_strategy_reason = lineage.get("resume_strategy_reason", "") or "未记录"
+    print(f"- 这是一轮 resumed run：当前运行继承自 {source_run_id}（source checkpoint: {source_checkpoint}）。")
+    if source_resumed_from != "无":
+        print(f"- 源运行自身也来自更早的一轮：{source_resumed_from}。")
+    else:
+        print("- 源运行本身不是已记录的 resumed run，当前链路到此为止。")
+    print(f"- 当前 resume 策略：{resume_strategy}。")
+    print(f"- 触发原因：{resume_strategy_reason}。")
+    if len(lineage_chain) > 1:
+        print(f"- 当前已解析到 {len(lineage_chain)} 段 lineage 链。")
+
+    operator_hint = "先结合 state / result artifacts 做常规复核。"
+    if resume_strategy in {"repair-review-first", "post-repair-verification"}:
+        operator_hint = "优先查看 repair 结果与 nginx test 相关输出，确认是否还需要人工处理。"
+    elif resume_strategy == "post-rollback-inspection":
+        operator_hint = "优先核对 rollback 结果与当前落地文件状态，确认是否适合继续后续动作。"
+    elif resume_strategy == "inspect-after-apply-attention":
+        operator_hint = "优先查看 apply result / recovery 建议，先理解为什么该 run 不推荐直接继续 apply。"
+    elif resume_strategy in {"reuse-apply-plan", "reuse-generated-output", "reuse-preflight"}:
+        operator_hint = "当前更像是复用既有产物继续推进；先确认复用产物仍然有效，再决定是否进入下一阶段。"
+    elif resume_strategy == "re-enter-from-inputs":
+        operator_hint = "当前只能从已保存输入重新进入；先确认输入仍然适用，再继续跑后续阶段。"
+    print(f"- 操作建议：{operator_hint}")
+
+
+def print_current_run_machine_summary(current_run_alerts, current_run_priority):
+    if not current_run_alerts:
+        return
+    print(f"- current_run_alerts: {', '.join(current_run_alerts)}")
+    if current_run_priority is not None:
+        kind, path, note = current_run_priority
+        print(f"- current_run_priority_artifact: {path} [{kind}]")
+        print(f"- current_run_priority_note: {note}")
+
+
+def print_lineage_machine_summary(lineage: dict):
+    print(f"- lineage.mode: {lineage.get('mode', '')}")
+    print(f"- lineage.is_resumed_run: {lineage.get('is_resumed_run', False)}")
+    print(f"- lineage.source_run_id: {lineage.get('source_run_id', '') or '无'}")
+    print(f"- lineage.source_checkpoint: {lineage.get('source_checkpoint', '') or '无'}")
+    print(f"- lineage.source_resumed_from: {lineage.get('source_resumed_from', '') or '无'}")
+    print(f"- lineage.resume_strategy: {lineage.get('resume_strategy', '')}")
+    print(f"- lineage.resume_strategy_reason: {lineage.get('resume_strategy_reason', '')}")
+
+
+def print_status_summary(status: dict):
+    print("[doctor] 状态")
+    for key in ["preflight", "generator", "apply_plan", "apply_dry_run", "apply_execute", "repair", "rollback", "final"]:
+        print(f"- {key}: {status.get(key, '')}")
+    print()
+
+
+def print_inputs_summary(inputs: dict):
+    print("[doctor] 输入")
+    for key in [
+        "deployment_name",
+        "base_domain",
+        "domain_mode",
+        "platform",
+        "input_mode",
+        "tls_cert",
+        "tls_key",
+        "error_root",
+        "log_dir",
+        "output_dir",
+        "snippets_target",
+        "vhost_target",
+    ]:
+        print(f"- {key}: {inputs.get(key, '')}")
+    print()
+
+
+def print_artifacts_summary(artifacts: dict):
+    print("[doctor] 产物")
+    for key, value in artifacts.items():
+        if value:
+            exists = "exists" if Path(value).exists() else "missing"
+            print(f"- {key}: {value} ({exists})")
+    print()
+
+
+def print_apply_result_summary(apply_result: dict, apply_result_json_path: str):
+    print("[doctor] apply result json")
+    print(f"- path: {apply_result_json_path}")
+    print(f"- mode: {apply_result.get('mode', '')}")
+    print(f"- final_status: {apply_result.get('final_status', '')}")
+    nginx_test = apply_result.get("nginx_test", {})
+    print(f"- nginx_test.requested: {nginx_test.get('requested', False)}")
+    print(f"- nginx_test.status: {nginx_test.get('status', '')}")
+    execution = apply_result.get("execution", {})
+    if execution:
+        print(f"- execution.backup_status: {execution.get('backup_status', '')}")
+        print(f"- execution.copy_status: {execution.get('copy_status', '')}")
+        print(f"- execution.reload_performed: {execution.get('reload_performed', False)}")
+    recovery = apply_result.get("recovery", {})
+    if recovery:
+        print(f"- recovery.installer_status: {recovery.get('installer_status', '')}")
+        print(f"- recovery.resume_strategy: {recovery.get('resume_strategy', '')}")
+        print(f"- recovery.resume_recommended: {recovery.get('resume_recommended', False)}")
+        print(f"- recovery.operator_action: {recovery.get('operator_action', '')}")
+    summary = apply_result.get("summary", {})
+    for key in ["new", "replace", "same", "conflict", "target_block", "missing_source"]:
+        if key in summary:
+            print(f"- summary.{key}: {summary.get(key)}")
+    next_step = apply_result.get("next_step")
+    if next_step:
+        print(f"- next_step: {next_step}")
+    print()
+
+
+def print_repair_result_summary(repair_result: dict, repair_result_json_path: str):
+    print("[doctor] repair result json")
+    print(f"- path: {repair_result_json_path}")
+    print(f"- mode: {repair_result.get('mode', '')}")
+    print(f"- final_status: {repair_result.get('final_status', '')}")
+    source_recovery = repair_result.get("source_recovery", {})
+    if source_recovery:
+        print(f"- source_recovery.installer_status: {source_recovery.get('installer_status', '')}")
+        print(f"- source_recovery.resume_recommended: {source_recovery.get('resume_recommended', False)}")
+        print(f"- source_recovery.operator_action: {source_recovery.get('operator_action', '')}")
+    execution = repair_result.get("execution", {})
+    if execution:
+        print(f"- execution.nginx_test_rerun_status: {execution.get('nginx_test_rerun_status', '')}")
+        print(f"- execution.nginx_test_rerun_exit_code: {execution.get('nginx_test_rerun_exit_code', '')}")
+    diagnosis = repair_result.get("diagnosis", {})
+    for key in ["items_total", "targets_present", "targets_missing", "targets_non_regular", "replace_backups_present", "replace_backups_missing"]:
+        if key in diagnosis:
+            print(f"- diagnosis.{key}: {diagnosis.get(key)}")
+    next_step = repair_result.get("next_step")
+    if next_step:
+        print(f"- next_step: {next_step}")
+    print()
+
+
+def print_rollback_result_summary(rollback_result: dict, rollback_result_json_path: str):
+    print("[doctor] rollback result json")
+    print(f"- path: {rollback_result_json_path}")
+    print(f"- mode: {rollback_result.get('mode', '')}")
+    print(f"- final_status: {rollback_result.get('final_status', '')}")
+    flags = rollback_result.get("flags", {})
+    if flags:
+        print(f"- flags.delete_new: {flags.get('delete_new', False)}")
+        print(f"- flags.execute: {flags.get('execute', False)}")
+    summary = rollback_result.get("summary", {})
+    for key in ["restore", "delete", "skip", "blocked", "pending", "restored", "deleted"]:
+        if key in summary:
+            print(f"- summary.{key}: {summary.get(key)}")
+    next_step = rollback_result.get("next_step")
+    if next_step:
+        print(f"- next_step: {next_step}")
+    print()
+
+
+def print_journal_summary(journal_entries: int, last_event: dict | None):
+    print("[doctor] journal")
+    print(f"- entries: {journal_entries}")
+    if last_event:
+        print(f"- last_event: {last_event.get('event', '')} [{last_event.get('status', '')}]")
+        if last_event.get("message"):
+            print(f"- last_message: {last_event.get('message')}")
+    print()
+
+
+def print_suggestion_summary(suggestion: str, inputs_path: str):
+    print("[doctor] 下一步建议")
+    print(f"- {suggestion}")
+    if Path(inputs_path).exists():
+        print(f"- 输入快照可用于 resume：{inputs_path}")
+
+
+def resolve_followup_result_json_paths(artifacts: dict, apply_result_json_path: str):
+    repair_result_json_path = artifacts.get("repair_result_json") or ""
+    rollback_result_json_path = artifacts.get("rollback_result_json") or ""
+    if apply_result_json_path:
+        apply_result_dir = Path(apply_result_json_path).parent
+        if not repair_result_json_path:
+            repair_result_json_path = str(apply_result_dir / "REPAIR-RESULT.json")
+        if not rollback_result_json_path:
+            rollback_result_json_path = str(apply_result_dir / "ROLLBACK-RESULT.json")
+    return repair_result_json_path, rollback_result_json_path
+
+
 def build_lineage_chain(current_state: dict, runs_root: Path):
     chain = []
     seen = set()
     cur = current_state
-    abnormal_statuses = {"needs-attention", "blocked", "failed"}
 
     while cur:
         run_id = cur.get("run_id", "")
@@ -529,11 +774,7 @@ def build_lineage_chain(current_state: dict, runs_root: Path):
         seen.add(run_id)
         status = cur.get("status") or {}
         lineage = cur.get("lineage") or {}
-        alerts = []
-        for key in ["preflight", "generator", "apply_plan", "apply_dry_run", "apply_execute", "repair", "rollback", "final"]:
-            value = status.get(key, "")
-            if value in abnormal_statuses:
-                alerts.append(f"{key}={value}")
+        alerts = collect_abnormal_status_alerts(status)
         chain.append({
             "run_id": run_id,
             "checkpoint": cur.get("checkpoint", "") or "未知",
@@ -573,266 +814,71 @@ print(f"- checkpoint: {state.get('checkpoint', '')}")
 print(f"- resumed_from: {state.get('resumed_from', '') or '无'}")
 runs_root = Path(state_path).resolve().parent.parent
 lineage_chain = build_lineage_chain(state, runs_root)
-current_run_alerts = []
 current_run_status = state.get("status") or {}
-for key in ["preflight", "generator", "apply_plan", "apply_dry_run", "apply_execute", "repair", "rollback", "final"]:
-    value = current_run_status.get(key, "")
-    if value in {"needs-attention", "blocked", "failed"}:
-        current_run_alerts.append(f"{key}={value}")
+current_run_alerts = collect_abnormal_status_alerts(current_run_status)
 current_run_priority = summarize_artifact_priority({
     "alerts": current_run_alerts,
     "artifacts": state.get("artifacts") or {},
 })
-if current_run_alerts:
-    print(f"- current_run_alerts: {', '.join(current_run_alerts)}")
-    if current_run_priority is not None:
-        kind, path, note = current_run_priority
-        print(f"- current_run_priority_artifact: {path} [{kind}]")
-        print(f"- current_run_priority_note: {note}")
+print_current_run_machine_summary(current_run_alerts, current_run_priority)
 lineage = state.get("lineage") or {}
 if lineage:
-    print(f"- lineage.mode: {lineage.get('mode', '')}")
-    print(f"- lineage.is_resumed_run: {lineage.get('is_resumed_run', False)}")
-    print(f"- lineage.source_run_id: {lineage.get('source_run_id', '') or '无'}")
-    print(f"- lineage.source_checkpoint: {lineage.get('source_checkpoint', '') or '无'}")
-    print(f"- lineage.source_resumed_from: {lineage.get('source_resumed_from', '') or '无'}")
-    print(f"- lineage.resume_strategy: {lineage.get('resume_strategy', '')}")
-    print(f"- lineage.resume_strategy_reason: {lineage.get('resume_strategy_reason', '')}")
+    print_lineage_machine_summary(lineage)
     print()
     print("[doctor] lineage 摘要")
     if lineage.get("is_resumed_run"):
-        source_run_id = lineage.get("source_run_id", "") or state.get("resumed_from", "") or "未知"
-        source_checkpoint = lineage.get("source_checkpoint", "") or "未知"
-        source_resumed_from = lineage.get("source_resumed_from", "") or "无"
-        resume_strategy = lineage.get("resume_strategy", "") or "未记录"
-        resume_strategy_reason = lineage.get("resume_strategy_reason", "") or "未记录"
-        print(f"- 这是一轮 resumed run：当前运行继承自 {source_run_id}（source checkpoint: {source_checkpoint}）。")
-        if source_resumed_from != "无":
-            print(f"- 源运行自身也来自更早的一轮：{source_resumed_from}。")
-        else:
-            print("- 源运行本身不是已记录的 resumed run，当前链路到此为止。")
-        print(f"- 当前 resume 策略：{resume_strategy}。")
-        print(f"- 触发原因：{resume_strategy_reason}。")
-        if len(lineage_chain) > 1:
-            print(f"- 当前已解析到 {len(lineage_chain)} 段 lineage 链。")
-
-        operator_hint = "先结合 state / result artifacts 做常规复核。"
-        if resume_strategy in {"repair-review-first", "post-repair-verification"}:
-            operator_hint = "优先查看 repair 结果与 nginx test 相关输出，确认是否还需要人工处理。"
-        elif resume_strategy == "post-rollback-inspection":
-            operator_hint = "优先核对 rollback 结果与当前落地文件状态，确认是否适合继续后续动作。"
-        elif resume_strategy == "inspect-after-apply-attention":
-            operator_hint = "优先查看 apply result / recovery 建议，先理解为什么该 run 不推荐直接继续 apply。"
-        elif resume_strategy in {"reuse-apply-plan", "reuse-generated-output", "reuse-preflight"}:
-            operator_hint = "当前更像是复用既有产物继续推进；先确认复用产物仍然有效，再决定是否进入下一阶段。"
-        elif resume_strategy == "re-enter-from-inputs":
-            operator_hint = "当前只能从已保存输入重新进入；先确认输入仍然适用，再继续跑后续阶段。"
-        print(f"- 操作建议：{operator_hint}")
+        print_resume_lineage_summary(state, lineage, lineage_chain)
     else:
         print("- 这不是 resumed run；当前运行没有接续历史 run 的 lineage。")
 
     if len(lineage_chain) > 1:
-        nearest_abnormal_ancestor = next(
-            (item for item in lineage_chain[1:] if item.get("alerts")),
-            None,
-        )
-        if nearest_abnormal_ancestor is not None:
-            print(
-                "- 最近的异常祖先节点："
-                f"{nearest_abnormal_ancestor['run_id']} "
-                f"（{', '.join(nearest_abnormal_ancestor.get('alerts') or [])}）。"
-            )
-            priority_artifact = summarize_artifact_priority(nearest_abnormal_ancestor)
-            if priority_artifact is not None:
-                kind, path, note = priority_artifact
-                print(f"- 优先查看产物：{path} [{kind}]")
-                print(f"- 说明：{note}")
-        else:
-            print("- 已解析的祖先链中未发现 `needs-attention` / `blocked` / `failed` 异常状态。")
+        print_nearest_abnormal_ancestor_summary(lineage_chain)
 
         print()
-        print("[doctor] lineage chain")
-        print(f"- depth: {len(lineage_chain)}")
-        for idx, item in enumerate(lineage_chain, start=1):
-            role = "current"
-            if idx > 1:
-                role = f"ancestor-{idx-1}"
-            extra = []
-            if item.get("resume_strategy"):
-                extra.append(f"strategy={item['resume_strategy']}")
-            if item.get("resume_strategy_reason"):
-                extra.append(f"reason={item['resume_strategy_reason']}")
-            if item.get("alerts"):
-                extra.append(f"alerts={','.join(item['alerts'])}")
-            extra_text = f"; {'; '.join(extra)}" if extra else ""
-            print(
-                f"- {idx}. [{role}] {item['run_id']} "
-                f"(checkpoint={item['checkpoint']}, final={item['final']}{extra_text})"
-            )
+        print_lineage_chain(lineage_chain, include_resume_metadata=True)
 else:
     if len(lineage_chain) > 1:
-        nearest_abnormal_ancestor = next(
-            (item for item in lineage_chain[1:] if item.get("alerts")),
-            None,
-        )
-        if nearest_abnormal_ancestor is not None:
-            print(
-                "- 最近的异常祖先节点："
-                f"{nearest_abnormal_ancestor['run_id']} "
-                f"（{', '.join(nearest_abnormal_ancestor.get('alerts') or [])}）。"
-            )
-            priority_artifact = summarize_artifact_priority(nearest_abnormal_ancestor)
-            if priority_artifact is not None:
-                kind, path, note = priority_artifact
-                print(f"- 优先查看产物：{path} [{kind}]")
-                print(f"- 说明：{note}")
-        else:
-            print("- 已解析的祖先链中未发现 `needs-attention` / `blocked` / `failed` 异常状态。")
+        print_nearest_abnormal_ancestor_summary(lineage_chain)
         print()
-        print("[doctor] lineage chain")
-        print(f"- depth: {len(lineage_chain)}")
-        for idx, item in enumerate(lineage_chain, start=1):
-            role = "current"
-            if idx > 1:
-                role = f"ancestor-{idx-1}"
-            extra = []
-            if item.get("alerts"):
-                extra.append(f"alerts={','.join(item['alerts'])}")
-            extra_text = f"; {'; '.join(extra)}" if extra else ""
-            print(f"- {idx}. [{role}] {item['run_id']} (checkpoint={item['checkpoint']}, final={item['final']}{extra_text})")
+        print_lineage_chain(lineage_chain, include_resume_metadata=False)
 print()
 if current_run_alerts:
     print("[doctor] 当前 run 异常摘要")
     print(f"- 当前 run 存在异常状态：{', '.join(current_run_alerts)}")
-    if current_run_priority is not None:
-        kind, path, note = current_run_priority
-        print(f"- 优先查看产物：{path} [{kind}]")
-        print(f"- 说明：{note}")
-    else:
-        print("- 当前 run 虽有异常状态，但暂未解析到匹配的优先产物路径。")
+    print_priority_artifact_hint(
+        "优先查看产物",
+        current_run_priority,
+        "当前 run 虽有异常状态，但暂未解析到匹配的优先产物路径。",
+    )
     print()
-print("[doctor] 输入")
 inputs = state.get("inputs", {})
-for key in [
-    "deployment_name",
-    "base_domain",
-    "domain_mode",
-    "platform",
-    "input_mode",
-    "tls_cert",
-    "tls_key",
-    "error_root",
-    "log_dir",
-    "output_dir",
-    "snippets_target",
-    "vhost_target",
-]:
-    print(f"- {key}: {inputs.get(key, '')}")
-print()
-print("[doctor] 状态")
+print_inputs_summary(inputs)
 status = state.get("status", {})
-for key in ["preflight", "generator", "apply_plan", "apply_dry_run", "apply_execute", "repair", "rollback", "final"]:
-    print(f"- {key}: {status.get(key, '')}")
-print()
-print("[doctor] 产物")
+print_status_summary(status)
 artifacts = state.get("artifacts", {})
-for key, value in artifacts.items():
-    if value:
-        exists = "exists" if Path(value).exists() else "missing"
-        print(f"- {key}: {value} ({exists})")
-print()
+print_artifacts_summary(artifacts)
 
 apply_result_json_path = artifacts.get("apply_result_json") or ""
 apply_result = load_json_if_exists(apply_result_json_path, "apply result json")
 
-repair_result_json_path = artifacts.get("repair_result_json") or ""
-rollback_result_json_path = artifacts.get("rollback_result_json") or ""
-if not repair_result_json_path and apply_result_json_path:
-    apply_result_dir = Path(apply_result_json_path).parent
-    repair_result_json_path = str(apply_result_dir / "REPAIR-RESULT.json")
-if not rollback_result_json_path and apply_result_json_path:
-    apply_result_dir = Path(apply_result_json_path).parent
-    rollback_result_json_path = str(apply_result_dir / "ROLLBACK-RESULT.json")
+repair_result_json_path, rollback_result_json_path = resolve_followup_result_json_paths(
+    artifacts,
+    apply_result_json_path,
+)
 
 repair_result = load_json_if_exists(repair_result_json_path, "repair result json")
 rollback_result = load_json_if_exists(rollback_result_json_path, "rollback result json")
 
 if apply_result:
-    print("[doctor] apply result json")
-    print(f"- path: {apply_result_json_path}")
-    print(f"- mode: {apply_result.get('mode', '')}")
-    print(f"- final_status: {apply_result.get('final_status', '')}")
-    nginx_test = apply_result.get("nginx_test", {})
-    print(f"- nginx_test.requested: {nginx_test.get('requested', False)}")
-    print(f"- nginx_test.status: {nginx_test.get('status', '')}")
-    execution = apply_result.get("execution", {})
-    if execution:
-        print(f"- execution.backup_status: {execution.get('backup_status', '')}")
-        print(f"- execution.copy_status: {execution.get('copy_status', '')}")
-        print(f"- execution.reload_performed: {execution.get('reload_performed', False)}")
-    recovery = apply_result.get("recovery", {})
-    if recovery:
-        print(f"- recovery.installer_status: {recovery.get('installer_status', '')}")
-        print(f"- recovery.resume_strategy: {recovery.get('resume_strategy', '')}")
-        print(f"- recovery.resume_recommended: {recovery.get('resume_recommended', False)}")
-        print(f"- recovery.operator_action: {recovery.get('operator_action', '')}")
-    summary = apply_result.get("summary", {})
-    for key in ["new", "replace", "same", "conflict", "target_block", "missing_source"]:
-        if key in summary:
-            print(f"- summary.{key}: {summary.get(key)}")
-    next_step = apply_result.get("next_step")
-    if next_step:
-        print(f"- next_step: {next_step}")
-    print()
+    print_apply_result_summary(apply_result, apply_result_json_path)
 
 if repair_result:
-    print("[doctor] repair result json")
-    print(f"- path: {repair_result_json_path}")
-    print(f"- mode: {repair_result.get('mode', '')}")
-    print(f"- final_status: {repair_result.get('final_status', '')}")
-    source_recovery = repair_result.get("source_recovery", {})
-    if source_recovery:
-        print(f"- source_recovery.installer_status: {source_recovery.get('installer_status', '')}")
-        print(f"- source_recovery.resume_recommended: {source_recovery.get('resume_recommended', False)}")
-        print(f"- source_recovery.operator_action: {source_recovery.get('operator_action', '')}")
-    execution = repair_result.get("execution", {})
-    if execution:
-        print(f"- execution.nginx_test_rerun_status: {execution.get('nginx_test_rerun_status', '')}")
-        print(f"- execution.nginx_test_rerun_exit_code: {execution.get('nginx_test_rerun_exit_code', '')}")
-    diagnosis = repair_result.get("diagnosis", {})
-    for key in ["items_total", "targets_present", "targets_missing", "targets_non_regular", "replace_backups_present", "replace_backups_missing"]:
-        if key in diagnosis:
-            print(f"- diagnosis.{key}: {diagnosis.get(key)}")
-    next_step = repair_result.get("next_step")
-    if next_step:
-        print(f"- next_step: {next_step}")
-    print()
+    print_repair_result_summary(repair_result, repair_result_json_path)
 
 if rollback_result:
-    print("[doctor] rollback result json")
-    print(f"- path: {rollback_result_json_path}")
-    print(f"- mode: {rollback_result.get('mode', '')}")
-    print(f"- final_status: {rollback_result.get('final_status', '')}")
-    flags = rollback_result.get("flags", {})
-    if flags:
-        print(f"- flags.delete_new: {flags.get('delete_new', False)}")
-        print(f"- flags.execute: {flags.get('execute', False)}")
-    summary = rollback_result.get("summary", {})
-    for key in ["restore", "delete", "skip", "blocked", "pending", "restored", "deleted"]:
-        if key in summary:
-            print(f"- summary.{key}: {summary.get(key)}")
-    next_step = rollback_result.get("next_step")
-    if next_step:
-        print(f"- next_step: {next_step}")
-    print()
+    print_rollback_result_summary(rollback_result, rollback_result_json_path)
 
-print("[doctor] journal")
-print(f"- entries: {journal_entries}")
-if last_event:
-    print(f"- last_event: {last_event.get('event', '')} [{last_event.get('status', '')}]")
-    if last_event.get("message"):
-        print(f"- last_message: {last_event.get('message')}")
-print()
+print_journal_summary(journal_entries, last_event)
 
 final_status = status.get("final", "")
 checkpoint = state.get("checkpoint", "")
@@ -909,9 +955,6 @@ if suggestion is None:
     else:
         suggestion = "建议先检查运行目录与 inputs/state 文件是否完整。"
 
-print("[doctor] 下一步建议")
-print(f"- {suggestion}")
-if Path(inputs_path).exists():
-    print(f"- 输入快照可用于 resume：{inputs_path}")
+print_suggestion_summary(suggestion, inputs_path)
 PY
 }
