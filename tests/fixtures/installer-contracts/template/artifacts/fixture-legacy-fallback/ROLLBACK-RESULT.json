@@ -1,0 +1,55 @@
+{
+  "schema_kind": "rollback-result",
+  "schema_version": 1,
+  "mode": "dry-run",
+  "final_status": "ok",
+  "source_apply_result": "__FIXTURE_ROOT__/artifacts/fixture-legacy-fallback/APPLY-RESULT.json",
+  "source_mode": "execute",
+  "source_final_status": "ok",
+  "platform": "plain-nginx",
+  "backup_dir": "/tmp/backup",
+  "next_step": "回滚计划可执行。执行后请手工运行 nginx -t 再决定是否 reload。",
+  "flags": {
+    "delete_new": true,
+    "execute": false
+  },
+  "source_summary": {
+    "new": 1,
+    "replace": 1,
+    "same": 18,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0
+  },
+  "summary": {
+    "restore": 1,
+    "delete": 1,
+    "skip": 0,
+    "blocked": 0,
+    "pending": 0,
+    "restored": 0,
+    "deleted": 0
+  },
+  "items": [
+    {
+      "category": "snippet",
+      "source": "snippets/a.conf",
+      "dest": "/tmp/snippets/a.conf",
+      "original_status": "REPLACE",
+      "action": "restore",
+      "outcome": "pending",
+      "note": "fixture restore",
+      "backup_path": "/tmp/backup/a.conf"
+    },
+    {
+      "category": "vhost",
+      "source": "conf.d/b.conf",
+      "dest": "/tmp/conf.d/b.conf",
+      "original_status": "NEW",
+      "action": "delete",
+      "outcome": "pending",
+      "note": "fixture delete new",
+      "backup_path": ""
+    }
+  ]
+}

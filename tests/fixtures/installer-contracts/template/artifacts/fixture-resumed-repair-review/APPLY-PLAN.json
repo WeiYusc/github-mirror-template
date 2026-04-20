@@ -1,0 +1,22 @@
+{
+  "schema_kind": "apply-plan",
+  "schema_version": 1,
+  "mode": "dry-run",
+  "platform": "plain-nginx",
+  "summary": {
+    "new": 0,
+    "replace": 0,
+    "same": 20,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0,
+    "has_blockers": false
+  },
+  "paths": {
+    "from": "./dist/fixture-resumed-repair-review",
+    "snippets_target": "/tmp/snippets",
+    "vhost_target": "/tmp/conf.d",
+    "error_root": "/tmp/errors"
+  },
+  "items": []
+}

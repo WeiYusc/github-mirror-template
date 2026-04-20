@@ -1,0 +1,59 @@
+{
+  "schema_kind": "repair-result",
+  "schema_version": 1,
+  "mode": "dry-run",
+  "final_status": "needs-attention",
+  "source_apply_result": "__FIXTURE_ROOT__/artifacts/fixture-legacy-fallback/APPLY-RESULT.json",
+  "source_mode": "execute",
+  "source_final_status": "ok",
+  "platform": "plain-nginx",
+  "backup_dir": "/tmp/backup",
+  "nginx_test_cmd": "nginx -t",
+  "next_step": "当前处于 needs-attention；建议先复核诊断项，再决定是 rollback 还是人工修复后重跑 nginx -t。",
+  "source_recovery": {
+    "installer_status": "needs-attention",
+    "resume_strategy": "manual-recovery-first",
+    "resume_recommended": false,
+    "operator_action": "rollback-or-fix"
+  },
+  "execution": {
+    "source_backup_status": "completed",
+    "source_copy_status": "completed",
+    "source_reload_performed": false,
+    "nginx_test_rerun_status": "not-run",
+    "nginx_test_rerun_exit_code": "",
+    "nginx_test_rerun_output": ""
+  },
+  "source_summary": {
+    "new": 1,
+    "replace": 1,
+    "same": 18,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0
+  },
+  "diagnosis": {
+    "items_total": 2,
+    "targets_present": 2,
+    "targets_missing": 0,
+    "targets_non_regular": 0,
+    "sources_missing": 0,
+    "replace_backups_present": 1,
+    "replace_backups_missing": 0
+  },
+  "items": [
+    {
+      "category": "snippet",
+      "source": "snippets/a.conf",
+      "dest": "/tmp/snippets/a.conf",
+      "original_status": "REPLACE",
+      "target_kind": "file",
+      "source_kind": "file",
+      "backup_path": "/tmp/backup/a.conf",
+      "backup_kind": "file",
+      "planned_action": "review",
+      "planned_outcome": "manual-fix",
+      "note": "fixture repair review"
+    }
+  ]
+}
