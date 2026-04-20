@@ -226,9 +226,9 @@ check_contract_value_smoke_matrix() {
   assert_json_value_in "$run_root/state.json" "status.generator" "$run_id state generator enum" success
   assert_json_value_in "$run_root/state.json" "status.apply_plan" "$run_id state apply plan enum" generated
   assert_json_value_in "$run_root/state.json" "status.apply_dry_run" "$run_id state apply dry run enum" skipped
-  assert_json_value_in "$run_root/state.json" "status.apply_execute" "$run_id state apply execute enum" success skipped
-  assert_json_value_in "$run_root/state.json" "status.repair" "$run_id state repair enum" "" ok needs-attention
-  assert_json_value_in "$run_root/state.json" "status.final" "$run_id state final enum" success
+  assert_json_value_in "$run_root/state.json" "status.apply_execute" "$run_id state apply execute enum" success skipped needs-attention
+  assert_json_value_in "$run_root/state.json" "status.repair" "$run_id state repair enum" "" ok needs-attention blocked
+  assert_json_value_in "$run_root/state.json" "status.final" "$run_id state final enum" success needs-attention
 
   assert_json_value_type "$artifact_root/INSTALLER-SUMMARY.json" "flags.assume_yes" bool "$run_id summary assume_yes bool"
   assert_json_value_type "$artifact_root/INSTALLER-SUMMARY.json" "flags.execute_apply" bool "$run_id summary execute_apply bool"
@@ -237,8 +237,8 @@ check_contract_value_smoke_matrix() {
   assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.preflight" "$run_id summary preflight enum" warn success
   assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.generator" "$run_id summary generator enum" success
   assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.apply_plan" "$run_id summary apply plan enum" generated
-  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.apply_execute" "$run_id summary apply execute enum" success skipped
-  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.final" "$run_id summary final enum" success
+  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.apply_execute" "$run_id summary apply execute enum" success skipped needs-attention
+  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.final" "$run_id summary final enum" success needs-attention
 
   assert_json_value_in "$artifact_root/APPLY-RESULT.json" "mode" "$run_id apply result mode enum" dry-run execute
   assert_json_value_in "$artifact_root/APPLY-RESULT.json" "final_status" "$run_id apply result final status enum" ok needs-attention
@@ -277,16 +277,19 @@ RUNS_ROOT_DIR="$WORKDIR/runs"
 
 check_contract_set "fixture-legacy-fallback"
 check_contract_set "fixture-resumed-repair-review"
+check_contract_set "fixture-current-apply-attention"
 check_contract_set "fixture-post-rollback-inspection"
 check_contract_set "fixture-post-repair-verification"
 
 check_stable_contract_smoke_matrix "fixture-legacy-fallback"
 check_stable_contract_smoke_matrix "fixture-resumed-repair-review"
+check_stable_contract_smoke_matrix "fixture-current-apply-attention"
 check_stable_contract_smoke_matrix "fixture-post-rollback-inspection"
 check_stable_contract_smoke_matrix "fixture-post-repair-verification"
 
 check_contract_value_smoke_matrix "fixture-legacy-fallback"
 check_contract_value_smoke_matrix "fixture-resumed-repair-review"
+check_contract_value_smoke_matrix "fixture-current-apply-attention"
 check_contract_value_smoke_matrix "fixture-post-rollback-inspection"
 check_contract_value_smoke_matrix "fixture-post-repair-verification"
 
@@ -303,6 +306,13 @@ assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixtu
 assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "needs-attention" "resumed run repair final status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" "ok" "resumed run rollback final status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "0" "resumed run rollback execute flag"
+
+state_load_resume_context "fixture-current-apply-attention"
+assert_equals "$RESUME_SOURCE_RESUMED_FROM" "" "current apply attention resumed_from stays empty"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-current-apply-attention/REPAIR-RESULT.json" "current apply attention repair json path"
+assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "ok" "current apply attention repair final status"
+assert_equals "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" "ok" "current apply attention rollback final status"
+assert_equals "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" "0" "current apply attention apply resume recommended"
 
 state_load_resume_context "fixture-post-rollback-inspection"
 assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-legacy-fallback" "post rollback run resumed_from"
@@ -330,6 +340,13 @@ assert_contains "$doctor_resumed_output" "当前 resume 策略：repair-review-f
 assert_contains "$doctor_resumed_output" "最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。" "resumed doctor prints abnormal ancestor"
 assert_contains "$doctor_resumed_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]" "resumed doctor points to ancestor repair artifact"
 assert_contains "$doctor_resumed_output" "- lineage.source_run_id: fixture-legacy-fallback" "resumed doctor machine summary source run"
+
+doctor_current_apply_attention_output="$(state_doctor "fixture-current-apply-attention")"
+assert_contains "$doctor_current_apply_attention_output" "[doctor] 当前 run 异常摘要" "current apply attention doctor prints current run abnormal summary"
+assert_contains "$doctor_current_apply_attention_output" "- 当前 run 存在异常状态：apply_execute=needs-attention, final=needs-attention" "current apply attention doctor prints current run alerts"
+assert_contains "$doctor_current_apply_attention_output" "$WORKDIR/artifacts/fixture-current-apply-attention/APPLY-RESULT.json [apply-result]" "current apply attention doctor points to current apply result artifact"
+assert_contains "$doctor_current_apply_attention_output" "最近异常出在 apply 阶段，建议先看 apply 结果/计划文件。" "current apply attention doctor explains priority artifact"
+assert_contains "$doctor_current_apply_attention_output" "真实 apply 已落盘，但 nginx 测试失败；建议先运行 ./repair-applied-package.sh --result-json $WORKDIR/artifacts/fixture-current-apply-attention/APPLY-RESULT.json --dry-run 做保守诊断，再决定 selective rollback 还是人工修复。 当前不建议把 resume 当作默认下一步。" "current apply attention doctor prints repair dry-run suggestion"
 
 doctor_post_rollback_output="$(state_doctor "fixture-post-rollback-inspection")"
 assert_contains "$doctor_post_rollback_output" "当前 resume 策略：post-rollback-inspection。" "post rollback doctor prints resume strategy"

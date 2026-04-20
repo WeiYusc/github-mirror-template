@@ -44,6 +44,22 @@
 - repair 优先产物提示
 - `state_load_resume_context()` 对 repair/rollback 关键字段的提取
 
+### 3. `fixture-current-apply-attention`
+
+模拟当前 run 自身在真实 apply 后进入 `needs-attention`：
+
+- `lineage.mode=new`
+- `status.apply_execute=needs-attention`
+- `status.final=needs-attention`
+- `APPLY-RESULT.json.recovery.operator_action=rollback-or-fix`
+- `APPLY-RESULT.json.nginx_test.status=failed`
+
+用于验证：
+
+- `state_doctor()` 的“当前 run 异常摘要”区块
+- 当前 run 优先产物应指向 `APPLY-RESULT.json`
+- apply attention 场景下的 suggestion 文案与 repair dry-run 引导
+
 ### 4. `fixture-post-repair-verification`
 
 模拟 repair 已完成复查且 `nginx -t` 重跑通过后的 resumed run：
@@ -60,6 +76,21 @@
 - repair 已通过后的关键字段提取
 - inspection-first resume 场景下的 operator hint 与 repair 优先语义
 
+### 5. `fixture-post-rollback-inspection`
+
+模拟 rollback 已执行完成后的 inspection-first resumed run：
+
+- `lineage.resume_strategy=post-rollback-inspection`
+- `resumed_from=fixture-legacy-fallback`
+- `ROLLBACK-RESULT.json.mode=execute`
+- `ROLLBACK-RESULT.json.flags.execute=true`
+
+用于验证：
+
+- `state_doctor()` 对 `post-rollback-inspection` 的摘要文案
+- rollback 已执行后的关键字段提取
+- inspection-first resume 场景下的 operator hint 与祖先异常提示
+
 ## 运行方式
 
 在仓库根目录执行：
@@ -73,3 +104,4 @@ bash tests/installer-contracts-regression.sh
 ```text
 [PASS] installer contract regression
 ```
+

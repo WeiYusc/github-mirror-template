@@ -1,0 +1,33 @@
+{
+  "schema_kind": "rollback-result",
+  "schema_version": 1,
+  "mode": "dry-run",
+  "platform": "plain-nginx",
+  "final_status": "ok",
+  "source_apply_result": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/APPLY-RESULT.json",
+  "source_mode": "execute",
+  "source_final_status": "needs-attention",
+  "flags": {
+    "delete_new": false,
+    "execute": false
+  },
+  "summary": {
+    "restore": 1,
+    "delete": 0,
+    "skip": 1,
+    "blocked": 0,
+    "pending": 1,
+    "restored": 0,
+    "deleted": 0
+  },
+  "next_step": "当前仅记录 rollback 占位结果；真正下一步仍应先查看 APPLY-RESULT。",
+  "source_summary": {
+    "new": 1,
+    "replace": 1,
+    "same": 18,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0
+  },
+  "items": []
+}
