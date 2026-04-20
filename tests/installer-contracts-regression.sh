@@ -72,6 +72,35 @@ if actual_version != 1:
 PY
 }
 
+assert_json_paths() {
+  local path="$1"
+  local label="$2"
+  shift 2
+  python3 - "$path" "$label" "$@" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+label = sys.argv[2]
+required_paths = sys.argv[3:]
+obj = json.loads(path.read_text(encoding="utf-8"))
+
+
+def has_path(current, dotted):
+    value = current
+    for part in dotted.split('.'):
+        if not isinstance(value, dict) or part not in value:
+            return False
+        value = value[part]
+    return True
+
+missing = [item for item in required_paths if not has_path(obj, item)]
+if missing:
+    raise SystemExit(f"[FAIL] {label}: missing paths: {', '.join(missing)}")
+PY
+}
+
 check_contract_set() {
   local run_id="$1"
   local artifact_root="$WORKDIR/artifacts/$run_id"
@@ -81,6 +110,47 @@ check_contract_set() {
   assert_contract_file "$artifact_root/APPLY-RESULT.json" "apply-result"
   assert_contract_file "$artifact_root/REPAIR-RESULT.json" "repair-result"
   assert_contract_file "$artifact_root/ROLLBACK-RESULT.json" "rollback-result"
+}
+
+check_stable_contract_smoke_matrix() {
+  local run_id="$1"
+  local run_root="$WORKDIR/runs/$run_id"
+  local artifact_root="$WORKDIR/artifacts/$run_id"
+
+  assert_json_paths "$run_root/state.json" "$run_id state stable paths" \
+    run_id updated_at checkpoint status artifacts inputs flags lineage \
+    status.preflight status.generator status.apply_plan status.apply_dry_run status.apply_execute status.repair status.final \
+    artifacts.apply_result_json artifacts.summary_output artifacts.state_json artifacts.inputs_env artifacts.journal_jsonl \
+    lineage.mode lineage.resume_strategy lineage.resume_strategy_reason
+
+  assert_json_paths "$artifact_root/INSTALLER-SUMMARY.json" "$run_id installer summary stable paths" \
+    deployment_name base_domain domain_mode platform input_mode flags status artifacts \
+    flags.assume_yes flags.execute_apply flags.run_apply_dry_run \
+    status.preflight status.generator status.apply_plan status.final \
+    artifacts.apply_plan_json artifacts.apply_result_json artifacts.state_json artifacts.summary_output
+
+  assert_json_paths "$artifact_root/APPLY-PLAN.json" "$run_id apply plan stable paths" \
+    mode platform paths summary items \
+    paths.from paths.snippets_target paths.vhost_target paths.error_root \
+    summary.new summary.replace summary.same summary.conflict summary.target_block summary.missing_source summary.has_blockers
+
+  assert_json_paths "$artifact_root/APPLY-RESULT.json" "$run_id apply result stable paths" \
+    mode platform final_status summary recovery next_step execution nginx_test targets items \
+    recovery.installer_status recovery.resume_strategy recovery.resume_recommended recovery.operator_action \
+    execution.backup_status execution.copy_status execution.reload_performed \
+    nginx_test.requested nginx_test.status \
+    summary.new summary.replace summary.same summary.conflict summary.target_block summary.missing_source
+
+  assert_json_paths "$artifact_root/REPAIR-RESULT.json" "$run_id repair result stable paths" \
+    mode platform final_status source_apply_result source_mode source_final_status source_recovery execution diagnosis next_step source_summary items \
+    source_recovery.installer_status source_recovery.resume_strategy source_recovery.resume_recommended source_recovery.operator_action \
+    execution.nginx_test_rerun_status execution.nginx_test_rerun_exit_code \
+    diagnosis.items_total diagnosis.targets_present diagnosis.targets_missing diagnosis.targets_non_regular diagnosis.replace_backups_present diagnosis.replace_backups_missing
+
+  assert_json_paths "$artifact_root/ROLLBACK-RESULT.json" "$run_id rollback result stable paths" \
+    mode platform final_status source_apply_result source_mode source_final_status flags summary next_step source_summary items \
+    flags.delete_new flags.execute \
+    summary.restore summary.delete summary.skip summary.blocked summary.pending summary.restored summary.deleted
 }
 
 materialize_fixtures
@@ -93,6 +163,11 @@ check_contract_set "fixture-legacy-fallback"
 check_contract_set "fixture-resumed-repair-review"
 check_contract_set "fixture-post-rollback-inspection"
 check_contract_set "fixture-post-repair-verification"
+
+check_stable_contract_smoke_matrix "fixture-legacy-fallback"
+check_stable_contract_smoke_matrix "fixture-resumed-repair-review"
+check_stable_contract_smoke_matrix "fixture-post-rollback-inspection"
+check_stable_contract_smoke_matrix "fixture-post-repair-verification"
 
 state_load_resume_context "fixture-legacy-fallback"
 assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json" "legacy fallback repair json path"
