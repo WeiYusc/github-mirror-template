@@ -92,6 +92,7 @@ RUNS_ROOT_DIR="$WORKDIR/runs"
 check_contract_set "fixture-legacy-fallback"
 check_contract_set "fixture-resumed-repair-review"
 check_contract_set "fixture-post-rollback-inspection"
+check_contract_set "fixture-post-repair-verification"
 
 state_load_resume_context "fixture-legacy-fallback"
 assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json" "legacy fallback repair json path"
@@ -114,6 +115,14 @@ assert_equals "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" "ok" "post rollback final s
 assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "1" "post rollback execute flag"
 assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "blocked" "post rollback repair final status"
 
+state_load_resume_context "fixture-post-repair-verification"
+assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-legacy-fallback" "post repair run resumed_from"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" "post repair repair json path"
+assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "ok" "post repair final status"
+assert_equals "$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS" "passed" "post repair nginx rerun status"
+assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-post-repair-verification/ROLLBACK-RESULT.json" "post repair rollback fallback path"
+assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "0" "post repair rollback execute flag"
+
 doctor_legacy_output="$(state_doctor "fixture-legacy-fallback")"
 assert_contains "$doctor_legacy_output" "[doctor] repair result json" "legacy doctor prints repair section"
 assert_contains "$doctor_legacy_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json" "legacy doctor resolves repair fallback path"
@@ -131,5 +140,12 @@ assert_contains "$doctor_post_rollback_output" "当前 resume 策略：post-roll
 assert_contains "$doctor_post_rollback_output" "操作建议：优先核对 rollback 结果与当前落地文件状态，确认是否适合继续后续动作。" "post rollback doctor prints operator guidance"
 assert_contains "$doctor_post_rollback_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]" "post rollback doctor points to ancestor repair artifact"
 assert_contains "$doctor_post_rollback_output" "最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。" "post rollback doctor still highlights abnormal ancestor"
+
+doctor_post_repair_output="$(state_doctor "fixture-post-repair-verification")"
+assert_contains "$doctor_post_repair_output" "当前 resume 策略：post-repair-verification。" "post repair doctor prints resume strategy"
+assert_contains "$doctor_post_repair_output" "操作建议：优先查看 repair 结果与 nginx test 相关输出，确认是否还需要人工处理。" "post repair doctor prints operator guidance"
+assert_contains "$doctor_post_repair_output" "- execution.nginx_test_rerun_status: passed" "post repair doctor prints rerun status"
+assert_contains "$doctor_post_repair_output" "已完成 repair 复查且 nginx -t 通过；建议人工确认现场后，再决定是否继续后续操作。" "post repair doctor prints repair next step"
+assert_contains "$doctor_post_repair_output" "[doctor] 下一步建议" "post repair doctor prints next step section"
 
 echo "[PASS] installer contract regression"

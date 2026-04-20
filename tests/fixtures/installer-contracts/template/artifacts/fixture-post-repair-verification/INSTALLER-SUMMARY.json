@@ -1,0 +1,45 @@
+{
+  "schema_kind": "installer-summary",
+  "schema_version": 1,
+  "deployment_name": "fixture-post-repair-verification",
+  "base_domain": "github.example.com",
+  "domain_mode": "flat-siblings",
+  "platform": "plain-nginx",
+  "input_mode": "advanced",
+  "flags": {
+    "assume_yes": true,
+    "run_apply_dry_run": true,
+    "execute_apply": false,
+    "run_nginx_test_after_execute": false
+  },
+  "status": {
+    "preflight": "success",
+    "generator": "success",
+    "apply_plan": "generated",
+    "apply_dry_run": "skipped",
+    "apply_execute": "skipped",
+    "repair": "ok",
+    "final": "success",
+    "exit_code": 0
+  },
+  "artifacts": {
+    "preflight_markdown": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/preflight.generated.md",
+    "preflight_json": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/preflight.generated.json",
+    "config": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/deploy.generated.yaml",
+    "output_dir": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification",
+    "apply_plan_markdown": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/APPLY-PLAN.md",
+    "apply_plan_json": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/APPLY-PLAN.json",
+    "apply_result": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/APPLY-RESULT.md",
+    "apply_result_json": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/APPLY-RESULT.json",
+    "repair_result": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/REPAIR-RESULT.md",
+    "repair_result_json": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json",
+    "summary_generated": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/INSTALLER-SUMMARY.generated.json",
+    "summary_output": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/INSTALLER-SUMMARY.json",
+    "state_dir": "__FIXTURE_ROOT__/runs/fixture-post-repair-verification",
+    "state_json": "__FIXTURE_ROOT__/runs/fixture-post-repair-verification/state.json",
+    "journal_jsonl": "__FIXTURE_ROOT__/runs/fixture-post-repair-verification/journal.jsonl",
+    "run_id": "fixture-post-repair-verification",
+    "apply_result_exists": true,
+    "apply_result_json_exists": true
+  }
+}

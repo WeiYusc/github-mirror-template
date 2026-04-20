@@ -1,0 +1,38 @@
+{
+  "schema_kind": "apply-result",
+  "schema_version": 1,
+  "mode": "execute",
+  "platform": "plain-nginx",
+  "final_status": "needs-attention",
+  "backup_dir": "/tmp/backup",
+  "next_step": "真实 apply 已落盘，但 nginx 测试失败；建议先运行 repair helper 做保守诊断。",
+  "execution": {
+    "backup_status": "ok",
+    "copy_status": "ok",
+    "reload_performed": false
+  },
+  "nginx_test": {
+    "requested": true,
+    "status": "failed"
+  },
+  "recovery": {
+    "installer_status": "needs-attention",
+    "resume_strategy": "repair-review-first",
+    "resume_recommended": false,
+    "operator_action": "rollback-or-fix"
+  },
+  "targets": {
+    "snippets": "/tmp/snippets",
+    "vhost": "/tmp/conf.d",
+    "error_root": "/tmp/errors"
+  },
+  "summary": {
+    "new": 0,
+    "replace": 2,
+    "same": 18,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0
+  },
+  "items": []
+}

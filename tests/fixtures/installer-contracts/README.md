@@ -40,20 +40,21 @@
 - repair 优先产物提示
 - `state_load_resume_context()` 对 repair/rollback 关键字段的提取
 
-### 3. `fixture-post-rollback-inspection`
+### 4. `fixture-post-repair-verification`
 
-模拟 rollback 已实际执行后的 resumed run：
+模拟 repair 已完成复查且 `nginx -t` 重跑通过后的 resumed run：
 
-- `lineage.resume_strategy=post-rollback-inspection`
+- `lineage.resume_strategy=post-repair-verification`
 - `resumed_from=fixture-legacy-fallback`
-- `ROLLBACK-RESULT.json.flags.execute=true`
-- 当前 run 语义是“先复查现场”，而不是继续真实 apply
+- `REPAIR-RESULT.json.execution.nginx_test_rerun_status=passed`
+- 当前 run 语义是“先复核修复后现场状态”，而不是继续真实 apply
+- 为保持 6 类结果契约集合完整，fixture 仍保留一个中性的 rollback companion；但本场景断言聚焦 repair 主线
 
 用于验证：
 
-- `state_doctor()` 对 `post-rollback-inspection` 的摘要文案
-- rollback 已执行后的关键字段提取
-- inspection-first resume 场景下的祖先产物指引
+- `state_doctor()` 对 `post-repair-verification` 的摘要文案
+- repair 已通过后的关键字段提取
+- inspection-first resume 场景下的 operator hint 与 repair 优先语义
 
 ## 运行方式
 
