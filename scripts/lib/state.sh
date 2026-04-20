@@ -429,12 +429,166 @@ def load_json_if_exists(path_str: str, label: str):
         return None
 
 
+def load_state_by_run_id(run_id: str, runs_root: Path):
+    if not run_id:
+        return None
+    path = runs_root / run_id / "state.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def summarize_artifact_priority(item: dict):
+    alerts = item.get("alerts") or []
+    artifacts = item.get("artifacts") or {}
+
+    def with_companion_fallback(artifacts_map: dict):
+        resolved = dict(artifacts_map)
+        apply_result_json = resolved.get("apply_result_json") or ""
+        apply_result = resolved.get("apply_result") or ""
+        base_dir = None
+        if apply_result_json:
+            base_dir = Path(apply_result_json).parent
+        elif apply_result:
+            base_dir = Path(apply_result).parent
+        if base_dir is not None:
+            repair_json = base_dir / "REPAIR-RESULT.json"
+            repair_md = base_dir / "REPAIR-RESULT.md"
+            rollback_json = base_dir / "ROLLBACK-RESULT.json"
+            rollback_md = base_dir / "ROLLBACK-RESULT.md"
+            if not resolved.get("repair_result_json") and repair_json.exists():
+                resolved["repair_result_json"] = str(repair_json)
+            if not resolved.get("repair_result") and repair_md.exists():
+                resolved["repair_result"] = str(repair_md)
+            if not resolved.get("rollback_result_json") and rollback_json.exists():
+                resolved["rollback_result_json"] = str(rollback_json)
+            if not resolved.get("rollback_result") and rollback_md.exists():
+                resolved["rollback_result"] = str(rollback_md)
+        return resolved
+
+    artifacts = with_companion_fallback(artifacts)
+
+    def first_existing(*keys):
+        for key in keys:
+            value = artifacts.get(key) or ""
+            if value:
+                return value
+        return ""
+
+    if any(alert.startswith("repair=") for alert in alerts):
+        path = first_existing("repair_result_json", "repair_result", "apply_result_json")
+        if path:
+            return ("repair-result", path, "最近异常更偏向 repair 结论，建议先看这个结果文件。")
+    if any(alert.startswith("rollback=") for alert in alerts):
+        path = first_existing("rollback_result_json", "rollback_result", "apply_result_json")
+        if path:
+            return ("rollback-result", path, "最近异常涉及 rollback，建议先看 rollback 结果文件。")
+    if any(alert.startswith("apply_execute=") or alert.startswith("apply_dry_run=") for alert in alerts):
+        path = first_existing("apply_result_json", "apply_result", "apply_plan_json", "apply_plan_markdown")
+        if path:
+            return ("apply-result", path, "最近异常出在 apply 阶段，建议先看 apply 结果/计划文件。")
+    if any(alert.startswith("apply_plan=") for alert in alerts):
+        path = first_existing("apply_plan_json", "apply_plan_markdown")
+        if path:
+            return ("apply-plan", path, "最近异常出在 apply plan 阶段，建议先看 apply plan。")
+    if any(alert.startswith("preflight=") for alert in alerts):
+        path = first_existing("preflight_json", "preflight_markdown")
+        if path:
+            return ("preflight", path, "最近异常更像 preflight 阻断，建议先看 preflight 报告。")
+    if any(alert.startswith("generator=") for alert in alerts):
+        path = first_existing("config", "summary_output", "summary_generated")
+        if path:
+            return ("generator-context", path, "最近异常更像 generator 阶段问题，建议先看配置或 summary 产物。")
+    path = first_existing(
+        "repair_result_json",
+        "rollback_result_json",
+        "apply_result_json",
+        "apply_plan_json",
+        "preflight_json",
+        "summary_output",
+        "summary_generated",
+    )
+    if path:
+        return ("generic-artifact", path, "已为最近异常祖先选出一个最相关的现有产物。")
+    return None
+
+
+def build_lineage_chain(current_state: dict, runs_root: Path):
+    chain = []
+    seen = set()
+    cur = current_state
+    abnormal_statuses = {"needs-attention", "blocked", "failed"}
+
+    while cur:
+        run_id = cur.get("run_id", "")
+        if not run_id or run_id in seen:
+            break
+        seen.add(run_id)
+        status = cur.get("status") or {}
+        lineage = cur.get("lineage") or {}
+        alerts = []
+        for key in ["preflight", "generator", "apply_plan", "apply_dry_run", "apply_execute", "repair", "rollback", "final"]:
+            value = status.get(key, "")
+            if value in abnormal_statuses:
+                alerts.append(f"{key}={value}")
+        chain.append({
+            "run_id": run_id,
+            "checkpoint": cur.get("checkpoint", "") or "未知",
+            "final": status.get("final", "") or "未知",
+            "resume_strategy": lineage.get("resume_strategy", "") or "",
+            "resume_strategy_reason": lineage.get("resume_strategy_reason", "") or "",
+            "is_resumed_run": bool(lineage.get("is_resumed_run")) or bool(cur.get("resumed_from")),
+            "alerts": alerts,
+            "artifacts": cur.get("artifacts") or {},
+        })
+        parent_run_id = cur.get("resumed_from") or lineage.get("source_run_id") or ""
+        if not parent_run_id:
+            break
+        parent = load_state_by_run_id(parent_run_id, runs_root)
+        if parent is None:
+            chain.append({
+                "run_id": parent_run_id,
+                "checkpoint": "缺失",
+                "final": "missing-state",
+                "resume_strategy": "",
+                "resume_strategy_reason": "",
+                "is_resumed_run": False,
+                "alerts": ["state=missing"],
+                "artifacts": {},
+            })
+            break
+        cur = parent
+
+    return chain
+
+
 print("[doctor] 运行摘要")
 print(f"- run_id: {state.get('run_id', '')}")
 print(f"- state_dir: {state.get('state_dir', '')}")
 print(f"- updated_at: {state.get('updated_at', '')}")
 print(f"- checkpoint: {state.get('checkpoint', '')}")
 print(f"- resumed_from: {state.get('resumed_from', '') or '无'}")
+runs_root = Path(state_path).resolve().parent.parent
+lineage_chain = build_lineage_chain(state, runs_root)
+current_run_alerts = []
+current_run_status = state.get("status") or {}
+for key in ["preflight", "generator", "apply_plan", "apply_dry_run", "apply_execute", "repair", "rollback", "final"]:
+    value = current_run_status.get(key, "")
+    if value in {"needs-attention", "blocked", "failed"}:
+        current_run_alerts.append(f"{key}={value}")
+current_run_priority = summarize_artifact_priority({
+    "alerts": current_run_alerts,
+    "artifacts": state.get("artifacts") or {},
+})
+if current_run_alerts:
+    print(f"- current_run_alerts: {', '.join(current_run_alerts)}")
+    if current_run_priority is not None:
+        kind, path, note = current_run_priority
+        print(f"- current_run_priority_artifact: {path} [{kind}]")
+        print(f"- current_run_priority_note: {note}")
 lineage = state.get("lineage") or {}
 if lineage:
     print(f"- lineage.mode: {lineage.get('mode', '')}")
@@ -447,7 +601,7 @@ if lineage:
     print()
     print("[doctor] lineage 摘要")
     if lineage.get("is_resumed_run"):
-        source_run_id = lineage.get("source_run_id", "") or "未知"
+        source_run_id = lineage.get("source_run_id", "") or state.get("resumed_from", "") or "未知"
         source_checkpoint = lineage.get("source_checkpoint", "") or "未知"
         source_resumed_from = lineage.get("source_resumed_from", "") or "无"
         resume_strategy = lineage.get("resume_strategy", "") or "未记录"
@@ -459,6 +613,8 @@ if lineage:
             print("- 源运行本身不是已记录的 resumed run，当前链路到此为止。")
         print(f"- 当前 resume 策略：{resume_strategy}。")
         print(f"- 触发原因：{resume_strategy_reason}。")
+        if len(lineage_chain) > 1:
+            print(f"- 当前已解析到 {len(lineage_chain)} 段 lineage 链。")
 
         operator_hint = "先结合 state / result artifacts 做常规复核。"
         if resume_strategy in {"repair-review-first", "post-repair-verification"}:
@@ -474,7 +630,87 @@ if lineage:
         print(f"- 操作建议：{operator_hint}")
     else:
         print("- 这不是 resumed run；当前运行没有接续历史 run 的 lineage。")
+
+    if len(lineage_chain) > 1:
+        nearest_abnormal_ancestor = next(
+            (item for item in lineage_chain[1:] if item.get("alerts")),
+            None,
+        )
+        if nearest_abnormal_ancestor is not None:
+            print(
+                "- 最近的异常祖先节点："
+                f"{nearest_abnormal_ancestor['run_id']} "
+                f"（{', '.join(nearest_abnormal_ancestor.get('alerts') or [])}）。"
+            )
+            priority_artifact = summarize_artifact_priority(nearest_abnormal_ancestor)
+            if priority_artifact is not None:
+                kind, path, note = priority_artifact
+                print(f"- 优先查看产物：{path} [{kind}]")
+                print(f"- 说明：{note}")
+        else:
+            print("- 已解析的祖先链中未发现 `needs-attention` / `blocked` / `failed` 异常状态。")
+
+        print()
+        print("[doctor] lineage chain")
+        print(f"- depth: {len(lineage_chain)}")
+        for idx, item in enumerate(lineage_chain, start=1):
+            role = "current"
+            if idx > 1:
+                role = f"ancestor-{idx-1}"
+            extra = []
+            if item.get("resume_strategy"):
+                extra.append(f"strategy={item['resume_strategy']}")
+            if item.get("resume_strategy_reason"):
+                extra.append(f"reason={item['resume_strategy_reason']}")
+            if item.get("alerts"):
+                extra.append(f"alerts={','.join(item['alerts'])}")
+            extra_text = f"; {'; '.join(extra)}" if extra else ""
+            print(
+                f"- {idx}. [{role}] {item['run_id']} "
+                f"(checkpoint={item['checkpoint']}, final={item['final']}{extra_text})"
+            )
+else:
+    if len(lineage_chain) > 1:
+        nearest_abnormal_ancestor = next(
+            (item for item in lineage_chain[1:] if item.get("alerts")),
+            None,
+        )
+        if nearest_abnormal_ancestor is not None:
+            print(
+                "- 最近的异常祖先节点："
+                f"{nearest_abnormal_ancestor['run_id']} "
+                f"（{', '.join(nearest_abnormal_ancestor.get('alerts') or [])}）。"
+            )
+            priority_artifact = summarize_artifact_priority(nearest_abnormal_ancestor)
+            if priority_artifact is not None:
+                kind, path, note = priority_artifact
+                print(f"- 优先查看产物：{path} [{kind}]")
+                print(f"- 说明：{note}")
+        else:
+            print("- 已解析的祖先链中未发现 `needs-attention` / `blocked` / `failed` 异常状态。")
+        print()
+        print("[doctor] lineage chain")
+        print(f"- depth: {len(lineage_chain)}")
+        for idx, item in enumerate(lineage_chain, start=1):
+            role = "current"
+            if idx > 1:
+                role = f"ancestor-{idx-1}"
+            extra = []
+            if item.get("alerts"):
+                extra.append(f"alerts={','.join(item['alerts'])}")
+            extra_text = f"; {'; '.join(extra)}" if extra else ""
+            print(f"- {idx}. [{role}] {item['run_id']} (checkpoint={item['checkpoint']}, final={item['final']}{extra_text})")
 print()
+if current_run_alerts:
+    print("[doctor] 当前 run 异常摘要")
+    print(f"- 当前 run 存在异常状态：{', '.join(current_run_alerts)}")
+    if current_run_priority is not None:
+        kind, path, note = current_run_priority
+        print(f"- 优先查看产物：{path} [{kind}]")
+        print(f"- 说明：{note}")
+    else:
+        print("- 当前 run 虽有异常状态，但暂未解析到匹配的优先产物路径。")
+    print()
 print("[doctor] 输入")
 inputs = state.get("inputs", {})
 for key in [
