@@ -8,7 +8,10 @@
 - 不依赖真实 nginx / 文件落地环境
 - 用静态 JSON 样本覆盖 `state_doctor()` / `state_load_resume_context()` 当前真正依赖的字段
 - 通过临时目录 materialize，避免 fixture 模板里写死开发机绝对路径
-- 回归分两层：**场景语义断言** + **稳定字段矩阵 smoke check**，前者防 resume/doctor 语义漂移，后者防 contract 关键字段被静默删改
+- 回归分三层：**场景语义断言** + **稳定字段矩阵 smoke check** + **最小值域级断言**
+  - 场景语义断言：防 `state_doctor()` / `state_load_resume_context()` 的恢复语义漂移
+  - 稳定字段矩阵：防关键 contract 字段被静默删改
+  - 最小值域级断言：防关键状态字段从约定枚举/布尔/整数语义悄悄漂到别的形状
 
 ## 当前覆盖的场景
 

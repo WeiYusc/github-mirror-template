@@ -101,6 +101,67 @@ if missing:
 PY
 }
 
+assert_json_value_in() {
+  local path="$1"
+  local dotted="$2"
+  local label="$3"
+  shift 3
+  python3 - "$path" "$dotted" "$label" "$@" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+dotted = sys.argv[2]
+label = sys.argv[3]
+allowed = sys.argv[4:]
+obj = json.loads(path.read_text(encoding="utf-8"))
+value = obj
+for part in dotted.split('.'):
+    if not isinstance(value, dict) or part not in value:
+        raise SystemExit(f"[FAIL] {label}: missing path {dotted}")
+    value = value[part]
+value_as_text = str(value)
+if value_as_text not in allowed:
+    raise SystemExit(
+        f"[FAIL] {label}: expected {dotted} in {allowed!r}, got {value_as_text!r}"
+    )
+PY
+}
+
+assert_json_value_type() {
+  local path="$1"
+  local dotted="$2"
+  local expected_type="$3"
+  local label="$4"
+  python3 - "$path" "$dotted" "$expected_type" "$label" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+dotted = sys.argv[2]
+expected_type = sys.argv[3]
+label = sys.argv[4]
+obj = json.loads(path.read_text(encoding="utf-8"))
+value = obj
+for part in dotted.split('.'):
+    if not isinstance(value, dict) or part not in value:
+        raise SystemExit(f"[FAIL] {label}: missing path {dotted}")
+    value = value[part]
+
+if expected_type == 'bool' and isinstance(value, bool):
+    raise SystemExit(0)
+if expected_type == 'int' and isinstance(value, int) and not isinstance(value, bool):
+    raise SystemExit(0)
+if expected_type == 'string' and isinstance(value, str):
+    raise SystemExit(0)
+raise SystemExit(
+    f"[FAIL] {label}: expected {dotted} type {expected_type}, got {type(value).__name__}"
+)
+PY
+}
+
 check_contract_set() {
   local run_id="$1"
   local artifact_root="$WORKDIR/artifacts/$run_id"
@@ -153,6 +214,61 @@ check_stable_contract_smoke_matrix() {
     summary.restore summary.delete summary.skip summary.blocked summary.pending summary.restored summary.deleted
 }
 
+check_contract_value_smoke_matrix() {
+  local run_id="$1"
+  local run_root="$WORKDIR/runs/$run_id"
+  local artifact_root="$WORKDIR/artifacts/$run_id"
+
+  assert_json_value_in "$run_root/state.json" "lineage.mode" "$run_id state lineage mode enum" new resume
+  assert_json_value_in "$run_root/state.json" "lineage.resume_strategy" "$run_id state resume strategy enum" \
+    fresh repair-review-first post-rollback-inspection post-repair-verification
+  assert_json_value_in "$run_root/state.json" "status.preflight" "$run_id state preflight enum" warn success
+  assert_json_value_in "$run_root/state.json" "status.generator" "$run_id state generator enum" success
+  assert_json_value_in "$run_root/state.json" "status.apply_plan" "$run_id state apply plan enum" generated
+  assert_json_value_in "$run_root/state.json" "status.apply_dry_run" "$run_id state apply dry run enum" skipped
+  assert_json_value_in "$run_root/state.json" "status.apply_execute" "$run_id state apply execute enum" success skipped
+  assert_json_value_in "$run_root/state.json" "status.repair" "$run_id state repair enum" "" ok needs-attention
+  assert_json_value_in "$run_root/state.json" "status.final" "$run_id state final enum" success
+
+  assert_json_value_type "$artifact_root/INSTALLER-SUMMARY.json" "flags.assume_yes" bool "$run_id summary assume_yes bool"
+  assert_json_value_type "$artifact_root/INSTALLER-SUMMARY.json" "flags.execute_apply" bool "$run_id summary execute_apply bool"
+  assert_json_value_type "$artifact_root/INSTALLER-SUMMARY.json" "flags.run_apply_dry_run" bool "$run_id summary run_apply_dry_run bool"
+  assert_json_value_type "$artifact_root/INSTALLER-SUMMARY.json" "flags.run_nginx_test_after_execute" bool "$run_id summary run_nginx_test_after_execute bool"
+  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.preflight" "$run_id summary preflight enum" warn success
+  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.generator" "$run_id summary generator enum" success
+  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.apply_plan" "$run_id summary apply plan enum" generated
+  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.apply_execute" "$run_id summary apply execute enum" success skipped
+  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.final" "$run_id summary final enum" success
+
+  assert_json_value_in "$artifact_root/APPLY-RESULT.json" "mode" "$run_id apply result mode enum" dry-run execute
+  assert_json_value_in "$artifact_root/APPLY-RESULT.json" "final_status" "$run_id apply result final status enum" ok needs-attention
+  assert_json_value_in "$artifact_root/APPLY-RESULT.json" "recovery.installer_status" "$run_id apply result installer status enum" success needs-attention
+  assert_json_value_in "$artifact_root/APPLY-RESULT.json" "recovery.resume_strategy" "$run_id apply result resume strategy enum" \
+    post-apply-review dry-run-ok repair-review-first
+  assert_json_value_type "$artifact_root/APPLY-RESULT.json" "recovery.resume_recommended" bool "$run_id apply result resume recommended bool"
+  assert_json_value_type "$artifact_root/APPLY-RESULT.json" "execution.reload_performed" bool "$run_id apply result reload_performed bool"
+  assert_json_value_type "$artifact_root/APPLY-RESULT.json" "nginx_test.requested" bool "$run_id apply result nginx requested bool"
+  assert_json_value_in "$artifact_root/APPLY-RESULT.json" "nginx_test.status" "$run_id apply result nginx status enum" 0 failed not-run
+
+  assert_json_value_in "$artifact_root/REPAIR-RESULT.json" "mode" "$run_id repair result mode enum" dry-run execute
+  assert_json_value_in "$artifact_root/REPAIR-RESULT.json" "final_status" "$run_id repair result final status enum" ok needs-attention blocked
+  assert_json_value_in "$artifact_root/REPAIR-RESULT.json" "source_final_status" "$run_id repair result source final status enum" ok needs-attention
+  assert_json_value_in "$artifact_root/REPAIR-RESULT.json" "source_recovery.resume_strategy" "$run_id repair result source resume strategy enum" \
+    "" manual-recovery-first repair-review-first
+  assert_json_value_type "$artifact_root/REPAIR-RESULT.json" "source_recovery.resume_recommended" bool "$run_id repair result source resume recommended bool"
+  assert_json_value_in "$artifact_root/REPAIR-RESULT.json" "execution.nginx_test_rerun_status" "$run_id repair result nginx rerun status enum" not-run passed
+  assert_json_value_in "$artifact_root/REPAIR-RESULT.json" "execution.nginx_test_rerun_exit_code" "$run_id repair result nginx rerun exit code enum" "" 0
+
+  assert_json_value_in "$artifact_root/ROLLBACK-RESULT.json" "mode" "$run_id rollback result mode enum" dry-run execute
+  assert_json_value_in "$artifact_root/ROLLBACK-RESULT.json" "final_status" "$run_id rollback result final status enum" ok
+  assert_json_value_type "$artifact_root/ROLLBACK-RESULT.json" "flags.execute" bool "$run_id rollback result flags.execute bool"
+  assert_json_value_type "$artifact_root/ROLLBACK-RESULT.json" "flags.delete_new" bool "$run_id rollback result flags.delete_new bool"
+  assert_json_value_type "$artifact_root/ROLLBACK-RESULT.json" "summary.blocked" int "$run_id rollback result summary.blocked int"
+  assert_json_value_type "$artifact_root/ROLLBACK-RESULT.json" "summary.pending" int "$run_id rollback result summary.pending int"
+  assert_json_value_type "$artifact_root/ROLLBACK-RESULT.json" "summary.restored" int "$run_id rollback result summary.restored int"
+  assert_json_value_type "$artifact_root/ROLLBACK-RESULT.json" "summary.deleted" int "$run_id rollback result summary.deleted int"
+}
+
 materialize_fixtures
 
 # shellcheck disable=SC1091
@@ -168,6 +284,11 @@ check_stable_contract_smoke_matrix "fixture-legacy-fallback"
 check_stable_contract_smoke_matrix "fixture-resumed-repair-review"
 check_stable_contract_smoke_matrix "fixture-post-rollback-inspection"
 check_stable_contract_smoke_matrix "fixture-post-repair-verification"
+
+check_contract_value_smoke_matrix "fixture-legacy-fallback"
+check_contract_value_smoke_matrix "fixture-resumed-repair-review"
+check_contract_value_smoke_matrix "fixture-post-rollback-inspection"
+check_contract_value_smoke_matrix "fixture-post-repair-verification"
 
 state_load_resume_context "fixture-legacy-fallback"
 assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json" "legacy fallback repair json path"
