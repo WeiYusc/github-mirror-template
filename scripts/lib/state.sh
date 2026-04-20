@@ -242,6 +242,8 @@ def env(name: str, default: str = ""):
     return os.environ.get(name, default)
 
 payload = {
+    "schema_kind": "installer-state",
+    "schema_version": 1,
     "run_id": env("RUN_ID"),
     "state_dir": env("STATE_DIR"),
     "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

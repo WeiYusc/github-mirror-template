@@ -777,6 +777,7 @@ rollback helper 的定位是：
 - `INSTALL.md`：部署入口与路径选择
 - `README.md`：项目总览与 experimental installer 摘要
 - `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`：异常 run 的人工处理顺序
+- `docs/INSTALLER-RESULT-CONTRACTS-ZH.md`：6 类 JSON 结果文件的职责边界、稳定字段、消费顺序与兼容策略
 - `docs/INSTALLER-NEXT-STAGE-BACKLOG-ZH.md`：后续要补强的状态机/契约/测试方向
 
 如果后续要补更严格的 fixture、golden test、契约测试，建议以这份文档为当前实现基线，再决定哪些地方要收紧，而不是先凭直觉重写状态语义。

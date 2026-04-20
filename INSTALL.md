@@ -148,6 +148,7 @@ LOG_DIR=/www/wwwlogs
 - `docs/INSTALLER-MVP-PLAN-ZH.md`
 - `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
 - `docs/INSTALLER-STATE-MODEL-ZH.md`
+- `docs/INSTALLER-RESULT-CONTRACTS-ZH.md`
 
 这条路线当前定位是：
 
@@ -229,11 +230,13 @@ LOG_DIR=/www/wwwlogs
 
 - `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
 - `docs/INSTALLER-STATE-MODEL-ZH.md`
+- `docs/INSTALLER-RESULT-CONTRACTS-ZH.md`
 
 其中：
 
 - runbook 负责回答“现在该怎么处理”
 - state model 负责回答“这些 checkpoint / status.* / final / lineage / companion result 到底是什么意思”
+- result contracts 负责回答“这些 JSON 产物分别该依赖什么字段、消费顺序是什么、兼容边界在哪里”
 
 这份手册专门覆盖 `needs-attention` / `blocked` / `failed` / `cancelled` 的检查顺序、建议动作与禁止误操作说明。
 

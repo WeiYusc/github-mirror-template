@@ -127,6 +127,8 @@ write_apply_plan_json() {
 
   {
     echo '{'
+    printf '  "schema_kind": %s,\n' "$(apply_plan_json_escape "apply-plan")"
+    printf '  "schema_version": 1,\n'
     printf '  "mode": %s,\n' "$(apply_plan_json_escape "$mode")"
     printf '  "platform": %s,\n' "$(apply_plan_json_escape "$platform")"
     echo '  "summary": {'
@@ -422,6 +424,8 @@ write_apply_result_json() {
 
   {
     echo '{'
+    printf '  "schema_kind": %s,\n' "$(apply_plan_json_escape "apply-result")"
+    printf '  "schema_version": 1,\n'
     printf '  "mode": %s,\n' "$(apply_plan_json_escape "$mode")"
     printf '  "platform": %s,\n' "$(apply_plan_json_escape "$platform")"
     printf '  "final_status": %s,\n' "$(apply_plan_json_escape "$final_status")"

@@ -348,6 +348,8 @@ write_rollback_result_json() {
 
   {
     echo '{'
+    printf '  "schema_kind": %s,\n' "$(apply_plan_json_escape "rollback-result")"
+    printf '  "schema_version": 1,\n'
     printf '  "mode": %s,\n' "$(apply_plan_json_escape "$MODE_LABEL")"
     printf '  "final_status": %s,\n' "$(apply_plan_json_escape "$ROLLBACK_FINAL_STATUS")"
     printf '  "source_apply_result": %s,\n' "$(apply_plan_json_escape "$RESULT_JSON")"

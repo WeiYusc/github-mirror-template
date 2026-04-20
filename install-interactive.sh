@@ -247,6 +247,8 @@ write_installer_summary_json() {
 
   {
     echo "{"
+    printf '  "schema_kind": %s,\n' "$(apply_plan_json_escape "installer-summary")"
+    printf '  "schema_version": 1,\n'
     printf '  "deployment_name": %s,\n' "$(apply_plan_json_escape "${DEPLOYMENT_NAME:-}")"
     printf '  "base_domain": %s,\n' "$(apply_plan_json_escape "${BASE_DOMAIN:-}")"
     printf '  "domain_mode": %s,\n' "$(apply_plan_json_escape "${DOMAIN_MODE:-}")"
