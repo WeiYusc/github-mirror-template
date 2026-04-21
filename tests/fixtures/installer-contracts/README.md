@@ -119,4 +119,3 @@ bash tests/installer-contracts-regression.sh
 ```text
 [PASS] installer contract regression
 ```
-
