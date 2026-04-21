@@ -443,68 +443,69 @@ def load_state_by_run_id(run_id: str, runs_root: Path):
         return None
 
 
+def with_companion_fallback(artifacts_map: dict):
+    resolved = dict(artifacts_map)
+    apply_result_json = resolved.get("apply_result_json") or ""
+    apply_result = resolved.get("apply_result") or ""
+    base_dir = None
+    if apply_result_json:
+        base_dir = Path(apply_result_json).parent
+    elif apply_result:
+        base_dir = Path(apply_result).parent
+    if base_dir is not None:
+        repair_json = base_dir / "REPAIR-RESULT.json"
+        repair_md = base_dir / "REPAIR-RESULT.md"
+        rollback_json = base_dir / "ROLLBACK-RESULT.json"
+        rollback_md = base_dir / "ROLLBACK-RESULT.md"
+        if not resolved.get("repair_result_json") and repair_json.exists():
+            resolved["repair_result_json"] = str(repair_json)
+        if not resolved.get("repair_result") and repair_md.exists():
+            resolved["repair_result"] = str(repair_md)
+        if not resolved.get("rollback_result_json") and rollback_json.exists():
+            resolved["rollback_result_json"] = str(rollback_json)
+        if not resolved.get("rollback_result") and rollback_md.exists():
+            resolved["rollback_result"] = str(rollback_md)
+    return resolved
+
+
+def first_existing_artifact(artifacts: dict, *keys: str):
+    for key in keys:
+        value = artifacts.get(key) or ""
+        if value:
+            return value
+    return ""
+
+
 def summarize_artifact_priority(item: dict):
     alerts = item.get("alerts") or []
-    artifacts = item.get("artifacts") or {}
-
-    def with_companion_fallback(artifacts_map: dict):
-        resolved = dict(artifacts_map)
-        apply_result_json = resolved.get("apply_result_json") or ""
-        apply_result = resolved.get("apply_result") or ""
-        base_dir = None
-        if apply_result_json:
-            base_dir = Path(apply_result_json).parent
-        elif apply_result:
-            base_dir = Path(apply_result).parent
-        if base_dir is not None:
-            repair_json = base_dir / "REPAIR-RESULT.json"
-            repair_md = base_dir / "REPAIR-RESULT.md"
-            rollback_json = base_dir / "ROLLBACK-RESULT.json"
-            rollback_md = base_dir / "ROLLBACK-RESULT.md"
-            if not resolved.get("repair_result_json") and repair_json.exists():
-                resolved["repair_result_json"] = str(repair_json)
-            if not resolved.get("repair_result") and repair_md.exists():
-                resolved["repair_result"] = str(repair_md)
-            if not resolved.get("rollback_result_json") and rollback_json.exists():
-                resolved["rollback_result_json"] = str(rollback_json)
-            if not resolved.get("rollback_result") and rollback_md.exists():
-                resolved["rollback_result"] = str(rollback_md)
-        return resolved
-
-    artifacts = with_companion_fallback(artifacts)
-
-    def first_existing(*keys):
-        for key in keys:
-            value = artifacts.get(key) or ""
-            if value:
-                return value
-        return ""
+    artifacts = with_companion_fallback(item.get("artifacts") or {})
 
     if any(alert.startswith("repair=") for alert in alerts):
-        path = first_existing("repair_result_json", "repair_result", "apply_result_json")
+        path = first_existing_artifact(artifacts, "repair_result_json", "repair_result", "apply_result_json")
         if path:
             return ("repair-result", path, "最近异常更偏向 repair 结论，建议先看这个结果文件。")
     if any(alert.startswith("rollback=") for alert in alerts):
-        path = first_existing("rollback_result_json", "rollback_result", "apply_result_json")
+        path = first_existing_artifact(artifacts, "rollback_result_json", "rollback_result", "apply_result_json")
         if path:
             return ("rollback-result", path, "最近异常涉及 rollback，建议先看 rollback 结果文件。")
     if any(alert.startswith("apply_execute=") or alert.startswith("apply_dry_run=") for alert in alerts):
-        path = first_existing("apply_result_json", "apply_result", "apply_plan_json", "apply_plan_markdown")
+        path = first_existing_artifact(artifacts, "apply_result_json", "apply_result", "apply_plan_json", "apply_plan_markdown")
         if path:
             return ("apply-result", path, "最近异常出在 apply 阶段，建议先看 apply 结果/计划文件。")
     if any(alert.startswith("apply_plan=") for alert in alerts):
-        path = first_existing("apply_plan_json", "apply_plan_markdown")
+        path = first_existing_artifact(artifacts, "apply_plan_json", "apply_plan_markdown")
         if path:
             return ("apply-plan", path, "最近异常出在 apply plan 阶段，建议先看 apply plan。")
     if any(alert.startswith("preflight=") for alert in alerts):
-        path = first_existing("preflight_json", "preflight_markdown")
+        path = first_existing_artifact(artifacts, "preflight_json", "preflight_markdown")
         if path:
             return ("preflight", path, "最近异常更像 preflight 阻断，建议先看 preflight 报告。")
     if any(alert.startswith("generator=") for alert in alerts):
-        path = first_existing("config", "summary_output", "summary_generated")
+        path = first_existing_artifact(artifacts, "config", "summary_output", "summary_generated")
         if path:
             return ("generator-context", path, "最近异常更像 generator 阶段问题，建议先看配置或 summary 产物。")
-    path = first_existing(
+    path = first_existing_artifact(
+        artifacts,
         "repair_result_json",
         "rollback_result_json",
         "apply_result_json",
@@ -541,7 +542,24 @@ def find_nearest_abnormal_ancestor(lineage_chain):
     return next((item for item in lineage_chain[1:] if item.get("alerts")), None)
 
 
-def print_nearest_abnormal_ancestor_summary(lineage_chain):
+def choose_resume_strategy_priority_artifact(state: dict, lineage: dict):
+    resume_strategy = lineage.get("resume_strategy", "") or ""
+    artifacts = with_companion_fallback(state.get("artifacts") or {})
+
+    if resume_strategy == "post-repair-verification":
+        path = first_existing_artifact(artifacts, "repair_result_json", "repair_result", "apply_result_json")
+        if path:
+            return ("repair-result", path, "当前 run 已产出 repair 复查结果；在 post-repair-verification 下应先看这一份。")
+
+    if resume_strategy == "post-rollback-inspection":
+        path = first_existing_artifact(artifacts, "rollback_result_json", "rollback_result", "apply_result_json")
+        if path:
+            return ("rollback-result", path, "当前 run 已产出 rollback 结果；在 post-rollback-inspection 下应先看这一份。")
+
+    return None
+
+
+def print_nearest_abnormal_ancestor_summary(lineage_chain, preferred_priority_artifact=None):
     nearest_abnormal_ancestor = find_nearest_abnormal_ancestor(lineage_chain)
     if nearest_abnormal_ancestor is not None:
         print(
@@ -550,7 +568,8 @@ def print_nearest_abnormal_ancestor_summary(lineage_chain):
             f"（{', '.join(nearest_abnormal_ancestor.get('alerts') or [])}）。"
         )
         priority_artifact = summarize_artifact_priority(nearest_abnormal_ancestor)
-        print_priority_artifact_hint("优先查看产物", priority_artifact)
+        label = "祖先参考产物" if preferred_priority_artifact is not None else "优先查看产物"
+        print_priority_artifact_hint(label, priority_artifact)
     else:
         print("- 已解析的祖先链中未发现 `needs-attention` / `blocked` / `failed` 异常状态。")
 
@@ -605,6 +624,12 @@ def print_resume_lineage_summary(state: dict, lineage: dict, lineage_chain):
     elif resume_strategy == "re-enter-from-inputs":
         operator_hint = "当前只能从已保存输入重新进入；先确认输入仍然适用，再继续跑后续阶段。"
     print(f"- 操作建议：{operator_hint}")
+
+    preferred_priority_artifact = choose_resume_strategy_priority_artifact(state, lineage)
+    if preferred_priority_artifact is not None:
+        print_priority_artifact_hint("当前策略优先产物", preferred_priority_artifact)
+
+    return preferred_priority_artifact
 
 
 def print_current_run_machine_summary(current_run_alerts, current_run_priority):
@@ -829,12 +854,13 @@ if lineage:
     print()
     print("[doctor] lineage 摘要")
     if lineage.get("is_resumed_run"):
-        print_resume_lineage_summary(state, lineage, lineage_chain)
+        preferred_lineage_priority = print_resume_lineage_summary(state, lineage, lineage_chain)
     else:
+        preferred_lineage_priority = None
         print("- 这不是 resumed run；当前运行没有接续历史 run 的 lineage。")
 
     if len(lineage_chain) > 1:
-        print_nearest_abnormal_ancestor_summary(lineage_chain)
+        print_nearest_abnormal_ancestor_summary(lineage_chain, preferred_priority_artifact=preferred_lineage_priority)
 
         print()
         print_lineage_chain(lineage_chain, include_resume_metadata=True)
