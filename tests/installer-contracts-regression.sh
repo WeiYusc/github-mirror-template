@@ -52,6 +52,15 @@ assert_contains() {
   fi
 }
 
+bool_01_to_python_bool_text() {
+  local value="$1"
+  if [[ "$value" == "1" ]]; then
+    printf 'True\n'
+  else
+    printf 'False\n'
+  fi
+}
+
 assert_contract_file() {
   local path="$1"
   local expected_kind="$2"
@@ -299,6 +308,8 @@ assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "$WORKDIR/artifacts/fix
 assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "needs-attention" "legacy fallback repair final status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" "ok" "legacy fallback rollback final status"
 assert_equals "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" "1" "legacy fallback apply resume recommended"
+LEGACY_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
+LEGACY_APPLY_RESUME_RECOMMENDED_BOOL="$(bool_01_to_python_bool_text "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED")"
 
 state_load_resume_context "fixture-resumed-repair-review"
 assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-legacy-fallback" "resumed run resumed_from"
@@ -306,6 +317,8 @@ assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixtu
 assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "needs-attention" "resumed run repair final status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" "ok" "resumed run rollback final status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "0" "resumed run rollback execute flag"
+RESUMED_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
+RESUMED_ROLLBACK_EXECUTE_BOOL="$(bool_01_to_python_bool_text "$RESUME_SOURCE_ROLLBACK_EXECUTE")"
 
 state_load_resume_context "fixture-current-apply-attention"
 assert_equals "$RESUME_SOURCE_RESUMED_FROM" "" "current apply attention resumed_from stays empty"
@@ -313,6 +326,8 @@ assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixtu
 assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "ok" "current apply attention repair final status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" "ok" "current apply attention rollback final status"
 assert_equals "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" "0" "current apply attention apply resume recommended"
+CURRENT_APPLY_RESUME_RECOMMENDED_BOOL="$(bool_01_to_python_bool_text "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED")"
+CURRENT_APPLY_RECOVERY_STATUS="$RESUME_SOURCE_APPLY_RECOVERY_STATUS"
 
 state_load_resume_context "fixture-post-rollback-inspection"
 assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-legacy-fallback" "post rollback run resumed_from"
@@ -320,6 +335,8 @@ assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "$WORKDIR/artifacts/fix
 assert_equals "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" "ok" "post rollback final status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "1" "post rollback execute flag"
 assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "blocked" "post rollback repair final status"
+POST_ROLLBACK_EXECUTE_BOOL="$(bool_01_to_python_bool_text "$RESUME_SOURCE_ROLLBACK_EXECUTE")"
+POST_ROLLBACK_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
 
 state_load_resume_context "fixture-post-repair-verification"
 assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-legacy-fallback" "post repair run resumed_from"
@@ -328,6 +345,8 @@ assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "ok" "post repair final statu
 assert_equals "$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS" "passed" "post repair nginx rerun status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-post-repair-verification/ROLLBACK-RESULT.json" "post repair rollback fallback path"
 assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "0" "post repair rollback execute flag"
+POST_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
+POST_REPAIR_RERUN_STATUS="$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS"
 
 doctor_legacy_output="$(state_doctor "fixture-legacy-fallback")"
 assert_contains "$doctor_legacy_output" "[doctor] 运行摘要" "legacy doctor prints run summary section"
@@ -345,6 +364,8 @@ assert_contains "$doctor_legacy_output" "[doctor] repair result json" "legacy do
 assert_contains "$doctor_legacy_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json" "legacy doctor resolves repair fallback path"
 assert_contains "$doctor_legacy_output" "[doctor] rollback result json" "legacy doctor prints rollback section"
 assert_contains "$doctor_legacy_output" "$WORKDIR/artifacts/fixture-legacy-fallback/ROLLBACK-RESULT.json" "legacy doctor resolves rollback fallback path"
+assert_contains "$doctor_legacy_output" "- final_status: $LEGACY_REPAIR_FINAL_STATUS" "legacy doctor repair final status stays consistent with resume context"
+assert_contains "$doctor_legacy_output" "- recovery.resume_recommended: $LEGACY_APPLY_RESUME_RECOMMENDED_BOOL" "legacy doctor apply resume_recommended stays consistent with resume context"
 assert_contains "$doctor_legacy_output" "[doctor] journal" "legacy doctor prints journal section"
 assert_contains "$doctor_legacy_output" "- entries: 3" "legacy doctor prints journal entry count"
 assert_contains "$doctor_legacy_output" "- last_event: run.complete [success]" "legacy doctor prints journal last event"
@@ -363,6 +384,8 @@ assert_contains "$doctor_resumed_output" "当前 resume 策略：repair-review-f
 assert_contains "$doctor_resumed_output" "最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。" "resumed doctor prints abnormal ancestor"
 assert_contains "$doctor_resumed_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]" "resumed doctor points to ancestor repair artifact"
 assert_contains "$doctor_resumed_output" "- lineage.source_run_id: fixture-legacy-fallback" "resumed doctor machine summary source run"
+assert_contains "$doctor_resumed_output" "- final_status: $RESUMED_REPAIR_FINAL_STATUS" "resumed doctor repair final status stays consistent with resume context"
+assert_contains "$doctor_resumed_output" "- flags.execute: $RESUMED_ROLLBACK_EXECUTE_BOOL" "resumed doctor rollback execute flag stays consistent with resume context"
 assert_contains "$doctor_resumed_output" "[doctor] journal" "resumed doctor prints journal section"
 assert_contains "$doctor_resumed_output" "- entries: 2" "resumed doctor prints journal entry count"
 assert_contains "$doctor_resumed_output" "- last_event: run.complete [success]" "resumed doctor prints journal last event"
@@ -381,6 +404,8 @@ assert_contains "$doctor_current_apply_attention_output" "[doctor] 当前 run �
 assert_contains "$doctor_current_apply_attention_output" "- 当前 run 存在异常状态：apply_execute=needs-attention, final=needs-attention" "current apply attention doctor prints current run alerts"
 assert_contains "$doctor_current_apply_attention_output" "$WORKDIR/artifacts/fixture-current-apply-attention/APPLY-RESULT.json [apply-result]" "current apply attention doctor points to current apply result artifact"
 assert_contains "$doctor_current_apply_attention_output" "最近异常出在 apply 阶段，建议先看 apply 结果/计划文件。" "current apply attention doctor explains priority artifact"
+assert_contains "$doctor_current_apply_attention_output" "- recovery.installer_status: $CURRENT_APPLY_RECOVERY_STATUS" "current apply attention doctor recovery status stays consistent with resume context"
+assert_contains "$doctor_current_apply_attention_output" "- recovery.resume_recommended: $CURRENT_APPLY_RESUME_RECOMMENDED_BOOL" "current apply attention doctor resume_recommended stays consistent with resume context"
 assert_contains "$doctor_current_apply_attention_output" "[doctor] journal" "current apply attention doctor prints journal section"
 assert_contains "$doctor_current_apply_attention_output" "- entries: 3" "current apply attention doctor prints journal entry count"
 assert_contains "$doctor_current_apply_attention_output" "- last_event: run.complete [needs-attention]" "current apply attention doctor prints journal last event"
@@ -388,12 +413,16 @@ assert_contains "$doctor_current_apply_attention_output" "- last_message: instal
 assert_contains "$doctor_current_apply_attention_output" "真实 apply 已落盘，但 nginx 测试失败；建议先运行 ./repair-applied-package.sh --result-json $WORKDIR/artifacts/fixture-current-apply-attention/APPLY-RESULT.json --dry-run 做保守诊断，再决定 selective rollback 还是人工修复。 当前不建议把 resume 当作默认下一步。" "current apply attention doctor prints repair dry-run suggestion"
 
 doctor_post_rollback_output="$(state_doctor "fixture-post-rollback-inspection")"
+assert_contains "$doctor_post_rollback_output" "- final_status: $POST_ROLLBACK_REPAIR_FINAL_STATUS" "post rollback doctor repair final status stays consistent with resume context"
+assert_contains "$doctor_post_rollback_output" "- flags.execute: $POST_ROLLBACK_EXECUTE_BOOL" "post rollback doctor rollback execute flag stays consistent with resume context"
 assert_contains "$doctor_post_rollback_output" "当前 resume 策略：post-rollback-inspection。" "post rollback doctor prints resume strategy"
 assert_contains "$doctor_post_rollback_output" "操作建议：优先核对 rollback 结果与当前落地文件状态，确认是否适合继续后续动作。" "post rollback doctor prints operator guidance"
 assert_contains "$doctor_post_rollback_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]" "post rollback doctor points to ancestor repair artifact"
 assert_contains "$doctor_post_rollback_output" "最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。" "post rollback doctor still highlights abnormal ancestor"
 
 doctor_post_repair_output="$(state_doctor "fixture-post-repair-verification")"
+assert_contains "$doctor_post_repair_output" "- final_status: $POST_REPAIR_FINAL_STATUS" "post repair doctor repair final status stays consistent with resume context"
+assert_contains "$doctor_post_repair_output" "- execution.nginx_test_rerun_status: $POST_REPAIR_RERUN_STATUS" "post repair doctor rerun status stays consistent with resume context"
 assert_contains "$doctor_post_repair_output" "当前 resume 策略：post-repair-verification。" "post repair doctor prints resume strategy"
 assert_contains "$doctor_post_repair_output" "操作建议：优先查看 repair 结果与 nginx test 相关输出，确认是否还需要人工处理。" "post repair doctor prints operator guidance"
 assert_contains "$doctor_post_repair_output" "- execution.nginx_test_rerun_status: passed" "post repair doctor prints rerun status"
