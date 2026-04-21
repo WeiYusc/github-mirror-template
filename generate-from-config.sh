@@ -496,29 +496,55 @@ mkdir -p "$OUTPUT_DIR"
 
 "$VALIDATE_SCRIPT" --rendered-dir "$OUTPUT_DIR"
 
-cat > "$OUTPUT_DIR/deploy.resolved.yaml" <<EOF
-source_config: $CONFIG_ABS
-deployment_name: $DEPLOYMENT_NAME
+python3 - "$OUTPUT_DIR/deploy.resolved.yaml" \
+  "$CONFIG_ABS" \
+  "$DEPLOYMENT_NAME" \
+  "$BASE_DOMAIN" \
+  "$DOMAIN_MODE" \
+  "$SSL_CERT" \
+  "$SSL_KEY" \
+  "$ERROR_ROOT" \
+  "$LOG_DIR" \
+  "$OUTPUT_DIR_DISPLAY" \
+  "$PLATFORM" \
+  "$DOC_LANGUAGE" <<'PY'
+import sys
+from pathlib import Path
 
-domain:
-  base_domain: $BASE_DOMAIN
-  mode: $DOMAIN_MODE
+try:
+    import yaml
+except Exception:
+    print("[generate-from-config] Missing Python dependency: PyYAML", file=sys.stderr)
+    print("[generate-from-config] Install it first, for example: python3 -m pip install pyyaml", file=sys.stderr)
+    sys.exit(2)
 
-tls:
-  cert: $SSL_CERT
-  key: $SSL_KEY
-
-paths:
-  error_root: $ERROR_ROOT
-  log_dir: $LOG_DIR
-  output_dir: $OUTPUT_DIR_DISPLAY
-
-deployment:
-  platform: $PLATFORM
-
-docs:
-  language: $DOC_LANGUAGE
-EOF
+target_path = Path(sys.argv[1])
+payload = {
+    "source_config": sys.argv[2],
+    "deployment_name": sys.argv[3],
+    "domain": {
+        "base_domain": sys.argv[4],
+        "mode": sys.argv[5],
+    },
+    "tls": {
+        "cert": sys.argv[6],
+        "key": sys.argv[7],
+    },
+    "paths": {
+        "error_root": sys.argv[8],
+        "log_dir": sys.argv[9],
+        "output_dir": sys.argv[10],
+    },
+    "deployment": {
+        "platform": sys.argv[11],
+    },
+    "docs": {
+        "language": sys.argv[12],
+    },
+}
+with target_path.open('w', encoding='utf-8') as f:
+    yaml.safe_dump(payload, f, allow_unicode=True, sort_keys=False)
+PY
 
 cat > "$OUTPUT_DIR/DEPLOY-STEPS.md" <<EOF
 # 部署步骤（自动生成）

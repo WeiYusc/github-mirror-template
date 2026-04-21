@@ -171,6 +171,17 @@ raise SystemExit(
 PY
 }
 
+assert_json_value_in_contract() {
+  local path="$1"
+  local dotted="$2"
+  local label="$3"
+  local contract_name="$4"
+  local var_name
+  var_name="$(installer_status_values_var_name "$contract_name")"
+  local -n allowed_ref="$var_name"
+  assert_json_value_in "$path" "$dotted" "$label" "${allowed_ref[@]}"
+}
+
 check_contract_set() {
   local run_id="$1"
   local artifact_root="$WORKDIR/artifacts/$run_id"
@@ -231,23 +242,23 @@ check_contract_value_smoke_matrix() {
   assert_json_value_in "$run_root/state.json" "lineage.mode" "$run_id state lineage mode enum" new resume
   assert_json_value_in "$run_root/state.json" "lineage.resume_strategy" "$run_id state resume strategy enum" \
     fresh repair-review-first post-rollback-inspection post-repair-verification
-  assert_json_value_in "$run_root/state.json" "status.preflight" "$run_id state preflight enum" warn success
-  assert_json_value_in "$run_root/state.json" "status.generator" "$run_id state generator enum" success
-  assert_json_value_in "$run_root/state.json" "status.apply_plan" "$run_id state apply plan enum" generated
-  assert_json_value_in "$run_root/state.json" "status.apply_dry_run" "$run_id state apply dry run enum" skipped
-  assert_json_value_in "$run_root/state.json" "status.apply_execute" "$run_id state apply execute enum" success skipped needs-attention
-  assert_json_value_in "$run_root/state.json" "status.repair" "$run_id state repair enum" "" ok needs-attention blocked
-  assert_json_value_in "$run_root/state.json" "status.final" "$run_id state final enum" success needs-attention
+  assert_json_value_in_contract "$run_root/state.json" "status.preflight" "$run_id state preflight enum" preflight
+  assert_json_value_in_contract "$run_root/state.json" "status.generator" "$run_id state generator enum" generator
+  assert_json_value_in_contract "$run_root/state.json" "status.apply_plan" "$run_id state apply plan enum" apply_plan
+  assert_json_value_in_contract "$run_root/state.json" "status.apply_dry_run" "$run_id state apply dry run enum" apply_dry_run
+  assert_json_value_in_contract "$run_root/state.json" "status.apply_execute" "$run_id state apply execute enum" apply_execute
+  assert_json_value_in_contract "$run_root/state.json" "status.repair" "$run_id state repair enum" repair
+  assert_json_value_in_contract "$run_root/state.json" "status.final" "$run_id state final enum" final
 
   assert_json_value_type "$artifact_root/INSTALLER-SUMMARY.json" "flags.assume_yes" bool "$run_id summary assume_yes bool"
   assert_json_value_type "$artifact_root/INSTALLER-SUMMARY.json" "flags.execute_apply" bool "$run_id summary execute_apply bool"
   assert_json_value_type "$artifact_root/INSTALLER-SUMMARY.json" "flags.run_apply_dry_run" bool "$run_id summary run_apply_dry_run bool"
   assert_json_value_type "$artifact_root/INSTALLER-SUMMARY.json" "flags.run_nginx_test_after_execute" bool "$run_id summary run_nginx_test_after_execute bool"
-  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.preflight" "$run_id summary preflight enum" warn success
-  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.generator" "$run_id summary generator enum" success
-  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.apply_plan" "$run_id summary apply plan enum" generated
-  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.apply_execute" "$run_id summary apply execute enum" success skipped needs-attention
-  assert_json_value_in "$artifact_root/INSTALLER-SUMMARY.json" "status.final" "$run_id summary final enum" success needs-attention
+  assert_json_value_in_contract "$artifact_root/INSTALLER-SUMMARY.json" "status.preflight" "$run_id summary preflight enum" preflight
+  assert_json_value_in_contract "$artifact_root/INSTALLER-SUMMARY.json" "status.generator" "$run_id summary generator enum" generator
+  assert_json_value_in_contract "$artifact_root/INSTALLER-SUMMARY.json" "status.apply_plan" "$run_id summary apply plan enum" apply_plan
+  assert_json_value_in_contract "$artifact_root/INSTALLER-SUMMARY.json" "status.apply_execute" "$run_id summary apply execute enum" apply_execute
+  assert_json_value_in_contract "$artifact_root/INSTALLER-SUMMARY.json" "status.final" "$run_id summary final enum" final
 
   assert_json_value_in "$artifact_root/APPLY-RESULT.json" "mode" "$run_id apply result mode enum" dry-run execute
   assert_json_value_in "$artifact_root/APPLY-RESULT.json" "final_status" "$run_id apply result final status enum" ok needs-attention
@@ -280,6 +291,8 @@ check_contract_value_smoke_matrix() {
 
 materialize_fixtures
 
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib/status-contracts.sh"
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/state.sh"
 RUNS_ROOT_DIR="$WORKDIR/runs"
@@ -460,5 +473,17 @@ assert_contains "$doctor_post_repair_output" "- 祖先参考产物：$WORKDIR/ar
 assert_contains "$doctor_post_repair_output" "- execution.nginx_test_rerun_status: passed" "post repair doctor prints rerun status"
 assert_contains "$doctor_post_repair_output" "已完成 repair 复查且 nginx -t 通过；建议人工确认现场后，再决定是否继续后续操作。" "post repair doctor prints repair next step"
 assert_contains "$doctor_post_repair_output" "[doctor] 下一步建议" "post repair doctor prints next step section"
+
+doctor_missing_source_output="$(state_doctor "fixture-missing-source-state")"
+assert_contains "$doctor_missing_source_output" "当前已解析到 2 段 lineage 链。" "missing source doctor prints lineage depth with sentinel"
+assert_contains "$doctor_missing_source_output" "最近的异常祖先节点：fixture-missing-source-parent （state=missing）。" "missing source doctor highlights missing ancestor state"
+assert_contains "$doctor_missing_source_output" "lineage 指向的 source run state.json 缺失或不可读；已停止继续向上解析。" "missing source doctor explains missing-state stop"
+assert_contains "$doctor_missing_source_output" "- 2. [ancestor-1] fixture-missing-source-parent (checkpoint=缺失, final=missing-state; alerts=state=missing)" "missing source doctor prints missing-state lineage sentinel"
+
+doctor_lineage_cycle_output="$(state_doctor "fixture-lineage-cycle-a")"
+assert_contains "$doctor_lineage_cycle_output" "当前已解析到 3 段 lineage 链。" "lineage cycle doctor prints lineage depth with cycle sentinel"
+assert_contains "$doctor_lineage_cycle_output" "最近的异常祖先节点：fixture-lineage-cycle-a [cycle] （state=lineage-cycle）。" "lineage cycle doctor highlights cycle sentinel"
+assert_contains "$doctor_lineage_cycle_output" "检测到 lineage 循环引用；已停止继续向上解析。" "lineage cycle doctor explains cycle stop"
+assert_contains "$doctor_lineage_cycle_output" "- 3. [ancestor-2] fixture-lineage-cycle-a [cycle] (checkpoint=循环, final=lineage-cycle; alerts=state=lineage-cycle)" "lineage cycle doctor prints cycle sentinel in lineage chain"
 
 echo "[PASS] installer contract regression"

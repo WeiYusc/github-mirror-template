@@ -4,37 +4,60 @@ set -euo pipefail
 write_deploy_config() {
   local target_path="$1"
 
-  cat > "$target_path" <<EOF
-deployment_name: ${DEPLOYMENT_NAME}
+  python3 - "$target_path" <<'PY'
+import sys
+from pathlib import Path
 
-domain:
-  base_domain: ${BASE_DOMAIN}
-  mode: ${DOMAIN_MODE}
+try:
+    import yaml
+except Exception:
+    print("[write_deploy_config] Missing Python dependency: PyYAML", file=sys.stderr)
+    print("[write_deploy_config] Install it first, for example: python3 -m pip install pyyaml", file=sys.stderr)
+    sys.exit(2)
 
-tls:
-  cert: ${TLS_CERT}
-  key: ${TLS_KEY}
+import os
 
-paths:
-  error_root: ${ERROR_ROOT}
-  log_dir: ${LOG_DIR}
-  output_dir: ${OUTPUT_DIR}
+target_path = Path(sys.argv[1])
+target_path.parent.mkdir(parents=True, exist_ok=True)
 
-nginx:
-  snippets_target_hint: ${NGINX_SNIPPETS_TARGET_HINT}
-  vhost_target_hint: ${NGINX_VHOST_TARGET_HINT}
-  include_redirect_whitelist_map: true
+def env(name, default=""):
+    return os.environ.get(name, default)
 
-deployment:
-  platform: ${PLATFORM}
-  dns_provider: manual
-  review_before_apply: true
-  generate_checklists: true
+payload = {
+    "deployment_name": env("DEPLOYMENT_NAME"),
+    "domain": {
+        "base_domain": env("BASE_DOMAIN"),
+        "mode": env("DOMAIN_MODE"),
+    },
+    "tls": {
+        "cert": env("TLS_CERT"),
+        "key": env("TLS_KEY"),
+    },
+    "paths": {
+        "error_root": env("ERROR_ROOT"),
+        "log_dir": env("LOG_DIR"),
+        "output_dir": env("OUTPUT_DIR"),
+    },
+    "nginx": {
+        "snippets_target_hint": env("NGINX_SNIPPETS_TARGET_HINT"),
+        "vhost_target_hint": env("NGINX_VHOST_TARGET_HINT"),
+        "include_redirect_whitelist_map": True,
+    },
+    "deployment": {
+        "platform": env("PLATFORM"),
+        "dns_provider": "manual",
+        "review_before_apply": True,
+        "generate_checklists": True,
+    },
+    "docs": {
+        "language": "zh-CN",
+        "audience": "operator",
+    },
+}
 
-docs:
-  language: zh-CN
-  audience: operator
-EOF
+with target_path.open("w", encoding="utf-8") as f:
+    yaml.safe_dump(payload, f, allow_unicode=True, sort_keys=False)
+PY
 }
 
 write_apply_plan_markdown() {

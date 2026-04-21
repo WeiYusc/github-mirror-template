@@ -302,6 +302,225 @@ PY
 )"
 }
 
+state_json_bool() {
+  if [[ "${1:-0}" == "1" ]]; then
+    printf 'true'
+  else
+    printf 'false'
+  fi
+}
+
+installer_determine_final_status() {
+  if [[ "${INSTALLER_PREFLIGHT_STATUS:-pending}" == "blocked" ]]; then
+    printf 'blocked'
+  elif [[ "${INSTALLER_GENERATOR_STATUS:-pending}" == "failed" ]]; then
+    printf 'failed'
+  elif [[ "${INSTALLER_DRY_RUN_STATUS:-not-requested}" == "failed" ]]; then
+    printf 'failed'
+  elif [[ "${INSTALLER_EXECUTE_STATUS:-not-requested}" == "failed" ]]; then
+    printf 'failed'
+  elif [[ "${INSTALLER_EXECUTE_STATUS:-not-requested}" == "needs-attention" ]]; then
+    printf 'needs-attention'
+  elif [[ "${INSTALLER_EXECUTE_STATUS:-not-requested}" == "cancelled" ]]; then
+    printf 'cancelled'
+  elif [[ "${INSTALLER_FINAL_STATUS:-running}" == "cancelled" ]]; then
+    printf 'cancelled'
+  elif [[ "${INSTALLER_CHECKPOINT:-initialized}" != "completed" ]]; then
+    printf 'failed'
+  else
+    printf 'success'
+  fi
+}
+
+write_installer_summary_json() {
+  local target_path="$1"
+  local exit_code="${2:-0}"
+  local final_status="${INSTALLER_FINAL_STATUS:-running}"
+  local apply_result_exists="false"
+  local apply_result_json_exists="false"
+
+  if [[ "$final_status" == "running" ]]; then
+    if [[ "$exit_code" == "0" ]]; then
+      final_status="$(installer_determine_final_status)"
+    elif [[ "${INSTALLER_PREFLIGHT_STATUS:-pending}" == "blocked" ]]; then
+      final_status="blocked"
+    else
+      final_status="failed"
+    fi
+  fi
+
+  if [[ -n "${APPLY_RESULT_PATH:-}" && -f "$APPLY_RESULT_PATH" ]]; then
+    apply_result_exists="true"
+  fi
+  if [[ -n "${APPLY_RESULT_JSON_PATH:-}" && -f "$APPLY_RESULT_JSON_PATH" ]]; then
+    apply_result_json_exists="true"
+  fi
+
+  mkdir -p "$(dirname "$target_path")"
+
+  python3 - "$target_path" "$exit_code" "$final_status" "$apply_result_exists" "$apply_result_json_exists" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+(target_path, exit_code, final_status, apply_result_exists, apply_result_json_exists) = sys.argv[1:]
+
+def env(name: str, default: str = ""):
+    return os.environ.get(name, default)
+
+payload = {
+    "schema_kind": "installer-summary",
+    "schema_version": 1,
+    "deployment_name": env("DEPLOYMENT_NAME"),
+    "base_domain": env("BASE_DOMAIN"),
+    "domain_mode": env("DOMAIN_MODE"),
+    "platform": env("PLATFORM"),
+    "input_mode": env("INSTALL_INPUT_MODE") or env("INPUT_MODE"),
+    "flags": {
+        "assume_yes": env("ASSUME_YES", "0") == "1",
+        "run_apply_dry_run": env("RUN_APPLY_DRY_RUN", "0") == "1",
+        "execute_apply": env("EXECUTE_APPLY", "0") == "1",
+        "run_nginx_test_after_execute": env("RUN_NGINX_TEST_AFTER_EXECUTE", "0") == "1",
+    },
+    "status": {
+        "preflight": env("INSTALLER_PREFLIGHT_STATUS", "pending"),
+        "generator": env("INSTALLER_GENERATOR_STATUS", "pending"),
+        "apply_plan": env("INSTALLER_APPLY_PLAN_STATUS", "pending"),
+        "apply_dry_run": env("INSTALLER_DRY_RUN_STATUS", "not-requested"),
+        "apply_execute": env("INSTALLER_EXECUTE_STATUS", "not-requested"),
+        "final": final_status,
+        "exit_code": int(exit_code),
+    },
+    "artifacts": {
+        "preflight_markdown": env("PREFLIGHT_REPORT_MD"),
+        "preflight_json": env("PREFLIGHT_REPORT_JSON"),
+        "config": env("CONFIG_PATH"),
+        "output_dir": env("OUTPUT_DIR_ABS"),
+        "apply_plan_markdown": env("APPLY_PLAN_PATH"),
+        "apply_plan_json": env("APPLY_PLAN_JSON_PATH"),
+        "apply_result": env("APPLY_RESULT_PATH"),
+        "apply_result_json": env("APPLY_RESULT_JSON_PATH"),
+        "summary_generated": env("SUMMARY_JSON_PRIMARY"),
+        "summary_output": env("SUMMARY_JSON_SECONDARY"),
+        "state_dir": env("STATE_DIR"),
+        "state_json": env("STATE_JSON_PATH"),
+        "journal_jsonl": env("STATE_JOURNAL_PATH"),
+        "run_id": env("RUN_ID"),
+        "apply_result_exists": apply_result_exists == "true",
+        "apply_result_json_exists": apply_result_json_exists == "true",
+    },
+}
+
+Path(target_path).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+installer_write_summary_artifacts() {
+  local exit_code="${1:-0}"
+
+  if [[ "${INSTALLER_RUNTIME_READY:-0}" != "1" ]]; then
+    return 0
+  fi
+
+  if [[ -n "${SUMMARY_JSON_PRIMARY:-}" ]]; then
+    write_installer_summary_json "$SUMMARY_JSON_PRIMARY" "$exit_code"
+  fi
+
+  if [[ -n "${SUMMARY_JSON_SECONDARY:-}" ]]; then
+    write_installer_summary_json "$SUMMARY_JSON_SECONDARY" "$exit_code"
+  fi
+
+  if [[ "${INSTALLER_FINALIZED:-0}" != "1" && -n "${STATE_JSON_PATH:-}" ]]; then
+    state_write_json "${INSTALLER_CHECKPOINT:-${INSTALLER_FINAL_STATUS:-running}}" "installer_on_exit"
+  fi
+}
+
+installer_finalize_completed_run() {
+  local final_status="${1:-}"
+
+  if [[ "${INSTALLER_CHECKPOINT:-initialized}" != "completed" ]]; then
+    INSTALLER_CHECKPOINT="completed"
+  fi
+
+  if [[ -z "$final_status" || "$final_status" == "running" ]]; then
+    final_status="$(installer_determine_final_status)"
+  fi
+
+  INSTALLER_FINAL_STATUS="$final_status"
+  local note="installer completed status=$INSTALLER_FINAL_STATUS"
+  state_mark_checkpoint "completed" "$note"
+  state_append_journal "run.complete" "$INSTALLER_FINAL_STATUS" "$note" "${SUMMARY_JSON_SECONDARY:-${SUMMARY_JSON_PRIMARY:-}}"
+  INSTALLER_FINALIZED="1"
+}
+
+installer_run_apply_dry_run() {
+  local result_ref_path="${1:-${APPLY_PLAN_JSON_PATH:-}}"
+  shift || true
+  local cmd=("$@")
+
+  INSTALLER_DRY_RUN_STATUS="running"
+  state_mark_checkpoint "apply-dry-run-running" "apply dry-run start"
+  state_append_journal "apply-dry-run.start" "running" "apply dry-run start" "$result_ref_path"
+
+  if "${cmd[@]}"; then
+    INSTALLER_DRY_RUN_STATUS="success"
+    state_mark_checkpoint "apply-dry-run-success" "apply dry-run success"
+    state_append_journal "apply-dry-run.complete" "success" "apply dry-run success" "${APPLY_RESULT_JSON_PATH:-$result_ref_path}"
+  else
+    local rc=$?
+    INSTALLER_DRY_RUN_STATUS="failed"
+    return "$rc"
+  fi
+}
+
+installer_read_apply_execute_recovery_status() {
+  local result_json_path="$1"
+
+  python3 - "$result_json_path" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+if not p.exists():
+    print("success")
+else:
+    data = json.loads(p.read_text(encoding="utf-8"))
+    print((data.get("recovery") or {}).get("installer_status", "success"))
+PY
+}
+
+installer_run_apply_execute() {
+  local result_ref_path="${1:-${APPLY_RESULT_JSON_PATH:-}}"
+  shift || true
+  local cmd=("$@")
+
+  INSTALLER_EXECUTE_STATUS="running"
+  state_mark_checkpoint "apply-execute-running" "real apply start"
+  state_append_journal "apply-execute.start" "running" "real apply start" "$result_ref_path"
+
+  if "${cmd[@]}"; then
+    local execute_recovery_status
+    execute_recovery_status="$(installer_read_apply_execute_recovery_status "$result_ref_path")"
+    INSTALLER_EXECUTE_STATUS="$execute_recovery_status"
+    state_mark_checkpoint "apply-execute-success" "real apply status=$execute_recovery_status"
+    state_append_journal "apply-execute.complete" "$execute_recovery_status" "real apply status=$execute_recovery_status" "$result_ref_path"
+  else
+    local rc=$?
+    INSTALLER_EXECUTE_STATUS="failed"
+    return "$rc"
+  fi
+}
+
+installer_on_exit() {
+  local rc=$?
+  trap - EXIT
+  if [[ "${INSTALLER_RUNTIME_READY:-0}" == "1" && -n "${STATE_JOURNAL_PATH:-}" ]]; then
+    state_append_journal "run.exit" "${INSTALLER_FINAL_STATUS:-unknown}" "exit_code=$rc" "${STATE_JSON_PATH:-}"
+  fi
+  installer_write_summary_artifacts "$rc" || true
+  exit "$rc"
+}
+
 state_write_json() {
   local checkpoint="${1:-${INSTALLER_CHECKPOINT:-initialized}}"
   local note="${2:-}"
@@ -655,6 +874,11 @@ def print_nearest_abnormal_ancestor_summary(lineage_chain, preferred_priority_ar
         priority_artifact = summarize_artifact_priority(nearest_abnormal_ancestor)
         label = "祖先参考产物" if preferred_priority_artifact is not None else "优先查看产物"
         print_priority_artifact_hint(label, priority_artifact)
+        alerts = set(nearest_abnormal_ancestor.get("alerts") or [])
+        if "state=missing" in alerts:
+            print("- 说明：lineage 指向的 source run state.json 缺失或不可读；已停止继续向上解析。")
+        elif "state=lineage-cycle" in alerts:
+            print("- 说明：检测到 lineage 循环引用；已停止继续向上解析。")
     else:
         print("- 已解析的祖先链中未发现 `needs-attention` / `blocked` / `failed` 异常状态。")
 
@@ -899,6 +1123,18 @@ def build_lineage_chain(current_state: dict, runs_root: Path):
         })
         parent_run_id = cur.get("resumed_from") or lineage.get("source_run_id") or ""
         if not parent_run_id:
+            break
+        if parent_run_id in seen:
+            chain.append({
+                "run_id": f"{parent_run_id} [cycle]",
+                "checkpoint": "循环",
+                "final": "lineage-cycle",
+                "resume_strategy": "",
+                "resume_strategy_reason": "",
+                "is_resumed_run": False,
+                "alerts": ["state=lineage-cycle"],
+                "artifacts": {},
+            })
             break
         parent = load_state_by_run_id(parent_run_id, runs_root)
         if parent is None:

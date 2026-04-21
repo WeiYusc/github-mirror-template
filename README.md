@@ -2,6 +2,11 @@
 
 一个用于部署 **GitHub 公共只读镜像** 的 Nginx/宝塔模板包。
 
+> 文档导航与权威层级：见 `docs/README.md`
+> - 想快速部署：优先读 `README.md` + `INSTALL.md`
+> - 想处理 installer 异常 run：优先读 runbook / state model / result contracts
+> - 想继续开发 installer：优先读 roadmap / backlog / handoff
+
 它的目标不是“克隆一个完整 GitHub”，而是提供一套 **可部署、可审计、可回滚** 的公共只读镜像方案，覆盖：
 
 - 公共仓库页面浏览
@@ -127,11 +132,13 @@ cp deploy.example.yaml deploy.yaml
 ./repair-applied-package.sh --help
 ```
 
-另外，如果你需要针对异常状态做人工判断，现已补三份配套文档：
+另外，如果你需要针对异常状态做人工判断，当前最该看的三份是：
 
 - `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`：面向 `needs-attention` / `blocked` / `failed` / `cancelled` 的检查顺序、建议动作与禁止误操作说明
 - `docs/INSTALLER-STATE-MODEL-ZH.md`：面向 `state.json` / `checkpoint` / `status.final` / `lineage` / `resume_strategy` / companion result 的实现语义说明
 - `docs/INSTALLER-RESULT-CONTRACTS-ZH.md`：面向 `state.json` / `INSTALLER-SUMMARY.json` / `APPLY-PLAN.json` / `APPLY-RESULT.json` / `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` 的职责边界、稳定字段与兼容策略说明
+
+更完整的“从哪读起 / 哪份算权威 / 哪些只是历史材料”导航，见：`docs/README.md`
 
 如果你准备修改 installer 的状态/结果契约，建议在提交前额外跑一次最小回归：
 
@@ -245,10 +252,18 @@ bash tests/installer-contracts-regression.sh
 - `DEPLOY-CONFIG.md`
 - `BT-PANEL-DEPLOYMENT-v1.md`
 - `DEPLOY-CHECKLIST.md`
+- `docs/README.md`
+
+如果你正在用 experimental installer，再按需补读：
+
 - `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
 - `docs/INSTALLER-STATE-MODEL-ZH.md`
 - `docs/INSTALLER-RESULT-CONTRACTS-ZH.md`
-- `V0.2-SIMPLIFIED-DEPLOYMENT-DESIGN.md`
+
+如果你是在继续改造 installer/control-plane，则优先看：
+
+- `docs/INSTALLER-REFACTOR-ROADMAP-ZH.md`
+- `docs/INSTALLER-NEXT-STAGE-BACKLOG-ZH.md`
 
 ---
 

@@ -106,6 +106,32 @@
 
 > 说明：这两个 fixture 主要用于 resume 载入优先级回归，不进入 6 类 contract 全套 smoke/check 矩阵。
 
+### 8. `fixture-missing-source-state`
+
+模拟 resumed run 指向的 source state 不存在或不可读：
+
+- `resumed_from=fixture-missing-source-parent`
+- 当前 run 自己没有 companion result
+- source run 的 `state.json` 缺失
+
+用于验证：
+
+- `state_doctor()` 会把缺失 source state 显式渲染到 lineage chain
+- 最近异常祖先摘要会明确说明“state.json 缺失或不可读”，而不是静默截断
+
+### 9. `fixture-lineage-cycle-a` / `fixture-lineage-cycle-b`
+
+模拟两个 run 在 lineage 上互相指回，形成循环：
+
+- `fixture-lineage-cycle-a.resumed_from=fixture-lineage-cycle-b`
+- `fixture-lineage-cycle-b.resumed_from=fixture-lineage-cycle-a`
+
+用于验证：
+
+- `state_doctor()` 不会因为 lineage 循环而无限递归
+- lineage chain 会显式输出 cycle sentinel
+- 最近异常祖先摘要会明确说明检测到 lineage 循环并已停止解析
+
 ## 运行方式
 
 在仓库根目录执行：

@@ -1,5 +1,10 @@
 # INSTALL.md
 
+> 文档导航与权威层级：见 `docs/README.md`
+> - 第一次部署：优先按本文顺序读
+> - 想处理 experimental installer 异常 run：优先补读 runbook / state model / result contracts
+> - 想继续改 installer：优先补读 roadmap / backlog / handoff
+
 这份文档面向：
 
 - 第一次部署这套 GitHub 公共只读镜像的人
@@ -250,6 +255,8 @@ bash tests/installer-contracts-regression.sh
 - runbook 负责回答“现在该怎么处理”
 - state model 负责回答“这些 checkpoint / status.* / final / lineage / companion result 到底是什么意思”
 - result contracts 负责回答“这些 JSON 产物分别该依赖什么字段、消费顺序是什么、兼容边界在哪里”
+
+更完整的文档分层与阅读顺序，见：`docs/README.md`
 
 这份手册专门覆盖 `needs-attention` / `blocked` / `failed` / `cancelled` 的检查顺序、建议动作与禁止误操作说明。
 

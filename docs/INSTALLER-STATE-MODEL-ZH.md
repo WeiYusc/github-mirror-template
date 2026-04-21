@@ -246,11 +246,17 @@ scripts/generated/runs/<run_id>/
 
 下面写的是**当前实现真实可见的状态域**，不是理想化设计图。
 
+> 当前实现侧单一枚举入口：`scripts/lib/status-contracts.sh`
+> - installer / regression 应优先复用这里的枚举定义
+> - 本文档负责解释语义，不再鼓励在多处手写独立枚举副本
+
 ---
 
 ### 5.1 `status.preflight`
 
 来源：`check_preflight_status()`
+
+> 当前实现侧权威枚举源：`scripts/lib/status-contracts.sh`
 
 当前取值：
 

@@ -13,7 +13,7 @@
     "run_nginx_test_after_execute": false
   },
   "status": {
-    "preflight": "success",
+    "preflight": "ok",
     "generator": "success",
     "apply_plan": "generated",
     "apply_dry_run": "skipped",
