@@ -345,6 +345,10 @@ assert_contains "$doctor_legacy_output" "[doctor] repair result json" "legacy do
 assert_contains "$doctor_legacy_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json" "legacy doctor resolves repair fallback path"
 assert_contains "$doctor_legacy_output" "[doctor] rollback result json" "legacy doctor prints rollback section"
 assert_contains "$doctor_legacy_output" "$WORKDIR/artifacts/fixture-legacy-fallback/ROLLBACK-RESULT.json" "legacy doctor resolves rollback fallback path"
+assert_contains "$doctor_legacy_output" "[doctor] journal" "legacy doctor prints journal section"
+assert_contains "$doctor_legacy_output" "- entries: 3" "legacy doctor prints journal entry count"
+assert_contains "$doctor_legacy_output" "- last_event: run.complete [success]" "legacy doctor prints journal last event"
+assert_contains "$doctor_legacy_output" "- last_message: installer completed" "legacy doctor prints journal last message"
 
 doctor_resumed_output="$(state_doctor "fixture-resumed-repair-review")"
 assert_contains "$doctor_resumed_output" "- resumed_from: fixture-legacy-fallback" "resumed doctor prints resumed_from in run summary"
@@ -359,6 +363,10 @@ assert_contains "$doctor_resumed_output" "当前 resume 策略：repair-review-f
 assert_contains "$doctor_resumed_output" "最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。" "resumed doctor prints abnormal ancestor"
 assert_contains "$doctor_resumed_output" "$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]" "resumed doctor points to ancestor repair artifact"
 assert_contains "$doctor_resumed_output" "- lineage.source_run_id: fixture-legacy-fallback" "resumed doctor machine summary source run"
+assert_contains "$doctor_resumed_output" "[doctor] journal" "resumed doctor prints journal section"
+assert_contains "$doctor_resumed_output" "- entries: 2" "resumed doctor prints journal entry count"
+assert_contains "$doctor_resumed_output" "- last_event: run.complete [success]" "resumed doctor prints journal last event"
+assert_contains "$doctor_resumed_output" "- last_message: installer completed" "resumed doctor prints journal last message"
 
 doctor_current_apply_attention_output="$(state_doctor "fixture-current-apply-attention")"
 assert_contains "$doctor_current_apply_attention_output" "- run_id: fixture-current-apply-attention" "current apply attention doctor prints run id"
@@ -373,6 +381,10 @@ assert_contains "$doctor_current_apply_attention_output" "[doctor] 当前 run �
 assert_contains "$doctor_current_apply_attention_output" "- 当前 run 存在异常状态：apply_execute=needs-attention, final=needs-attention" "current apply attention doctor prints current run alerts"
 assert_contains "$doctor_current_apply_attention_output" "$WORKDIR/artifacts/fixture-current-apply-attention/APPLY-RESULT.json [apply-result]" "current apply attention doctor points to current apply result artifact"
 assert_contains "$doctor_current_apply_attention_output" "最近异常出在 apply 阶段，建议先看 apply 结果/计划文件。" "current apply attention doctor explains priority artifact"
+assert_contains "$doctor_current_apply_attention_output" "[doctor] journal" "current apply attention doctor prints journal section"
+assert_contains "$doctor_current_apply_attention_output" "- entries: 3" "current apply attention doctor prints journal entry count"
+assert_contains "$doctor_current_apply_attention_output" "- last_event: run.complete [needs-attention]" "current apply attention doctor prints journal last event"
+assert_contains "$doctor_current_apply_attention_output" "- last_message: installer completed with attention required" "current apply attention doctor prints journal last message"
 assert_contains "$doctor_current_apply_attention_output" "真实 apply 已落盘，但 nginx 测试失败；建议先运行 ./repair-applied-package.sh --result-json $WORKDIR/artifacts/fixture-current-apply-attention/APPLY-RESULT.json --dry-run 做保守诊断，再决定 selective rollback 还是人工修复。 当前不建议把 resume 当作默认下一步。" "current apply attention doctor prints repair dry-run suggestion"
 
 doctor_post_rollback_output="$(state_doctor "fixture-post-rollback-inspection")"
