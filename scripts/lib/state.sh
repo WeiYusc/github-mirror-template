@@ -131,7 +131,9 @@ import shlex
 import sys
 from pathlib import Path
 
-state = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+state_path = Path(sys.argv[1]).resolve()
+runs_root = state_path.parent.parent
+state = json.loads(state_path.read_text(encoding="utf-8"))
 status = state.get("status", {})
 artifacts = state.get("artifacts", {})
 apply_result_path = artifacts.get("apply_result_json", "")
@@ -143,31 +145,112 @@ if apply_result_path and Path(apply_result_path).exists():
         apply_result = {}
 recovery = apply_result.get("recovery") or {}
 
-repair_result_json_path = artifacts.get("repair_result_json", "")
-rollback_result_json_path = artifacts.get("rollback_result_json", "")
-if not repair_result_json_path and apply_result_path:
-    repair_result_json_path = str(Path(apply_result_path).with_name("REPAIR-RESULT.json"))
-if not rollback_result_json_path and apply_result_path:
-    rollback_result_json_path = str(Path(apply_result_path).with_name("ROLLBACK-RESULT.json"))
 
-repair_result = {}
-if repair_result_json_path and Path(repair_result_json_path).exists():
+def load_state_by_run_id(run_id: str):
+    if not run_id:
+        return None
+    path = runs_root / run_id / "state.json"
+    if not path.exists():
+        return None
     try:
-        repair_result = json.loads(Path(repair_result_json_path).read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        repair_result = {}
+        return None
 
-rollback_result = {}
-if rollback_result_json_path and Path(rollback_result_json_path).exists():
-    try:
-        rollback_result = json.loads(Path(rollback_result_json_path).read_text(encoding="utf-8"))
-    except Exception:
-        rollback_result = {}
 
+def with_companion_fallback(artifacts_map: dict):
+    resolved = dict(artifacts_map)
+    apply_result_json = resolved.get("apply_result_json") or ""
+    apply_result_md = resolved.get("apply_result") or ""
+    base_dir = None
+    if apply_result_json:
+        base_dir = Path(apply_result_json).parent
+    elif apply_result_md:
+        base_dir = Path(apply_result_md).parent
+    if base_dir is not None:
+        if not resolved.get("repair_result_json"):
+            candidate = base_dir / "REPAIR-RESULT.json"
+            if candidate.exists():
+                resolved["repair_result_json"] = str(candidate)
+        if not resolved.get("repair_result"):
+            candidate = base_dir / "REPAIR-RESULT.md"
+            if candidate.exists():
+                resolved["repair_result"] = str(candidate)
+        if not resolved.get("rollback_result_json"):
+            candidate = base_dir / "ROLLBACK-RESULT.json"
+            if candidate.exists():
+                resolved["rollback_result_json"] = str(candidate)
+        if not resolved.get("rollback_result"):
+            candidate = base_dir / "ROLLBACK-RESULT.md"
+            if candidate.exists():
+                resolved["rollback_result"] = str(candidate)
+    return resolved
+
+
+def resolve_companion_result(cur_state: dict, kind: str, visited: set[str]):
+    run_id = cur_state.get("run_id", "") or ""
+    if run_id in visited:
+        return None
+    visited.add(run_id)
+
+    cur_artifacts = with_companion_fallback(cur_state.get("artifacts") or {})
+    json_key = f"{kind}_result_json"
+    md_key = f"{kind}_result"
+    candidate_json = cur_artifacts.get(json_key) or ""
+    candidate_md = cur_artifacts.get(md_key) or ""
+
+    if candidate_json and Path(candidate_json).exists():
+        payload = {}
+        try:
+            payload = json.loads(Path(candidate_json).read_text(encoding="utf-8"))
+        except Exception:
+            payload = {}
+        if not candidate_md:
+            candidate_md = str(Path(candidate_json).with_name(f"{kind.upper()}-RESULT.md"))
+        return {
+            "owner_run_id": run_id,
+            "json_path": candidate_json,
+            "markdown_path": candidate_md,
+            "payload": payload,
+        }
+
+    if candidate_md and Path(candidate_md).exists():
+        return {
+            "owner_run_id": run_id,
+            "json_path": candidate_json,
+            "markdown_path": candidate_md,
+            "payload": {},
+        }
+
+    parent_run_id = cur_state.get("resumed_from") or (cur_state.get("lineage") or {}).get("source_run_id") or ""
+    if parent_run_id:
+        parent_state = load_state_by_run_id(parent_run_id)
+        if parent_state is not None:
+            resolved = resolve_companion_result(parent_state, kind, visited)
+            if resolved is not None:
+                return resolved
+
+    if candidate_json or candidate_md:
+        return {
+            "owner_run_id": run_id,
+            "json_path": candidate_json,
+            "markdown_path": candidate_md,
+            "payload": {},
+        }
+
+    return None
+
+
+repair_resolved = resolve_companion_result(state, "repair", set()) or {}
+rollback_resolved = resolve_companion_result(state, "rollback", set()) or {}
+repair_result_json_path = repair_resolved.get("json_path", "")
+rollback_result_json_path = rollback_resolved.get("json_path", "")
+repair_result_path = repair_resolved.get("markdown_path", "")
+rollback_result_path = rollback_resolved.get("markdown_path", "")
+repair_result = repair_resolved.get("payload") or {}
+rollback_result = rollback_resolved.get("payload") or {}
 repair_execution = repair_result.get("execution") or {}
 rollback_flags = rollback_result.get("flags") or {}
-repair_result_path = artifacts.get("repair_result") or (str(Path(repair_result_json_path).with_name("REPAIR-RESULT.md")) if repair_result_json_path else "")
-rollback_result_path = artifacts.get("rollback_result") or (str(Path(rollback_result_json_path).with_name("ROLLBACK-RESULT.md")) if rollback_result_json_path else "")
 
 values = {
     "RESUME_SOURCE_RUN_ID": state.get("run_id", ""),
@@ -189,8 +272,10 @@ values = {
     "RESUME_SOURCE_APPLY_PLAN_JSON_PATH": artifacts.get("apply_plan_json", ""),
     "RESUME_SOURCE_APPLY_RESULT_PATH": artifacts.get("apply_result", ""),
     "RESUME_SOURCE_APPLY_RESULT_JSON_PATH": artifacts.get("apply_result_json", ""),
+    "RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID": repair_resolved.get("owner_run_id", ""),
     "RESUME_SOURCE_REPAIR_RESULT_PATH": repair_result_path,
     "RESUME_SOURCE_REPAIR_RESULT_JSON_PATH": repair_result_json_path,
+    "RESUME_SOURCE_ROLLBACK_RESULT_OWNER_RUN_ID": rollback_resolved.get("owner_run_id", ""),
     "RESUME_SOURCE_ROLLBACK_RESULT_PATH": rollback_result_path,
     "RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH": rollback_result_json_path,
     "RESUME_SOURCE_APPLY_RECOVERY_STATUS": recovery.get("installer_status", ""),

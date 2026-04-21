@@ -76,20 +76,35 @@
 - repair 已通过后的关键字段提取
 - inspection-first resume 场景下的 operator hint 与 repair 优先语义
 
-### 5. `fixture-post-rollback-inspection`
+### 6. `fixture-source-priority-over-ancestor`
 
-模拟 rollback 已执行完成后的 inspection-first resumed run：
+模拟 resumed run 本身没有 companion result，但直接 source run 有：
 
-- `lineage.resume_strategy=post-rollback-inspection`
-- `resumed_from=fixture-legacy-fallback`
-- `ROLLBACK-RESULT.json.mode=execute`
-- `ROLLBACK-RESULT.json.flags.execute=true`
+- `resumed_from=fixture-post-rollback-inspection`
+- 当前 run 自己的 `repair_result_json` / `rollback_result_json` 为空
+- 直接 source run 可解析到自己的 companion result
+- 更早祖先 `fixture-legacy-fallback` 也同样有 companion result
 
 用于验证：
 
-- `state_doctor()` 对 `post-rollback-inspection` 的摘要文案
-- rollback 已执行后的关键字段提取
-- inspection-first resume 场景下的 operator hint 与祖先异常提示
+- `state_load_resume_context()` 在 **current 缺失** 时，优先取 **direct source**，而不是直接跳到更早 ancestor
+- rollback / repair 两类 companion result 的 owner run id 与关键字段能跟着最近 source 保持一致
+
+### 7. `fixture-ancestor-fallback-after-source-gap`
+
+模拟 current run 与 direct source run 都没有 companion result，需要继续沿 lineage 向上回溯：
+
+- `resumed_from=fixture-source-priority-over-ancestor`
+- 当前 run 自己无 companion result
+- direct source run 也无 companion result
+- 更早 ancestor `fixture-post-rollback-inspection` 仍保留可解析的 companion result
+
+用于验证：
+
+- `state_load_resume_context()` 在 **current 缺失 + direct source 缺失** 时，会继续走到最近可用 ancestor
+- owner run id 可以明确指出最终取值来源，避免“看起来像当前 run，实际却来自更早祖先”的语义漂移
+
+> 说明：这两个 fixture 主要用于 resume 载入优先级回归，不进入 6 类 contract 全套 smoke/check 矩阵。
 
 ## 运行方式
 
