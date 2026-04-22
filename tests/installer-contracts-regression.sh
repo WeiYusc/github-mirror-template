@@ -673,4 +673,47 @@ assert_contains "$doctor_lineage_string_output" "[doctor] 状态" "lineage strin
 assert_contains "$doctor_lineage_string_output" "[doctor] apply result json" "lineage string doctor still prints apply result section"
 assert_contains "$doctor_lineage_string_output" "[doctor] 下一步建议" "lineage string doctor still prints next step section"
 
+python3 - "$WORKDIR/artifacts/fixture-current-apply-attention/APPLY-RESULT.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['recovery']['resume_recommended'] = 'false'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+state_load_resume_context "fixture-current-apply-attention"
+assert_equals "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" "0" "string false resume recommended stays false in resume context"
+doctor_value_drift_bool_output="$(state_doctor "fixture-current-apply-attention")"
+assert_contains "$doctor_value_drift_bool_output" "- recovery.resume_recommended: false" "string false resume recommended still prints raw visible value"
+assert_contains "$doctor_value_drift_bool_output" "当前不建议把 resume 当作默认下一步。" "string false resume recommended still disables resume default suggestion"
+
+python3 - "$WORKDIR/artifacts/fixture-current-apply-attention/APPLY-RESULT.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['final_status'] = 'blocked'
+obj['summary']['conflict'] = '2'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_value_drift_conflict_output="$(state_doctor "fixture-current-apply-attention")"
+assert_contains "$doctor_value_drift_conflict_output" "- summary.conflict: 2" "string numeric conflict still renders raw summary value"
+assert_contains "$doctor_value_drift_conflict_output" "apply 结果显示存在冲突项；建议先处理目标文件冲突，再重新执行 apply / resume。" "string numeric conflict still triggers blocked-conflict suggestion"
+
+python3 - "$WORKDIR/runs/fixture-legacy-fallback/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['status']['final'] = 'SUCCESS'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_value_drift_enum_output="$(state_doctor "fixture-legacy-fallback")"
+assert_contains "$doctor_value_drift_enum_output" "- final: SUCCESS" "unknown final enum still renders raw final value"
+assert_contains "$doctor_value_drift_enum_output" "[doctor] repair result json" "unknown final enum doctor still prints repair result section"
+assert_contains "$doctor_value_drift_enum_output" "当前处于 needs-attention；建议先复核诊断项，再决定是 rollback 还是人工修复后重跑 nginx -t。" "unknown final enum still prefers repair result suggestion over fake stable stop"
+
 echo "[PASS] installer contract regression"

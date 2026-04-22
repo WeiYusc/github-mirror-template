@@ -158,19 +158,19 @@
 - `state_load_inputs_env()` 采用**白名单变量 + 静态解析赋值**加载快照；对损坏/越界输入返回**可控错误**，而不是把当前 shell source 过程弄脏
 - `state_doctor()` 对坏 journal 行保持保守忽略：仍能统计行数、提取最后一条有效事件，并继续输出整体摘要
 
-### 13. JSON 合法但字段类型漂移（type drift）的保守降级
+### 14. JSON 合法但字段值漂移（value drift / enum drift）的保守降级
 
-这组同样在 regression 运行时对临时 `WORKDIR` 做定点改值，但仍保持 JSON 可解析：
+这组同样在 regression 运行时对临时 `WORKDIR` 做定点改值，但仍保持 JSON 结构和类型整体可解析：
 
-- 把 `lineage.is_resumed_run` 从布尔改成字符串 `"false"`
-- 同时保留 `resumed_from` / `lineage.source_run_id`
-- 把 `status` / `lineage` / `artifacts` 改成错误类型（如字符串）
+- 把布尔语义字段写成字符串，如 `resume_recommended = "false"`
+- 把数字语义字段写成字符串数字，如 `summary.conflict = "2"`
+- 把状态枚举写成未知值，如 `status.final = "SUCCESS"`
 
 用于验证：
 
-- `state_doctor()` 不会因顶层字段类型漂移而崩溃，会按空对象保守降级
-- 对“是否 resumed run”的判断采用**多信号兜底**，不会因为单个脏字段 `lineage.is_resumed_run="false"` 就把明显的 resumed run 误判成普通新 run
-- 顶层对象字段漂移后，doctor 仍能继续输出可读区块，并在有可用产物时继续给建议
+- `state_load_resume_context()` 会按 **jsonish bool** 解释值型布尔，而不是把非空字符串都当真
+- `state_doctor()` 会按 **safe int** 解释数字语义字段，不会因为字符串数字比较而直接崩溃
+- 遇到未知状态枚举值时，doctor 会保留原始值输出，但整体仍继续按保守降级路径工作，而不是伪造“成功/稳定停点”语义
 
 在仓库根目录执行：
 

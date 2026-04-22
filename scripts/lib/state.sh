@@ -202,6 +202,34 @@ from pathlib import Path
 def ensure_dict(value):
     return value if isinstance(value, dict) else {}
 
+
+def jsonish_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    if isinstance(value, (int, float)):
+        return value != 0
+    return bool(value)
+
+
+def safe_int(value, default=0):
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return default
+        try:
+            return int(text)
+        except ValueError:
+            return default
+    return default
+
 state_path = Path(sys.argv[1]).resolve()
 runs_root = state_path.parent.parent
 state = ensure_dict(json.loads(state_path.read_text(encoding="utf-8")))
@@ -352,7 +380,7 @@ values = {
     "RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH": rollback_result_json_path,
     "RESUME_SOURCE_APPLY_RECOVERY_STATUS": recovery.get("installer_status", ""),
     "RESUME_SOURCE_APPLY_RESUME_STRATEGY": recovery.get("resume_strategy", ""),
-    "RESUME_SOURCE_APPLY_RESUME_RECOMMENDED": "1" if recovery.get("resume_recommended", True) else "0",
+    "RESUME_SOURCE_APPLY_RESUME_RECOMMENDED": "1" if jsonish_bool(recovery.get("resume_recommended", True)) else "0",
     "RESUME_SOURCE_APPLY_OPERATOR_ACTION": recovery.get("operator_action", ""),
     "RESUME_SOURCE_APPLY_NEXT_STEP": apply_result.get("next_step", ""),
     "RESUME_SOURCE_REPAIR_FINAL_STATUS": repair_result.get("final_status", ""),
@@ -789,6 +817,24 @@ def jsonish_bool(value):
     if isinstance(value, (int, float)):
         return value != 0
     return bool(value)
+
+
+def safe_int(value, default=0):
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return default
+        try:
+            return int(text)
+        except ValueError:
+            return default
+    return default
 
 
 def is_effectively_resumed_run(state: dict, lineage: dict):
@@ -1354,11 +1400,11 @@ if apply_result:
     summary = ensure_dict(apply_result.get("summary"))
     recovery = ensure_dict(apply_result.get("recovery"))
     operator_action = recovery.get("operator_action", "")
-    resume_recommended = recovery.get("resume_recommended")
+    resume_recommended = jsonish_bool(recovery.get("resume_recommended", True))
     if apply_final == "blocked":
-        if (summary.get("conflict") or 0) > 0:
+        if safe_int(summary.get("conflict"), 0) > 0:
             suggestion = "apply 结果显示存在冲突项；建议先处理目标文件冲突，再重新执行 apply / resume。"
-        elif (summary.get("missing_source") or 0) > 0:
+        elif safe_int(summary.get("missing_source"), 0) > 0:
             suggestion = "apply 结果显示存在缺失源文件；建议先检查 generator 输出目录是否完整，再重新执行。"
         else:
             suggestion = apply_result.get("next_step") or "apply 阶段被阻断；建议先处理阻断项后再 resume。"
