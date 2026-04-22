@@ -388,6 +388,20 @@ assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "1" "ancestor fallback fixture k
 assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "fixture-post-rollback-inspection" "ancestor fallback fixture walks to nearest ancestor repair owner"
 assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "blocked" "ancestor fallback fixture keeps nearest ancestor repair status"
 
+state_load_resume_context "fixture-missing-source-state"
+assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-missing-source-parent" "missing source fixture resumed_from is preserved"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "" "missing source fixture does not invent repair owner"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "" "missing source fixture does not invent repair json path"
+assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_OWNER_RUN_ID" "" "missing source fixture does not invent rollback owner"
+assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "" "missing source fixture does not invent rollback json path"
+
+state_load_resume_context "fixture-lineage-cycle-a"
+assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-lineage-cycle-b" "lineage cycle fixture resumed_from is preserved"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "" "lineage cycle fixture does not invent repair owner"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "" "lineage cycle fixture does not invent repair json path"
+assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_OWNER_RUN_ID" "" "lineage cycle fixture does not invent rollback owner"
+assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "" "lineage cycle fixture does not invent rollback json path"
+
 doctor_legacy_output="$(state_doctor "fixture-legacy-fallback")"
 assert_contains "$doctor_legacy_output" "[doctor] 运行摘要" "legacy doctor prints run summary section"
 assert_contains "$doctor_legacy_output" "- run_id: fixture-legacy-fallback" "legacy doctor prints run id"

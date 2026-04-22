@@ -116,6 +116,7 @@
 
 用于验证：
 
+- `state_load_resume_context()` 会保留 `resumed_from` 线索，但不会伪造 repair / rollback companion 结果
 - `state_doctor()` 会把缺失 source state 显式渲染到 lineage chain
 - 最近异常祖先摘要会明确说明“state.json 缺失或不可读”，而不是静默截断
 
@@ -128,6 +129,7 @@
 
 用于验证：
 
+- `state_load_resume_context()` 不会因为 lineage 循环而无限递归，也不会伪造 companion 结果
 - `state_doctor()` 不会因为 lineage 循环而无限递归
 - lineage chain 会显式输出 cycle sentinel
 - 最近异常祖先摘要会明确说明检测到 lineage 循环并已停止解析
