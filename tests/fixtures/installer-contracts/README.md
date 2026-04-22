@@ -158,6 +158,20 @@
 - `state_load_inputs_env()` 采用**白名单变量 + 静态解析赋值**加载快照；对损坏/越界输入返回**可控错误**，而不是把当前 shell source 过程弄脏
 - `state_doctor()` 对坏 journal 行保持保守忽略：仍能统计行数、提取最后一条有效事件，并继续输出整体摘要
 
+### 12. JSON 合法但缺关键字段的保守降级
+
+这组同样在 regression 运行时对临时 `WORKDIR` 做定点删字段，而不是写坏 JSON 语法：
+
+- 删除 resumed run 的 `lineage.resume_strategy` / `lineage.resume_strategy_reason`
+- 删除某个 run 的 `artifacts.apply_result_json`
+- 删除某个 run 的 `status.repair` / `status.final`
+
+用于验证：
+
+- `state_doctor()` 在 lineage 元数据缺失时，会显式打印“未记录”，而不是把缺失误渲染成错误语义
+- `state_doctor()` 在 `apply_result_json` 缺失时，仍能依靠同目录 companion fallback 继续输出 repair / rollback 结果摘要
+- `state_load_resume_context()` 对缺失的 status 字段保持空值降级，但不影响 companion result 解析；`state_doctor()` 仍可优先依据可读 result JSON 给下一步建议
+
 在仓库根目录执行：
 
 ```bash

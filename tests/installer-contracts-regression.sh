@@ -578,4 +578,53 @@ assert_contains "$doctor_bad_journal_output" "- entries: 2" "bad journal doctor 
 assert_contains "$doctor_bad_journal_output" "- last_event: run.complete [success]" "bad journal doctor keeps last valid event"
 assert_contains "$doctor_bad_journal_output" "- last_message: ok" "bad journal doctor keeps last valid event message"
 
+python3 - "$TEMPLATE_DIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" "$WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['lineage'].pop('resume_strategy', None)
+obj['lineage'].pop('resume_strategy_reason', None)
+obj['artifacts'].pop('apply_result_json', None)
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+state_load_resume_context "fixture-post-repair-verification"
+assert_equals "${RESUME_SOURCE_APPLY_RESULT_JSON_PATH-}" "" "missing apply_result_json keeps resume apply result json empty"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "fixture-post-repair-verification" "missing apply_result_json still keeps current repair owner"
+doctor_missing_lineage_fields_output="$(state_doctor "fixture-post-repair-verification")"
+assert_contains "$doctor_missing_lineage_fields_output" "- 当前 resume 策略：未记录。" "missing resume strategy doctor prints unrecorded strategy"
+assert_contains "$doctor_missing_lineage_fields_output" "- 触发原因：未记录。" "missing resume strategy reason doctor prints unrecorded reason"
+assert_contains "$doctor_missing_lineage_fields_output" "[doctor] repair result json" "missing apply_result_json doctor still prints repair result section"
+assert_contains "$doctor_missing_lineage_fields_output" "- path: $WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" "missing apply_result_json doctor still resolves repair result path"
+assert_contains "$doctor_missing_lineage_fields_output" "[doctor] 下一步建议" "missing apply_result_json doctor still prints next step section"
+
+python3 - "$WORKDIR/runs/fixture-legacy-fallback/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['status'].pop('repair', None)
+obj['status'].pop('final', None)
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+state_load_resume_context "fixture-legacy-fallback"
+assert_equals "${RESUME_SOURCE_REPAIR_STATUS-}" "" "missing repair status keeps resume repair status empty"
+assert_equals "${RESUME_SOURCE_FINAL_STATUS-}" "" "missing final status keeps resume final status empty"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "fixture-legacy-fallback" "missing status keys still keep repair owner via companion result"
+doctor_missing_status_fields_output="$(state_doctor "fixture-legacy-fallback")"
+assert_contains "$doctor_missing_status_fields_output" "- repair: " "missing repair status doctor renders empty repair field"
+assert_contains "$doctor_missing_status_fields_output" "- final: " "missing final status doctor renders empty final field"
+assert_contains "$doctor_missing_status_fields_output" "[doctor] repair result json" "missing status keys doctor still prints repair result section"
+assert_contains "$doctor_missing_status_fields_output" "当前处于 needs-attention；建议先复核诊断项，再决定是 rollback 还是人工修复后重跑 nginx -t。" "missing status keys doctor still derives suggestion from repair result"
+
 echo "[PASS] installer contract regression"
