@@ -606,6 +606,19 @@ installer 会直接拒绝，而不是默默降级。
 
 > 可以做只读预演，但不允许把“复查优先”误变成“继续执行真实 apply”。
 
+### 8.4.1 inspection-first 四类策略的统一动作矩阵
+
+| strategy | 触发来源 | resume 的默认主语义 | 默认先看什么 | 显式允许 | 明确禁止 |
+| --- | --- | --- | --- | --- | --- |
+| `inspect-after-apply-attention` | `APPLY-RESULT.json.recovery.resume_recommended != 1` | 先复查 apply attention，而不是继续 execute | `APPLY-RESULT.json`、`recovery.operator_action`、`--doctor` | 复用可用产物；显式 `--run-apply-dry-run` | 显式 `--execute-apply`；把 `--resume` 视作 apply 重放 |
+| `repair-review-first` | repair 结果仍是 `needs-attention` / `blocked` | 先看 repair 诊断是否收口 | `REPAIR-RESULT.json`、`diagnosis.*`、`next_step` | 人工继续排查；必要时再次 repair；显式 dry-run | 绕过 repair 结论直接真实 apply |
+| `post-repair-verification` | repair 已重跑 `nginx -t` 且通过 | 先验证“修好”是否真的稳定 | `REPAIR-RESULT.json`、`execution.nginx_test_rerun_status`、手工复核 | 复用可用产物；显式 dry-run；人工确认现场 | 因 repair passed 就默认继续 execute；显式 `--execute-apply` |
+| `post-rollback-inspection` | rollback 已执行且成功 | 先确认 rollback 后现场，而不是继续部署 | `ROLLBACK-RESULT.json`、rollback 后目标机状态 | 复核 rollback 结果；显式 dry-run；必要时新开 run | 把 rollback 后状态直接视作可继续 execute 的干净起点；显式 `--execute-apply` |
+
+可以把这 4 类统一记成：
+
+> inspection-first = 先 doctor / 看 companion result / 做人工复查；可 dry-run，但不默认继续真实 apply。
+
 ---
 
 ### 8.5 当前哪些阶段会被 resume 复用/跳过

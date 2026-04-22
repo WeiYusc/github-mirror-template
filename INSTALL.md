@@ -197,6 +197,19 @@ LOG_DIR=/www/wwwlogs
 - 在这些 inspection-first 的 resume 策略下，仍允许显式传 `--run-apply-dry-run` 做只读预演；但若显式传 `--execute-apply`，当前会直接拒绝
 - 目前常见的 inspection-first 语义包括：`inspect-after-apply-attention`、`post-repair-verification`、`repair-review-first`、`post-rollback-inspection`
 
+### inspection-first 四类策略的统一动作矩阵
+
+| strategy | 典型来源 | 默认先看什么 | 允许什么 | 不允许什么 |
+| --- | --- | --- | --- | --- |
+| `inspect-after-apply-attention` | apply 已落到 attention，且 `resume_recommended != 1` | 当前 run 的 `APPLY-RESULT.json`，必要时补 `--doctor` | 复用已有输入/产物；显式 `--run-apply-dry-run` | 把 `--resume` 当成重放真实 apply 的快捷键；显式 `--execute-apply` |
+| `repair-review-first` | repair 结果仍是 `needs-attention` / `blocked` | 当前或源 run 的 `REPAIR-RESULT.json` + `--doctor` | 只读复查；显式 `--run-apply-dry-run`；必要时继续 repair / 人工处理 | 未完成人工复核前直接真实 apply；把 repair 未收口场景当普通 resume |
+| `post-repair-verification` | repair 已重跑 `nginx -t` 且通过 | 当前 run 的 `REPAIR-RESULT.json`、`nginx -t` 复查结论 | 复用可用产物；显式 dry-run；人工确认现场 | 因为“已经 passed”就直接继续真实 apply；显式 `--execute-apply` |
+| `post-rollback-inspection` | rollback 已执行且成功 | 当前 run 的 `ROLLBACK-RESULT.json` 与目标机落地状态 | 复用可用产物；显式 dry-run；人工核对 rollback 后现场 | 把 rollback 后现场直接当成可继续 execute 的干净起点；显式 `--execute-apply` |
+
+可以把它记成一句话：
+
+> inspection-first = **先 doctor / 看 result / 做人工复查，可 dry-run，不默认继续真实 apply。**
+
 一个最小脚本化示例：
 
 ```bash

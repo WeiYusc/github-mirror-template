@@ -283,7 +283,18 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
   - 可以显式带 `--run-apply-dry-run` 再做一次只读预演
   - 但若显式带 `--execute-apply`，当前实现会直接拒绝，要求先完成人工复查
 
-所以它更像“带上下文的保守续接”，不是“一键重试执行器”。
+### inspection-first 四类策略的处理矩阵
+
+| strategy | 典型来源 | 默认先看什么 | 允许什么 | 不允许什么 |
+| --- | --- | --- | --- | --- |
+| `inspect-after-apply-attention` | apply 已经要求 operator 先复核，且 `resume_recommended != 1` | `APPLY-RESULT.json` + `--doctor` 摘要 | 复用输入/产物；显式 `--run-apply-dry-run`；人工复查现场 | 把 `--resume` 当成真实 apply 重放；显式 `--execute-apply` |
+| `repair-review-first` | repair 结果仍为 `needs-attention` / `blocked` | `REPAIR-RESULT.json`、repair diagnosis、`--doctor` | 继续人工排查；必要时再次 repair；显式 dry-run | 把未收口 repair run 当成普通 resume；跳过复查直接真实 apply |
+| `post-repair-verification` | repair 已重跑 `nginx -t` 且通过 | `REPAIR-RESULT.json`、手工 `nginx -t` / 现场复核 | 复用可用产物；显式 dry-run；人工确认后决定下一步 | 因为 repair passed 就默认继续 execute；显式 `--execute-apply` |
+| `post-rollback-inspection` | rollback 已执行且成功 | `ROLLBACK-RESULT.json`、目标机回滚后状态 | 复核 rollback 结果；显式 dry-run；必要时新开 run | 把 rollback 后现场直接视为可继续 execute 的干净断点；显式 `--execute-apply` |
+
+一句话总结：
+
+> inspection-first 更像“带上下文的保守复查”，不是“一键重试执行器”。
 
 ---
 
