@@ -90,7 +90,7 @@ cp deploy.example.yaml deploy.yaml
 - 支持 `--doctor <run_id>` 查看某次运行的 state/journal/产物摘要
 - `--doctor` 现在会额外输出一段 **lineage 摘要**，把这轮 run 是否来自历史 resume、源 run 停点、源 run 是否本身又来自更早 run、当前 resume strategy 与 strategy reason 用人话总结出来
 - 支持 `--resume <run_id>` 复用上次输入，并在条件满足时跳过已完成的 preflight / generator / apply plan 阶段
-- `--resume` 现在会优先消费 run 级 `repair` / `rollback` 结果语义：若已执行 rollback，或 repair 的 nginx `-t` 重跑已通过 / 仍需人工处理，会默认收紧为“复查优先”，而不是继续把真实 apply 当默认下一步
+- `--resume` 现在会优先按 **`lineage.resume_strategy` → `APPLY-RESULT.recovery.*` → `REPAIR/ROLLBACK-RESULT` 关键事实字段** 理解 run 级 `repair` / `rollback` 结果语义：若已执行 rollback，或 repair 的 nginx `-t` 重跑已通过 / 仍需人工处理，会默认收紧为“复查优先”，而不是继续把真实 apply 当默认下一步
 - 在这些 inspection-first 的 resume 策略下，仍允许你显式传 `--run-apply-dry-run` 做只读预演；但若显式传 `--execute-apply`，installer 现在会直接拒绝，避免把“继续看看”误变成“继续落地改写”
 - 基础 preflight 摘要
 - 额外落盘 `scripts/generated/preflight.generated.md`
@@ -106,7 +106,7 @@ cp deploy.example.yaml deploy.yaml
 - 可选执行 nginx 测试，并显式指定 `nginx-test-cmd`
 - 写出 `APPLY-RESULT.md`
 - 写出 `APPLY-RESULT.json`
-- `--doctor` 会优先读取 `APPLY-RESULT.json`，并优先消费 `state.json` 中已登记的 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`；若旧 run 尚未登记，也会退回到同目录自动发现
+- `--doctor` 会优先读取 `APPLY-RESULT.json`，并按 **`lineage.resume_strategy` → `APPLY-RESULT.recovery.*` → `REPAIR/ROLLBACK-RESULT` 关键字段 → `next_step`** 的顺序汇总 inspection-first 语义；若 `state.json` 中已登记 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` 会优先直接消费，旧 run 尚未登记时也会退回到同目录自动发现
 
 它当前明确**不会**自动做这些事：
 
@@ -193,9 +193,9 @@ bash tests/installer-contracts-regression.sh
 - 但**不会默认继承上次的真实 apply / nginx test 执行意图**
 - 默认会收紧为“检查/提示优先”，避免在 `needs-attention` 场景下把 resume 当成重放 apply 的快捷键
 - 同时如果该 run 已经有 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`：
-  - rollback 已执行成功时，resume 会优先进入 **post-rollback inspection** 语义
-  - repair 已把 `nginx -t` 重跑通过时，resume 会优先进入 **post-repair verification** 语义
-  - repair 仍是 `needs-attention` / `blocked` 时，resume 会优先进入 **repair-review-first** 语义
+  - rollback 已执行成功时，resume 会优先进入 **`post-rollback-inspection`** 语义
+  - repair 已把 `nginx -t` 重跑通过时，resume 会优先进入 **`post-repair-verification`** 语义
+  - repair 仍是 `needs-attention` / `blocked` 时，resume 会优先进入 **`repair-review-first`** 语义
 - 在这些 inspection-first 策略下：
   - 仍可显式带 `--run-apply-dry-run` 做只读预演
   - 但若显式带 `--execute-apply`，当前会直接拒绝，而不是默默降级或继续执行

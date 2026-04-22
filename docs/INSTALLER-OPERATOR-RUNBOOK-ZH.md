@@ -112,13 +112,28 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
 
 ---
 
-### 第三步：如果存在 `APPLY-RESULT.json`，优先读它（以及同目录 companion result）
+### 第三步：如果存在 `APPLY-RESULT.json`，按 inspection-first 的字段顺序去读（以及同目录 companion result）
 
 ```bash
 cat scripts/generated/runs/<run_id>/APPLY-RESULT.json
 ```
 
-重点看这些字段：
+如果当前只是普通 apply / dry-run 场景，先读 `APPLY-RESULT.json` 通常就够。
+
+但如果这是 resumed run，或你已经怀疑当前更接近 inspection-first / review-first 语义，建议按下面顺序理解：
+
+1. 先看 `state.json.lineage.resume_strategy` / `resume_strategy_reason`
+2. 再看 `APPLY-RESULT.json.recovery.*`
+   - `recovery.installer_status`
+   - `recovery.resume_strategy`
+   - `recovery.resume_recommended`
+   - `recovery.operator_action`
+3. 如果已经跑过 repair / rollback，再看同目录下：
+   - `REPAIR-RESULT.json`
+   - `ROLLBACK-RESULT.json`
+4. 最后再把 `next_step` 当成人工提示补充
+
+`APPLY-RESULT.json` 里重点看这些字段：
 
 - `mode`
 - `final_status`
@@ -274,10 +289,10 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
 - 默认收紧执行意图
 - 不把“重放 apply”当默认动作
 - 如果已经有 `REPAIR-RESULT.json`：
-  - `nginx_test_rerun_status=passed` 时，会优先进入“post-repair verification”语义
-  - 仍为 `failed / blocked / needs-attention` 时，会优先进入“repair-review-first”语义
+  - `nginx_test_rerun_status=passed` 时，会优先进入 **`post-repair-verification`** 语义
+  - 仍为 `failed / blocked / needs-attention` 时，会优先进入 **`repair-review-first`** 语义
 - 如果已经有 `ROLLBACK-RESULT.json` 且 rollback 已执行成功：
-  - 会优先进入“post-rollback inspection”语义
+  - 会优先进入 **`post-rollback-inspection`** 语义
   - 默认继续保持不继承真实 apply 意图
 - 在这些 inspection-first 语义下：
   - 可以显式带 `--run-apply-dry-run` 再做一次只读预演

@@ -82,22 +82,25 @@
 
 ---
 
-### 2.4 真正做判断时，顺序应该是：`doctor` → `state.json` → companion result
+### 2.4 真正做判断时，建议区分“观察入口”与“事实来源顺序”
 
-实际操作上，建议始终按这个优先级理解 run：
+实际操作上，建议把这两件事分开理解：
 
-1. 先看 `./install-interactive.sh --doctor <run_id>`
-2. 再看 `state.json`
-3. 如果存在，再看：
-   - `APPLY-RESULT.json`
-   - `REPAIR-RESULT.json`
-   - `ROLLBACK-RESULT.json`
+1. **观察入口**先看 `./install-interactive.sh --doctor <run_id>`
+2. **主账本**再看 `state.json`
+3. **事实来源**则继续按下面顺序理解：
+   - 先看 `state.json.lineage.resume_strategy`
+   - 再看 `APPLY-RESULT.json.recovery.*`
+   - 若存在，再看 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` 的关键状态字段
+   - 最后才把 `next_step` 当成人类说明补充
 
-其中：
+也就是说：
 
-- `checkpoint` 负责告诉你“走到哪”
-- `status.*` 负责告诉你“各阶段结果如何”
-- companion result 负责告诉你“apply / repair / rollback 的细化语义和下一步建议”
+- `doctor` 是最方便的观察入口，但它本身已经是对 `state.json + APPLY/REPAIR/ROLLBACK-RESULT.json` 的汇总视图
+- `checkpoint` / `status.*` 负责告诉你“走到哪、各阶段结果如何”
+- `lineage + recovery.* + companion result` 负责告诉你 inspection-first / review-first 语义下真正更接近事实的恢复判断
+
+不要把“先看 doctor”误理解成“真正做机器/语义判断时只用 doctor 或只用 `state.json` 就够”。
 
 ---
 
