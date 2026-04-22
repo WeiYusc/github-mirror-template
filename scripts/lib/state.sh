@@ -1636,7 +1636,12 @@ elif resume_strategy == "post-rollback-inspection" and rollback_result_hint_path
     suggestion = "当前处于 post-rollback-inspection，但结构化 rollback 结果缺失或不可读；建议先查看当前 run 的 rollback 结果文件，再确认现场状态后决定是否继续。"
 
 if suggestion is None:
-    if final_status in {"success", "cancelled"}:
+    if resume_strategy in {"repair-review-first", "post-repair-verification", "post-rollback-inspection", "inspect-after-apply-attention"}:
+        suggestion = (
+            f"当前处于 {resume_strategy}；建议先跑 ./install-interactive.sh --doctor {state.get('run_id', '')} "
+            "复核当前 run 与 companion result，再决定是否只做 dry-run、repair、rollback 或人工处理。"
+        )
+    elif final_status in {"success", "cancelled"}:
         suggestion = "本轮已到稳定停点；若需继续，请基于现有产物开始下一轮迭代。"
     elif status.get("generator") == "failed":
         suggestion = "建议先检查 generator 配置与输出目录，再用 --resume 重新推进。"

@@ -437,6 +437,49 @@ assert_equals "$SHOULD_SKIP_APPLY_PLAN" "1" "post repair verification forces app
 assert_equals "$INSTALLER_REPAIR_STATUS" "ok" "post repair verification effective repair status follows repair result truth"
 assert_equals "$INSTALLER_ROLLBACK_STATUS" "ok" "post repair verification effective rollback status follows rollback result truth"
 
+resume_runtime_banner_output="$(bash -c '
+  set -euo pipefail
+  source "$1/scripts/lib/ui.sh"
+  source "$1/scripts/lib/config.sh"
+  source "$1/scripts/lib/apply-plan.sh"
+  source "$1/scripts/lib/checks.sh"
+  source "$1/scripts/lib/dns.sh"
+  source "$1/scripts/lib/tls.sh"
+  source "$1/scripts/lib/backup.sh"
+  source "$1/scripts/lib/status-contracts.sh"
+  source "$1/scripts/lib/state.sh"
+  RUNS_ROOT_DIR="$2/runs"
+  GENERATED_DIR="$1/scripts/generated"
+  SHOULD_SKIP_INPUTS=0
+  SHOULD_SKIP_PREFLIGHT=0
+  SHOULD_SKIP_GENERATOR=0
+  SHOULD_SKIP_APPLY_PLAN=0
+  INSTALLER_REPAIR_STATUS=""
+  INSTALLER_ROLLBACK_STATUS=""
+  RESUME_RUN_ID="fixture-post-repair-verification"
+  RESUME_SOURCE_RUN_ID=""
+  RESUME_SOURCE_CHECKPOINT=""
+  RESUME_SOURCE_RESUMED_FROM=""
+  RESUME_STRATEGY="fresh"
+  RESUME_STRATEGY_REASON="new-run"
+  RUN_APPLY_DRY_RUN=0
+  EXECUTE_APPLY=0
+  RUN_NGINX_TEST_AFTER_EXECUTE=0
+  CLI_REQUEST_EXECUTE_APPLY=0
+  CLI_REQUEST_RUN_NGINX_TEST=0
+  CLI_REQUEST_RUN_APPLY_DRY_RUN=0
+  INSTALLER_MODE="resume"
+  state_load_inputs_env "$RESUME_RUN_ID"
+  state_load_resume_context "$RESUME_RUN_ID"
+  state_plan_resume_runtime
+  if resume_strategy_prefers_review_boundary "$RESUME_STRATEGY"; then
+    printf "%s\n" "当前以 resume 模式启动：这轮属于 inspection-first 续接；会优先复查可复用产物，不把继续真实 apply 当默认动作。"
+  else
+    printf "%s\n" "当前以 resume 模式启动：将复用历史输入并尽量跳过已完成阶段。"
+  fi
+' _ "$ROOT_DIR" "$WORKDIR")"
+assert_contains "$resume_runtime_banner_output" "当前以 resume 模式启动：这轮属于 inspection-first 续接；会优先复查可复用产物，不把继续真实 apply 当默认动作。" "inspection-first runtime banner is explicit about review-first semantics"
+
 python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
 import json
 import sys
@@ -754,6 +797,38 @@ assert_contains "$doctor_missing_status_fields_output" "- final: " "missing fina
 assert_contains "$doctor_missing_status_fields_output" "[doctor] repair result json" "missing status keys doctor still prints repair result section"
 assert_contains "$doctor_missing_status_fields_output" "当前处于 needs-attention；建议先复核诊断项，再决定是 rollback 还是人工修复后重跑 nginx -t。" "missing status keys doctor still derives suggestion from repair result"
 
+python3 - "$TEMPLATE_DIR/runs/fixture-post-repair-verification/state.json" "$WORKDIR/runs/fixture-post-repair-verification/state.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+python3 - "$TEMPLATE_DIR/artifacts/fixture-post-repair-verification/APPLY-RESULT.json" "$WORKDIR/artifacts/fixture-post-repair-verification/APPLY-RESULT.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+python3 - "$TEMPLATE_DIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" "$WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+python3 - "$TEMPLATE_DIR/artifacts/fixture-post-repair-verification/ROLLBACK-RESULT.json" "$WORKDIR/artifacts/fixture-post-repair-verification/ROLLBACK-RESULT.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
 python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
 import json
 import sys
@@ -761,7 +836,6 @@ from pathlib import Path
 path = Path(sys.argv[1])
 obj = json.loads(path.read_text(encoding='utf-8'))
 obj['status'] = 'broken-status'
-obj['lineage'] = 'broken-lineage'
 obj['artifacts'] = 'broken-artifacts'
 path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 PY
@@ -770,7 +844,22 @@ assert_contains "$doctor_type_drift_top_level_output" "[doctor] 运行摘要" "t
 assert_contains "$doctor_type_drift_top_level_output" "[doctor] 状态" "top-level type drift doctor still prints status section"
 assert_contains "$doctor_type_drift_top_level_output" "[doctor] 产物" "top-level type drift doctor still prints artifacts section"
 assert_contains "$doctor_type_drift_top_level_output" "[doctor] 下一步建议" "top-level type drift doctor still prints next step section"
-assert_contains "$doctor_type_drift_top_level_output" "可尝试执行 ./install-interactive.sh --resume fixture-post-repair-verification 继续；当前版本会复用已完成阶段，并从较安全的边界继续推进。" "top-level type drift doctor falls back to generic resume suggestion"
+assert_contains "$doctor_type_drift_top_level_output" "当前处于 post-repair-verification；建议先跑 ./install-interactive.sh --doctor fixture-post-repair-verification 复核当前 run 与 companion result，再决定是否只做 dry-run、repair、rollback 或人工处理。" "top-level type drift doctor falls back to inspection-first suggestion instead of generic resume"
+
+python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['lineage'] = 'broken-lineage'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_lineage_string_false_output="$(state_doctor "fixture-post-repair-verification")"
+assert_contains "$doctor_lineage_string_false_output" "[doctor] 运行摘要" "lineage string false doctor still prints run summary"
+assert_contains "$doctor_lineage_string_false_output" "[doctor] 状态" "lineage string false doctor still prints status section"
+assert_contains "$doctor_lineage_string_false_output" "[doctor] 下一步建议" "lineage string false doctor still prints next step section"
+assert_contains "$doctor_lineage_string_false_output" "可尝试执行 ./install-interactive.sh --resume fixture-post-repair-verification 继续；当前版本会复用已完成阶段，并从较安全的边界继续推进。" "lineage string false doctor falls back to generic resume suggestion when strategy is unavailable"
 
 python3 - "$WORKDIR/runs/fixture-legacy-fallback/state.json" <<'PY'
 import json

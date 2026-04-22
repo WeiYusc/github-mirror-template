@@ -192,6 +192,7 @@ LOG_DIR=/www/wwwlogs
 - 如果 `state.json` 已登记 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`，`--doctor` 会优先直接消费；旧 run 未登记时，也会退回到同目录自动发现
 - `--doctor` 会把当前 run 的 lineage 也纳入摘要：不只告诉你“现在状态是什么”，还会告诉你“这轮是从哪一轮续出来的、为什么走这条 resume strategy”
 - `--resume` 会优先消费 run 级 `repair` / `rollback` 结果语义
+- 若进入 inspection-first 的 resume 策略，启动提示与默认行为都会明确收紧为“优先复查可复用产物”，而不是把继续真实 apply 当默认动作
 - 如果源运行的 `APPLY-RESULT.json` 已标记 `resume_recommended=false`，resume 默认不会继承上次的真实 apply / nginx test 执行意图
 - 在这些 inspection-first 的 resume 策略下，仍允许显式传 `--run-apply-dry-run` 做只读预演；但若显式传 `--execute-apply`，当前会直接拒绝
 - 目前常见的 inspection-first 语义包括：`inspect-after-apply-attention`、`post-repair-verification`、`repair-review-first`、`post-rollback-inspection`
