@@ -52,6 +52,17 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  local haystack="$1"
+  local needle="$2"
+  local label="$3"
+  if [[ "$haystack" == *"$needle"* ]]; then
+    echo "[FAIL] $label" >&2
+    echo "  unexpected substring: $needle" >&2
+    return 1
+  fi
+}
+
 bool_01_to_python_bool_text() {
   local value="$1"
   if [[ "$value" == "1" ]]; then
@@ -715,5 +726,37 @@ doctor_value_drift_enum_output="$(state_doctor "fixture-legacy-fallback")"
 assert_contains "$doctor_value_drift_enum_output" "- final: SUCCESS" "unknown final enum still renders raw final value"
 assert_contains "$doctor_value_drift_enum_output" "[doctor] repair result json" "unknown final enum doctor still prints repair result section"
 assert_contains "$doctor_value_drift_enum_output" "当前处于 needs-attention；建议先复核诊断项，再决定是 rollback 还是人工修复后重跑 nginx -t。" "unknown final enum still prefers repair result suggestion over fake stable stop"
+
+python3 - "$WORKDIR/runs/fixture-current-apply-attention/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['artifacts']['apply_result_json'] = str(Path(path).parents[1] / 'artifacts' / 'fixture-current-apply-attention' / 'MISSING-APPLY-RESULT.json')
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+state_load_resume_context "fixture-current-apply-attention"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "fixture-current-apply-attention" "wrong apply result path still keeps current repair owner via companion fallback"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-current-apply-attention/REPAIR-RESULT.json" "wrong apply result path still resolves repair companion json"
+doctor_artifact_drift_apply_path_output="$(state_doctor "fixture-current-apply-attention")"
+assert_contains "$doctor_artifact_drift_apply_path_output" "- current_run_priority_artifact: $WORKDIR/artifacts/fixture-current-apply-attention/APPLY-RESULT.md [apply-result]" "wrong apply result path still prefers existing apply markdown artifact"
+assert_not_contains "$doctor_artifact_drift_apply_path_output" "MISSING-APPLY-RESULT.json [apply-result]" "wrong apply result path no longer points priority hint at missing apply json"
+assert_contains "$doctor_artifact_drift_apply_path_output" "[doctor] repair result json" "wrong apply result path doctor still prints repair result section"
+assert_contains "$doctor_artifact_drift_apply_path_output" "- path: $WORKDIR/artifacts/fixture-current-apply-attention/REPAIR-RESULT.json" "wrong apply result path doctor still resolves repair result path"
+
+python3 - "$TEMPLATE_DIR/runs/fixture-post-repair-verification/state.json" "$WORKDIR/runs/fixture-post-repair-verification/state.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+rm -f "$WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json"
+doctor_artifact_drift_repair_missing_output="$(state_doctor "fixture-post-repair-verification")"
+assert_contains "$doctor_artifact_drift_repair_missing_output" "- 当前策略优先产物：$WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.md [repair-result]" "missing repair json still prefers existing repair markdown artifact"
+assert_contains "$doctor_artifact_drift_repair_missing_output" "当前处于 post-repair-verification，但结构化 repair 结果缺失或不可读；建议先查看当前 run 的 repair 结果文件，再确认 nginx -t 复查结论。" "missing repair json keeps post-repair verification suggestion conservative"
+assert_not_contains "$doctor_artifact_drift_repair_missing_output" "./repair-applied-package.sh --result-json $WORKDIR/artifacts/fixture-post-repair-verification/APPLY-RESULT.json --dry-run" "missing repair json no longer falls back to apply-result-driven repair helper suggestion"
 
 echo "[PASS] installer contract regression"

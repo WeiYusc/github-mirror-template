@@ -257,15 +257,28 @@ def load_state_by_run_id(run_id: str):
         return None
 
 
+def resolve_artifact_base_dir(artifacts_map: dict):
+    resolved = ensure_dict(artifacts_map)
+    candidates = [
+        resolved.get("apply_result_json") or "",
+        resolved.get("apply_result") or "",
+        resolved.get("repair_result_json") or "",
+        resolved.get("repair_result") or "",
+        resolved.get("rollback_result_json") or "",
+        resolved.get("rollback_result") or "",
+    ]
+    for value in candidates:
+        if value and Path(value).exists():
+            return Path(value).parent
+    for value in candidates:
+        if value:
+            return Path(value).parent
+    return None
+
+
 def with_companion_fallback(artifacts_map: dict):
     resolved = dict(ensure_dict(artifacts_map))
-    apply_result_json = resolved.get("apply_result_json") or ""
-    apply_result_md = resolved.get("apply_result") or ""
-    base_dir = None
-    if apply_result_json:
-        base_dir = Path(apply_result_json).parent
-    elif apply_result_md:
-        base_dir = Path(apply_result_md).parent
+    base_dir = resolve_artifact_base_dir(resolved)
     if base_dir is not None:
         if not resolved.get("repair_result_json"):
             candidate = base_dir / "REPAIR-RESULT.json"
@@ -891,15 +904,28 @@ def load_state_by_run_id(run_id: str, runs_root: Path):
         return None
 
 
+def resolve_artifact_base_dir(artifacts_map: dict):
+    resolved = ensure_dict(artifacts_map)
+    candidates = [
+        resolved.get("apply_result_json") or "",
+        resolved.get("apply_result") or "",
+        resolved.get("repair_result_json") or "",
+        resolved.get("repair_result") or "",
+        resolved.get("rollback_result_json") or "",
+        resolved.get("rollback_result") or "",
+    ]
+    for value in candidates:
+        if value and Path(value).exists():
+            return Path(value).parent
+    for value in candidates:
+        if value:
+            return Path(value).parent
+    return None
+
+
 def with_companion_fallback(artifacts_map: dict):
     resolved = dict(ensure_dict(artifacts_map))
-    apply_result_json = resolved.get("apply_result_json") or ""
-    apply_result = resolved.get("apply_result") or ""
-    base_dir = None
-    if apply_result_json:
-        base_dir = Path(apply_result_json).parent
-    elif apply_result:
-        base_dir = Path(apply_result).parent
+    base_dir = resolve_artifact_base_dir(resolved)
     if base_dir is not None:
         repair_json = base_dir / "REPAIR-RESULT.json"
         repair_md = base_dir / "REPAIR-RESULT.md"
@@ -918,9 +944,14 @@ def with_companion_fallback(artifacts_map: dict):
 
 def first_existing_artifact(artifacts: dict, *keys: str):
     artifacts = ensure_dict(artifacts)
+    first_nonempty = ""
     for key in keys:
         value = artifacts.get(key) or ""
-        if value:
+        if not value:
+            continue
+        if not first_nonempty:
+            first_nonempty = value
+        if Path(value).exists():
             return value
     return ""
 
@@ -1246,15 +1277,20 @@ def print_suggestion_summary(suggestion: str, inputs_path: str):
 
 
 def resolve_followup_result_json_paths(artifacts: dict, apply_result_json_path: str):
-    artifacts = ensure_dict(artifacts)
+    artifacts = with_companion_fallback(artifacts)
     repair_result_json_path = artifacts.get("repair_result_json") or ""
     rollback_result_json_path = artifacts.get("rollback_result_json") or ""
-    if apply_result_json_path:
-        apply_result_dir = Path(apply_result_json_path).parent
-        if not repair_result_json_path:
-            repair_result_json_path = str(apply_result_dir / "REPAIR-RESULT.json")
-        if not rollback_result_json_path:
-            rollback_result_json_path = str(apply_result_dir / "ROLLBACK-RESULT.json")
+    if not repair_result_json_path or not rollback_result_json_path:
+        base_dir = resolve_artifact_base_dir(artifacts)
+        if base_dir is not None:
+            if not repair_result_json_path:
+                candidate = base_dir / "REPAIR-RESULT.json"
+                if candidate.exists():
+                    repair_result_json_path = str(candidate)
+            if not rollback_result_json_path:
+                candidate = base_dir / "ROLLBACK-RESULT.json"
+                if candidate.exists():
+                    rollback_result_json_path = str(candidate)
     return repair_result_json_path, rollback_result_json_path
 
 
@@ -1394,6 +1430,11 @@ print_journal_summary(journal_entries, last_event)
 final_status = status.get("final", "")
 checkpoint = state.get("checkpoint", "")
 suggestion = None
+lineage = ensure_dict(state.get("lineage"))
+resume_strategy = lineage.get("resume_strategy", "") or ""
+repair_result_hint_path = first_existing_artifact(artifacts, "repair_result_json", "repair_result")
+rollback_result_hint_path = first_existing_artifact(artifacts, "rollback_result_json", "rollback_result")
+
 if apply_result:
     apply_result = ensure_dict(apply_result)
     apply_final = apply_result.get("final_status", "")
@@ -1444,6 +1485,8 @@ if repair_result:
         suggestion = repair_result.get("next_step") or "已存在 repair 结果且 nginx -t 重跑仍失败；建议优先查看 REPAIR-RESULT，再决定 selective rollback 还是人工修复。"
     elif repair_final in {"blocked", "needs-attention"}:
         suggestion = repair_result.get("next_step") or "已有 repair 结果；建议先按 repair 结论决定 rollback 还是人工修复。"
+elif resume_strategy == "post-repair-verification" and repair_result_hint_path:
+    suggestion = "当前处于 post-repair-verification，但结构化 repair 结果缺失或不可读；建议先查看当前 run 的 repair 结果文件，再确认 nginx -t 复查结论。"
 
 if rollback_result:
     rollback_result = ensure_dict(rollback_result)
@@ -1456,6 +1499,8 @@ if rollback_result:
         suggestion = rollback_result.get("next_step") or "已存在 rollback 结果；建议先处理 rollback 结果里提示的阻断项或待确认项。"
     elif rollback_flags.get("execute"):
         suggestion = rollback_result.get("next_step") or "已存在 rollback 执行结果；建议先按 rollback 结果复核当前系统状态。"
+elif resume_strategy == "post-rollback-inspection" and rollback_result_hint_path:
+    suggestion = "当前处于 post-rollback-inspection，但结构化 rollback 结果缺失或不可读；建议先查看当前 run 的 rollback 结果文件，再确认现场状态后决定是否继续。"
 
 if suggestion is None:
     if final_status in {"success", "cancelled"}:

@@ -158,19 +158,19 @@
 - `state_load_inputs_env()` 采用**白名单变量 + 静态解析赋值**加载快照；对损坏/越界输入返回**可控错误**，而不是把当前 shell source 过程弄脏
 - `state_doctor()` 对坏 journal 行保持保守忽略：仍能统计行数、提取最后一条有效事件，并继续输出整体摘要
 
-### 14. JSON 合法但字段值漂移（value drift / enum drift）的保守降级
+### 15. JSON 合法但路径/产物漂移（path drift / artifact drift）的保守降级
 
-这组同样在 regression 运行时对临时 `WORKDIR` 做定点改值，但仍保持 JSON 结构和类型整体可解析：
+这组场景里，JSON 结构、字段类型和值域都可能是合法的，但**artifact 路径本身漂了**，或只剩半套结果文件：
 
-- 把布尔语义字段写成字符串，如 `resume_recommended = "false"`
-- 把数字语义字段写成字符串数字，如 `summary.conflict = "2"`
-- 把状态枚举写成未知值，如 `status.final = "SUCCESS"`
+- `state.artifacts.apply_result_json` 指向错误目录或缺失文件
+- `REPAIR-RESULT.json` 缺失/损坏，但同目录仍保留 `REPAIR-RESULT.md`
+- resume strategy 仍指向 `post-repair-verification` / `post-rollback-inspection`
 
 用于验证：
 
-- `state_load_resume_context()` 会按 **jsonish bool** 解释值型布尔，而不是把非空字符串都当真
-- `state_doctor()` 会按 **safe int** 解释数字语义字段，不会因为字符串数字比较而直接崩溃
-- 遇到未知状态枚举值时，doctor 会保留原始值输出，但整体仍继续按保守降级路径工作，而不是伪造“成功/稳定停点”语义
+- doctor 的“优先查看产物”与 lineage 策略优先产物，会优先指向**当前存在的文件**，而不是把缺失路径继续当成有效线索
+- companion fallback 的基准目录不会只盲信 `apply_result_json`，而会从当前可用 artifact 中恢复同目录的 repair / rollback companion 解析
+- 当结构化 `repair/rollback` 结果缺失或不可读时，doctor 会保留对应策略的**人工复核语义**，而不是直接退回旧的 apply 建议抢占主语义
 
 在仓库根目录执行：
 
