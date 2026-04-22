@@ -524,4 +524,58 @@ assert_contains "$doctor_bad_repair_output" "[doctor] apply result json" "bad re
 assert_contains "$doctor_bad_repair_output" "[doctor] rollback result json" "bad repair json doctor continues to rollback result section"
 assert_contains "$doctor_bad_repair_output" "[doctor] 下一步建议" "bad repair json doctor still prints next step section"
 
+python3 - "$WORKDIR/runs/fixture-legacy-fallback/inputs.env" <<'PY'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text("DEPLOYMENT_NAME=fixture-legacy-fallback\nBASE_DOMAIN=github.example.com\nDOMAIN_MODE=flat-siblings\nPLATFORM=plain-nginx\nTLS_CERT=/tmp/cert.pem\nTLS_KEY=/tmp/key.pem\nINPUT_MODE=advanced\nINSTALL_INPUT_MODE=advanced\nERROR_ROOT=/tmp/errors\nLOG_DIR=/tmp/logs\nOUTPUT_DIR=./dist/fixture-legacy-fallback\nNGINX_SNIPPETS_TARGET_HINT=/tmp/snippets\nNGINX_VHOST_TARGET_HINT=/tmp/conf.d\nRUN_APPLY_DRY_RUN=0\nEXECUTE_APPLY=0\nBACKUP_DIR=''\nRUN_NGINX_TEST_AFTER_EXECUTE=0\nNGINX_TEST_CMD=nginx\\ -t\nASSUME_YES=0\nDEFAULT_ERROR_ROOT=/tmp/errors\nDEFAULT_LOG_DIR=/tmp/logs\nDEFAULT_OUTPUT_DIR=./dist/fixture-legacy-fallback\nDEFAULT_NGINX_SNIPPETS_TARGET_HINT=/tmp/snippets\nDEFAULT_NGINX_VHOST_TARGET_HINT=/tmp/conf.d\n", encoding='utf-8')
+PY
+state_load_inputs_env "fixture-legacy-fallback"
+assert_equals "$DEPLOYMENT_NAME" "fixture-legacy-fallback" "valid inputs env still loads deployment name"
+assert_equals "$NGINX_TEST_CMD" "nginx -t" "valid inputs env still decodes escaped command string"
+
+python3 - "$WORKDIR/runs/fixture-legacy-fallback/inputs.env" "$WORKDIR/inputs-loader-marker" <<'PY'
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+marker = Path(sys.argv[2])
+path.write_text(
+    "DEPLOYMENT_NAME=fixture-legacy-fallback\n"
+    f"MALICIOUS=$(touch {marker})\n",
+    encoding='utf-8',
+)
+PY
+set +e
+state_load_inputs_env "fixture-legacy-fallback" >"$WORKDIR/state-load-inputs-unsafe.out" 2>"$WORKDIR/state-load-inputs-unsafe.err"
+state_load_inputs_unsafe_rc=$?
+set -e
+assert_equals "$state_load_inputs_unsafe_rc" "2" "unexpected inputs env variable returns controlled error"
+assert_contains "$(cat "$WORKDIR/state-load-inputs-unsafe.err")" "[state] 输入快照不可安全加载：$WORKDIR/runs/fixture-legacy-fallback/inputs.env" "unsafe inputs env prints controlled error"
+if [[ -e "$WORKDIR/inputs-loader-marker" ]]; then
+  echo "[FAIL] unsafe inputs env must not execute command substitution" >&2
+  exit 1
+fi
+
+python3 - "$WORKDIR/runs/fixture-legacy-fallback/inputs.env" <<'PY'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text("not a shell assignment\nBROKEN='unterminated\n", encoding='utf-8')
+PY
+set +e
+state_load_inputs_env "fixture-legacy-fallback" >"$WORKDIR/state-load-inputs-bad.out" 2>"$WORKDIR/state-load-inputs-bad.err"
+state_load_inputs_bad_rc=$?
+set -e
+assert_equals "$state_load_inputs_bad_rc" "2" "bad inputs env returns controlled error"
+assert_contains "$(cat "$WORKDIR/state-load-inputs-bad.err")" "[state] 输入快照语法无效：$WORKDIR/runs/fixture-legacy-fallback/inputs.env" "bad inputs env prints syntax error"
+
+python3 - "$WORKDIR/runs/fixture-legacy-fallback/journal.jsonl" <<'PY'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('{bad json line}\n{"ts":"2026-04-21T00:00:00Z","run_id":"fixture-legacy-fallback","event":"run.complete","status":"success","message":"ok"}\n', encoding='utf-8')
+PY
+doctor_bad_journal_output="$(state_doctor "fixture-legacy-fallback")"
+assert_contains "$doctor_bad_journal_output" "[doctor] journal" "bad journal doctor still prints journal section"
+assert_contains "$doctor_bad_journal_output" "- entries: 2" "bad journal doctor still counts non-empty lines"
+assert_contains "$doctor_bad_journal_output" "- last_event: run.complete [success]" "bad journal doctor keeps last valid event"
+assert_contains "$doctor_bad_journal_output" "- last_message: ok" "bad journal doctor keeps last valid event message"
+
 echo "[PASS] installer contract regression"

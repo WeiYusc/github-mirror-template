@@ -105,6 +105,7 @@ EOF
 
 state_load_inputs_env() {
   local run_id="$1"
+  local parsed_assignments=""
   state_init_paths "$RUNS_ROOT_DIR" "$run_id"
 
   if [[ ! -f "$STATE_INPUTS_PATH" ]]; then
@@ -112,8 +113,74 @@ state_load_inputs_env() {
     return 1
   fi
 
-  # shellcheck disable=SC1090
-  source "$STATE_INPUTS_PATH"
+  if ! bash -n "$STATE_INPUTS_PATH" >/dev/null 2>&1; then
+    echo "[state] 输入快照语法无效：$STATE_INPUTS_PATH" >&2
+    return 2
+  fi
+
+  if ! parsed_assignments="$(python3 - "$STATE_INPUTS_PATH" <<'PY'
+import re
+import shlex
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+allowed = {
+    "DEPLOYMENT_NAME",
+    "BASE_DOMAIN",
+    "DOMAIN_MODE",
+    "PLATFORM",
+    "TLS_CERT",
+    "TLS_KEY",
+    "INPUT_MODE",
+    "INSTALL_INPUT_MODE",
+    "ERROR_ROOT",
+    "LOG_DIR",
+    "OUTPUT_DIR",
+    "NGINX_SNIPPETS_TARGET_HINT",
+    "NGINX_VHOST_TARGET_HINT",
+    "RUN_APPLY_DRY_RUN",
+    "EXECUTE_APPLY",
+    "BACKUP_DIR",
+    "RUN_NGINX_TEST_AFTER_EXECUTE",
+    "NGINX_TEST_CMD",
+    "ASSUME_YES",
+    "DEFAULT_ERROR_ROOT",
+    "DEFAULT_LOG_DIR",
+    "DEFAULT_OUTPUT_DIR",
+    "DEFAULT_NGINX_SNIPPETS_TARGET_HINT",
+    "DEFAULT_NGINX_VHOST_TARGET_HINT",
+}
+seen = set()
+for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    line = raw_line.strip()
+    if not line:
+        continue
+    if "=" not in raw_line:
+        raise SystemExit(f"line {lineno}: missing assignment operator")
+    name, encoded = raw_line.split("=", 1)
+    if not re.fullmatch(r"[A-Z0-9_]+", name):
+        raise SystemExit(f"line {lineno}: invalid variable name {name!r}")
+    if name not in allowed:
+        raise SystemExit(f"line {lineno}: unexpected variable {name}")
+    if name in seen:
+        raise SystemExit(f"line {lineno}: duplicate variable {name}")
+    seen.add(name)
+    try:
+        tokens = shlex.split(encoded, posix=True)
+    except ValueError as exc:
+        raise SystemExit(f"line {lineno}: {exc}")
+    if len(tokens) != 1:
+        raise SystemExit(f"line {lineno}: assignment must decode to exactly one token")
+    value = tokens[0]
+    print(f"{name}={shlex.quote(value)}")
+PY
+)"; then
+    echo "[state] 输入快照不可安全加载：$STATE_INPUTS_PATH" >&2
+    return 2
+  fi
+
+  eval "$parsed_assignments"
 }
 
 state_load_resume_context() {

@@ -146,6 +146,18 @@
 - `state_load_resume_context()` 在 source state **存在但坏掉** 时，行为与 source 缺失保持同级保守：保留 lineage 线索，但不伪造 companion result
 - `state_doctor()` 在 follow-up result JSON **存在但坏掉** 时，会明确打印“读取失败”，但仍继续输出其它可读产物（如 apply/rollback）与下一步建议，而不是整段崩掉
 
+### 11. 损坏输入快照 / 混入坏 journal 行
+
+这组同样在 regression 运行时对临时 `WORKDIR` 做定点扰动：
+
+- 把某个 run 的 `inputs.env` 改成不可安全加载的内容（包括损坏语法、或混入白名单外变量）
+- 在 `journal.jsonl` 里混入不可解析坏行，同时保留一条后续有效事件
+
+用于验证：
+
+- `state_load_inputs_env()` 采用**白名单变量 + 静态解析赋值**加载快照；对损坏/越界输入返回**可控错误**，而不是把当前 shell source 过程弄脏
+- `state_doctor()` 对坏 journal 行保持保守忽略：仍能统计行数、提取最后一条有效事件，并继续输出整体摘要
+
 在仓库根目录执行：
 
 ```bash
