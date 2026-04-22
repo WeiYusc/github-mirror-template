@@ -288,8 +288,9 @@ installer_confirm_and_run_execute_apply() {
     ui_section "执行真实 apply（默认不 reload）"
     printf '%q ' "${EXECUTE_APPLY_CMD[@]}"
     printf '\n'
-    if ! installer_run_apply_execute "$APPLY_RESULT_JSON_PATH" "${EXECUTE_APPLY_CMD[@]}"; then
-      rc=$?
+    installer_run_apply_execute "$APPLY_RESULT_JSON_PATH" "${EXECUTE_APPLY_CMD[@]}"
+    local rc=$?
+    if [[ "$rc" != "0" ]]; then
       exit "$rc"
     fi
   else
@@ -811,8 +812,9 @@ if has_blockers; then
   exit 2
 fi
 
-if ! installer_run_or_reuse_generator; then
-  rc=$?
+installer_run_or_reuse_generator
+rc=$?
+if [[ "$rc" != "0" ]]; then
   exit "$rc"
 fi
 
@@ -837,8 +839,9 @@ printf '\n'
 
 if [[ "$RUN_APPLY_DRY_RUN" == "1" ]]; then
   ui_section "执行 apply dry-run 预演"
-  if ! installer_run_apply_dry_run "$APPLY_PLAN_JSON_PATH" "${APPLY_CMD[@]}"; then
-    rc=$?
+  installer_run_apply_dry_run "$APPLY_PLAN_JSON_PATH" "${APPLY_CMD[@]}"
+  rc=$?
+  if [[ "$rc" != "0" ]]; then
     exit "$rc"
   fi
 elif [[ "$ASSUME_YES" == "1" ]]; then
@@ -847,8 +850,9 @@ elif [[ "$ASSUME_YES" == "1" ]]; then
 else
   if ui_confirm "是否立即执行一次 apply dry-run 预演？" "N"; then
     ui_section "执行 apply dry-run 预演"
-    if ! installer_run_apply_dry_run "$APPLY_PLAN_JSON_PATH" "${APPLY_CMD[@]}"; then
-      rc=$?
+    installer_run_apply_dry_run "$APPLY_PLAN_JSON_PATH" "${APPLY_CMD[@]}"
+    rc=$?
+    if [[ "$rc" != "0" ]]; then
       exit "$rc"
     fi
   else
@@ -880,8 +884,9 @@ if [[ "$EXECUTE_APPLY" == "1" ]]; then
     ui_section "执行真实 apply（默认不 reload）"
     printf '%q ' "${EXECUTE_APPLY_CMD[@]}"
     printf '\n'
-    if ! installer_run_apply_execute "$APPLY_RESULT_JSON_PATH" "${EXECUTE_APPLY_CMD[@]}"; then
-      rc=$?
+    installer_run_apply_execute "$APPLY_RESULT_JSON_PATH" "${EXECUTE_APPLY_CMD[@]}"
+    rc=$?
+    if [[ "$rc" != "0" ]]; then
       exit "$rc"
     fi
   else

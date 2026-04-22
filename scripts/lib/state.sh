@@ -721,6 +721,19 @@ installer_run_apply_execute() {
 installer_on_exit() {
   local rc=$?
   trap - EXIT
+
+  if [[ "${INSTALLER_RUNTIME_READY:-0}" == "1" && "${INSTALLER_FINALIZED:-0}" != "1" ]]; then
+    if [[ "${INSTALLER_FINAL_STATUS:-running}" == "running" ]]; then
+      if [[ "$rc" == "0" ]]; then
+        INSTALLER_FINAL_STATUS="$(installer_determine_final_status)"
+      elif [[ "${INSTALLER_PREFLIGHT_STATUS:-pending}" == "blocked" ]]; then
+        INSTALLER_FINAL_STATUS="blocked"
+      else
+        INSTALLER_FINAL_STATUS="failed"
+      fi
+    fi
+  fi
+
   if [[ "${INSTALLER_RUNTIME_READY:-0}" == "1" && -n "${STATE_JOURNAL_PATH:-}" ]]; then
     state_append_journal "run.exit" "${INSTALLER_FINAL_STATUS:-unknown}" "exit_code=$rc" "${STATE_JSON_PATH:-}"
   fi
