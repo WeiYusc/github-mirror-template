@@ -13,6 +13,27 @@
   - 稳定字段矩阵：防关键 contract 字段被静默删改
   - 最小值域级断言：防关键状态字段从约定枚举/布尔/整数语义悄悄漂到别的形状
 
+## inspection-first 场景的断言口径
+
+这套 fixture 在 inspection-first 语义上，当前不是把“哪句中文提示长什么样”当主 contract，而是优先钉下面几类字段关系：
+
+1. `state.json.lineage.resume_strategy`
+2. `APPLY-RESULT.json.recovery.resume_strategy` / `resume_recommended` / `operator_action`
+3. `REPAIR-RESULT.json.final_status` / `execution.nginx_test_rerun_status`
+4. `ROLLBACK-RESULT.json.final_status` / `mode` / `flags.execute`
+5. `next_step` 只作为人工提示补充，不作为唯一机器判定来源
+
+因此在 fixture / regression 层，inspection-first 相关回归主要关注的是：
+
+- strategy 有没有被正确保留下来
+- repair / rollback companion result 有没有被当前 run / direct source / ancestor 正确解析
+- doctor 的“优先查看产物”是否仍跟着策略主线走
+- 字段类型/value drift/path drift 出现时，是否还能保住 review-first / inspection-first 的保守语义
+
+换句话说：
+
+> 这里真正要钉住的是 **字段消费顺序与策略主语义**，不是完整提示文案逐字不变。
+
 ## 当前覆盖的场景
 
 ### 1. `fixture-legacy-fallback`
@@ -75,6 +96,24 @@
 - `state_doctor()` 对 `post-repair-verification` 的摘要文案
 - repair 已通过后的关键字段提取
 - inspection-first resume 场景下的 operator hint 与 repair 优先语义
+
+### 5. `fixture-post-rollback-inspection`
+
+模拟 rollback 已真实执行成功后的 resumed run：
+
+- `lineage.resume_strategy=post-rollback-inspection`
+- `resumed_from=fixture-legacy-fallback`
+- `status.rollback=ok`
+- `ROLLBACK-RESULT.json.final_status=ok`
+- `ROLLBACK-RESULT.json.flags.execute=true`
+- 当前 run 语义是“先复查 rollback 后现场状态”，而不是立刻重新 apply
+- 为保持 6 类结果契约集合完整，fixture 仍保留一个中性的 apply companion；但本场景断言聚焦 rollback 主线
+
+用于验证：
+
+- `state_load_resume_context()` 会优先把当前 run 的 rollback result 视作事实来源，而不是错误退回更早祖先
+- `state_doctor()` 对 `post-rollback-inspection` 的摘要文案与策略优先产物提示
+- semantic drift / artifact drift 下，rollback 主语义不会被 generic artifact 或旧 `state.status` 摘要抢走
 
 ### 6. `fixture-source-priority-over-ancestor`
 
@@ -171,6 +210,25 @@
 - doctor 的“优先查看产物”与 lineage 策略优先产物，会优先指向**当前存在的文件**，而不是把缺失路径继续当成有效线索
 - companion fallback 的基准目录不会只盲信 `apply_result_json`，而会从当前可用 artifact 中恢复同目录的 repair / rollback companion 解析
 - 当结构化 `repair/rollback` 结果缺失或不可读时，doctor 会保留对应策略的**人工复核语义**，而不是直接退回旧的 apply 建议抢占主语义
+
+## 当前 inspection-first 覆盖边界
+
+当前 fixture / regression 已明确覆盖的 inspection-first 主线主要有：
+
+- `repair-review-first`
+- `post-repair-verification`
+- `post-rollback-inspection`
+- 以及“当前 apply attention / review-first 提示”这一类过渡场景
+
+其中：
+
+- `post-repair-verification` 的关键事实字段是 `REPAIR-RESULT.json.execution.nginx_test_rerun_status=passed`
+- `post-rollback-inspection` 的关键事实字段是 `ROLLBACK-RESULT.json.final_status=ok` 且 `flags.execute=true`
+- `repair-review-first` 更偏 source/current repair result 仍需 operator review 的场景
+
+这意味着 README 当前表达的覆盖边界也应理解为：
+
+> fixture 已经能把 inspection-first 的主 contract 面钉住，但并不是要求每一种 review-first 场景都必须依赖逐字相同的提示文案。
 
 在仓库根目录执行：
 
