@@ -285,3 +285,81 @@ bash tests/installer-contracts-regression.sh
 ## 9. 一句话停点结论
 
 > 到 `4bb1ef5` 为止，interactive installer 这条 inspection-first 线已经从“实现有这个意思”推进到“实现、回归、结果契约、状态模型、操作手册、fixture 说明、CLI 入口行为都基本讲同一种话”；如果现在停，这已经是一个干净、可恢复、可继续演化的阶段性停点。
+
+---
+
+## 10. 如果下次不是继续补 inspection-first，而是重开整个 installer 改造，建议顺序
+
+这部分是给“以后回来时先做什么”准备的超短附录。
+
+当前判断是：**inspection-first 这条线已经够停，不值得继续机械补 fixture / 文案；更高杠杆的后续工作已经转回 control-plane 可靠性与工程护栏。**
+
+如果下次恢复开发，建议按这个顺序重开：
+
+### 10.1 第一优先级：先查非交互 happy path / summary 可靠性
+
+先验证并收口这些问题：
+
+- `preflight -> generator -> apply` 是否能在非交互路径稳定串通
+- 是否还存在提前退出却写出误导性 success summary 的情况
+- `checkpoint` / `status.final` / `INSTALLER-SUMMARY.generated.json` 是否仍可能互相打架
+
+这条优先级高于继续补 inspection-first 变体，因为它直接影响：
+
+- operator 对“是否执行成功”的判断
+- `doctor` / `resume` 所依赖的 run 可信度
+- 后续 smoke / CI 是否有可靠主路径可钉
+
+### 10.2 第二优先级：补真实 CLI smoke / integration tests
+
+当前已有的 contract regression 很有价值，但仍更偏 fixture / 结果契约层。
+
+下次更值得补的是：
+
+- 直接跑 `install-interactive.sh` 的真实非交互 smoke
+- 至少覆盖 1 条 happy path 和 1 条 early-exit / refused-path
+- 把“主脚本入口行为”从手工验证升级为自动化护栏
+
+### 10.3 第三优先级：把 CI 接上
+
+在已有 `bash tests/installer-contracts-regression.sh` 基础上，至少让下面两类检查自动化：
+
+1. contract regression
+2. 最小真实 CLI smoke
+
+原则不是一上来铺很重的流水线，而是先给当前这个 heavily stateful 的 control-plane 一个最低限度的自动护栏。
+
+### 10.4 第四优先级：修 YAML 写入方式
+
+`scripts/lib/config.sh` 里的 `write_deploy_config()` 如果仍是手工拼 YAML，那么这笔债仍然成立。
+
+更合理的方向是：
+
+- 保留 shell 入口
+- 但把 YAML 写入改成安全序列化
+- 避免特殊字符、注释符、多行值、边界空白把配置语义悄悄写坏
+
+这件事不一定像 P0 那样立刻阻塞，但属于“迟早会咬人、而且修法明确”的问题，值得在 smoke / CI 之后尽快处理。
+
+### 10.5 第五优先级：最后再整理文档信息架构
+
+文档入口层级混杂这个问题仍然成立，但当前不应抢在可靠性问题之前处理。
+
+更合理的节奏是：
+
+1. 先修 correctness
+2. 再补自动护栏
+3. 再清明确技术债
+4. 最后才整理文档入口分层
+
+如果以后真要整理，建议至少分成：
+
+- 用户入口
+- operator 文档
+- architecture / design
+- archive / handoff
+
+### 10.6 一句话重开原则
+
+> 先修可靠性，再补自动护栏，再清技术债，最后整理文档。
+
