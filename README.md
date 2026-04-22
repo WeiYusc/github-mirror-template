@@ -151,7 +151,7 @@ bash tests/installer-contracts-regression.sh
 - 6 类 JSON 的 `schema_kind` / `schema_version`
 - `state_doctor()` / `state_load_resume_context()` 当前依赖的关键字段
 - 旧 run companion result 未登记时的同目录 fallback
-- inspection-first resume 语义（如 `repair-review-first` / `post-rollback-inspection`）
+- inspection-first resume 语义（`inspect-after-apply-attention` / `repair-review-first` / `post-repair-verification` / `post-rollback-inspection`）
 
 其中 apply 阶段现在会同时产出：
 
@@ -193,6 +193,7 @@ bash tests/installer-contracts-regression.sh
 - 但**不会默认继承上次的真实 apply / nginx test 执行意图**
 - 默认会收紧为“检查/提示优先”，避免在 `needs-attention` 场景下把 resume 当成重放 apply 的快捷键
 - 同时如果该 run 已经有 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`：
+  - apply 已明确要求 operator 先复核，且 `resume_recommended != 1` 时，resume 会优先进入 **`inspect-after-apply-attention`** 语义
   - rollback 已执行成功时，resume 会优先进入 **`post-rollback-inspection`** 语义
   - repair 已把 `nginx -t` 重跑通过时，resume 会优先进入 **`post-repair-verification`** 语义
   - repair 仍是 `needs-attention` / `blocked` 时，resume 会优先进入 **`repair-review-first`** 语义
