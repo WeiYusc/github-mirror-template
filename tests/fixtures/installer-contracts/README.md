@@ -134,7 +134,17 @@
 - lineage chain 会显式输出 cycle sentinel
 - 最近异常祖先摘要会明确说明检测到 lineage 循环并已停止解析
 
-## 运行方式
+### 10. 临时坏样本注入：损坏 JSON 的保守降级
+
+这组不是静态 fixture 目录，而是在 regression 运行时对 `WORKDIR` 里的临时副本做“定点写坏”：
+
+- 把某个 source run 的 `state.json` 改成不可解析 JSON
+- 把某个当前 run 的 `REPAIR-RESULT.json` 改成不可解析 JSON
+
+用于验证：
+
+- `state_load_resume_context()` 在 source state **存在但坏掉** 时，行为与 source 缺失保持同级保守：保留 lineage 线索，但不伪造 companion result
+- `state_doctor()` 在 follow-up result JSON **存在但坏掉** 时，会明确打印“读取失败”，但仍继续输出其它可读产物（如 apply/rollback）与下一步建议，而不是整段崩掉
 
 在仓库根目录执行：
 

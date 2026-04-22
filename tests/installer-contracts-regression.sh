@@ -500,4 +500,28 @@ assert_contains "$doctor_lineage_cycle_output" "最近的异常祖先节点：fi
 assert_contains "$doctor_lineage_cycle_output" "检测到 lineage 循环引用；已停止继续向上解析。" "lineage cycle doctor explains cycle stop"
 assert_contains "$doctor_lineage_cycle_output" "- 3. [ancestor-2] fixture-lineage-cycle-a [cycle] (checkpoint=循环, final=lineage-cycle; alerts=state=lineage-cycle)" "lineage cycle doctor prints cycle sentinel in lineage chain"
 
+python3 - "$WORKDIR/runs/fixture-post-rollback-inspection/state.json" <<'PY'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('{broken json\n', encoding='utf-8')
+PY
+state_load_resume_context "fixture-source-priority-over-ancestor"
+assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-post-rollback-inspection" "bad source state fixture keeps resumed_from clue"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "" "bad source state fixture does not invent repair owner"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "" "bad source state fixture does not invent repair json path"
+assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_OWNER_RUN_ID" "" "bad source state fixture does not invent rollback owner"
+assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "" "bad source state fixture does not invent rollback json path"
+
+python3 - "$WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" <<'PY'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('{bad repair json\n', encoding='utf-8')
+PY
+doctor_bad_repair_output="$(state_doctor "fixture-post-repair-verification")"
+assert_contains "$doctor_bad_repair_output" "[doctor] repair result json" "bad repair json doctor still prints repair section header"
+assert_contains "$doctor_bad_repair_output" "读取失败: $WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" "bad repair json doctor surfaces parse failure"
+assert_contains "$doctor_bad_repair_output" "[doctor] apply result json" "bad repair json doctor continues to apply result section"
+assert_contains "$doctor_bad_repair_output" "[doctor] rollback result json" "bad repair json doctor continues to rollback result section"
+assert_contains "$doctor_bad_repair_output" "[doctor] 下一步建议" "bad repair json doctor still prints next step section"
+
 echo "[PASS] installer contract regression"
