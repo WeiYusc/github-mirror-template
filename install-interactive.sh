@@ -593,14 +593,20 @@ CLI_REQUEST_RUN_APPLY_DRY_RUN="$RUN_APPLY_DRY_RUN"
 CLI_REQUEST_EXECUTE_APPLY="$EXECUTE_APPLY"
 CLI_REQUEST_RUN_NGINX_TEST="$RUN_NGINX_TEST_AFTER_EXECUTE"
 
-validate_noninteractive_requirements "$INSTALLER_MODE"
-
-mkdir -p "$GENERATED_DIR" "$RUNS_ROOT_DIR"
-
 if [[ -n "$DOCTOR_RUN_ID" && -n "$RESUME_RUN_ID" ]]; then
   ui_error "--doctor 与 --resume 不能同时使用"
   exit 1
 fi
+
+if [[ -n "$DOCTOR_RUN_ID" ]]; then
+  INSTALLER_MODE="doctor"
+elif [[ -n "$RESUME_RUN_ID" ]]; then
+  INSTALLER_MODE="resume"
+fi
+
+validate_noninteractive_requirements "$INSTALLER_MODE"
+
+mkdir -p "$GENERATED_DIR" "$RUNS_ROOT_DIR"
 
 if [[ -n "$DOCTOR_RUN_ID" ]]; then
   state_doctor "$DOCTOR_RUN_ID"
@@ -608,7 +614,6 @@ if [[ -n "$DOCTOR_RUN_ID" ]]; then
 fi
 
 if [[ -n "$RESUME_RUN_ID" ]]; then
-  INSTALLER_MODE="resume"
   state_load_inputs_env "$RESUME_RUN_ID"
   state_load_resume_context "$RESUME_RUN_ID"
   ui_info "已读取历史运行输入：$RESUME_RUN_ID"
