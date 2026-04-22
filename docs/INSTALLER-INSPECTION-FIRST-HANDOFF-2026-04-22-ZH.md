@@ -5,7 +5,7 @@
 > 分支：`weiyusc/exp/interactive-installer`
 > 远端：`origin`
 > handoff 时间：2026-04-22
-> 当前停点提交：`8b68f2d docs: align inspection-first terminology`
+> 当前停点提交：`4bb1ef5 fix: allow resume before noninteractive validation`
 
 ---
 
@@ -121,6 +121,39 @@
 
 - inspection-first 策略下显式 `--execute-apply`
 
+### 3.5 当前新增确认的 CLI 入口结论
+
+在本轮最后一刀里，又额外确认并修掉了一个此前容易被忽略的 **CLI 入口顺序问题**：
+
+- `install-interactive.sh` 之前会在识别 `--resume` / `--doctor` 之前，先按默认 `INSTALLER_MODE="new"` 执行 `validate_noninteractive_requirements(...)`
+- 这会导致用户从真实 CLI 入口直跑：
+
+```bash
+./install-interactive.sh --resume <run_id> --execute-apply --yes
+```
+
+时，可能还没进入 resume 语义分支，就先误报：
+
+- `缺少必填参数：--deployment-name`
+
+这不是 inspection-first refusal 文案问题，而是 **effective mode 决定时机** 的真实 bug。
+
+当前已完成的最小修复是：
+
+1. 先做 `--doctor` / `--resume` 的互斥检查
+2. 先根据 flags 决定 effective `INSTALLER_MODE`（`doctor` / `resume` / `new`）
+3. 再执行 `validate_noninteractive_requirements(...)`
+
+这使得：
+
+- `--resume` 不再被 new-run 的非交互必填参数校验误伤
+- `--doctor` 路径也不再走错校验分支
+- inspection-first resumed run 下显式 `--execute-apply` 的拒绝逻辑，终于从**实现上存在**变成**真实 CLI 入口可达且已被 regression 钉住**
+
+这条结论值得单独记住，因为它说明：
+
+> 当前 inspection-first 的 execute refusal 不只是内部函数层面的语义，而是已经真正闭环到 direct CLI invocation。
+
 ---
 
 ## 4. 本轮已经覆盖到哪些层
@@ -171,10 +204,15 @@
 13. `a62c358` — `docs: clarify inspection-first result contracts`
 14. `9a218e1` — `docs: align fixture README with inspection-first contracts`
 15. `8b68f2d` — `docs: align inspection-first terminology`
+16. `b604f80` — `docs: add inspection-first handoff`
+17. `551cebd` — `test: pin inspect-after-apply-attention coverage`
+18. `448b913` — `docs: surface inspect-after-apply-attention in README`
+19. `cac0b17` — `docs: clarify inspection-first resume messaging`
+20. `4bb1ef5` — `fix: allow resume before noninteractive validation`
 
 如果只想把这一轮的演进压成一句话：
 
-> 先把坏路径和 drift 场景打牢，再把 inspection-first 的实现语义、字段契约、操作者口径和 fixture 说明压成一套语言系统。
+> 先把坏路径和 drift 场景打牢，再把 inspection-first 的实现语义、字段契约、操作者口径和 fixture 说明压成一套语言系统；最后再把 direct CLI invocation 也真正收口到同一套保护边界里。
 
 ---
 
@@ -246,4 +284,4 @@ bash tests/installer-contracts-regression.sh
 
 ## 9. 一句话停点结论
 
-> 到 `8b68f2d` 为止，interactive installer 这条 inspection-first 线已经从“实现有这个意思”推进到“实现、回归、结果契约、状态模型、操作手册、fixture 说明都基本讲同一种话”；如果现在停，这已经是一个干净、可恢复、可继续演化的阶段性停点。
+> 到 `4bb1ef5` 为止，interactive installer 这条 inspection-first 线已经从“实现有这个意思”推进到“实现、回归、结果契约、状态模型、操作手册、fixture 说明、CLI 入口行为都基本讲同一种话”；如果现在停，这已经是一个干净、可恢复、可继续演化的阶段性停点。
