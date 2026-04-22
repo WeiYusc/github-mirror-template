@@ -415,6 +415,100 @@ PY
 )"
 }
 
+resume_strategy_prefers_review_boundary() {
+  case "${1:-}" in
+    post-rollback-inspection|post-repair-verification|repair-review-first|inspect-after-apply-attention)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+resume_source_effective_repair_status() {
+  if [[ -n "${RESUME_SOURCE_REPAIR_FINAL_STATUS:-}" ]]; then
+    printf '%s\n' "$RESUME_SOURCE_REPAIR_FINAL_STATUS"
+  else
+    printf '%s\n' "${RESUME_SOURCE_REPAIR_STATUS:-}"
+  fi
+}
+
+resume_source_effective_rollback_status() {
+  if [[ -n "${RESUME_SOURCE_ROLLBACK_FINAL_STATUS:-}" ]]; then
+    printf '%s\n' "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS"
+  else
+    printf '%s\n' "${RESUME_SOURCE_ROLLBACK_STATUS:-}"
+  fi
+}
+
+resume_force_reuse_from_available_artifacts() {
+  if [[ -n "${RESUME_SOURCE_CONFIG_PATH:-}" && -f "$RESUME_SOURCE_CONFIG_PATH" ]]; then
+    SHOULD_SKIP_INPUTS="1"
+    SHOULD_SKIP_PREFLIGHT="1"
+  fi
+
+  if [[ -n "${RESUME_SOURCE_OUTPUT_DIR_ABS:-}" && -d "$RESUME_SOURCE_OUTPUT_DIR_ABS" ]]; then
+    SHOULD_SKIP_GENERATOR="1"
+  fi
+
+  if [[ -n "${RESUME_SOURCE_APPLY_PLAN_JSON_PATH:-}" && -f "$RESUME_SOURCE_APPLY_PLAN_JSON_PATH" ]]; then
+    SHOULD_SKIP_APPLY_PLAN="1"
+  fi
+}
+
+state_plan_resume_runtime() {
+  if [[ "$RESUME_SOURCE_PREFLIGHT_STATUS" != "blocked" && -n "$RESUME_SOURCE_CONFIG_PATH" && -f "$RESUME_SOURCE_CONFIG_PATH" ]]; then
+    SHOULD_SKIP_INPUTS="1"
+    SHOULD_SKIP_PREFLIGHT="1"
+  fi
+
+  if [[ "$RESUME_SOURCE_GENERATOR_STATUS" == "success" && -n "$RESUME_SOURCE_OUTPUT_DIR_ABS" && -d "$RESUME_SOURCE_OUTPUT_DIR_ABS" ]]; then
+    SHOULD_SKIP_GENERATOR="1"
+  fi
+
+  if [[ "$RESUME_SOURCE_APPLY_PLAN_STATUS" == "generated" && -n "$RESUME_SOURCE_APPLY_PLAN_JSON_PATH" && -f "$RESUME_SOURCE_APPLY_PLAN_JSON_PATH" ]]; then
+    SHOULD_SKIP_APPLY_PLAN="1"
+  fi
+
+  if [[ -n "$RESUME_SOURCE_REPAIR_STATUS" || -n "$RESUME_SOURCE_REPAIR_FINAL_STATUS" ]]; then
+    INSTALLER_REPAIR_STATUS="$(resume_source_effective_repair_status)"
+  fi
+  if [[ -n "$RESUME_SOURCE_ROLLBACK_STATUS" || -n "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" ]]; then
+    INSTALLER_ROLLBACK_STATUS="$(resume_source_effective_rollback_status)"
+  fi
+
+  if [[ "$RESUME_SOURCE_ROLLBACK_MODE" == "execute" && "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" == "ok" ]]; then
+    RESUME_STRATEGY="post-rollback-inspection"
+    RESUME_STRATEGY_REASON="source rollback already executed successfully"
+  elif [[ "$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS" == "passed" ]]; then
+    RESUME_STRATEGY="post-repair-verification"
+    RESUME_STRATEGY_REASON="source repair rerun nginx test already passed"
+  elif [[ "$RESUME_SOURCE_REPAIR_FINAL_STATUS" == "needs-attention" || "$RESUME_SOURCE_REPAIR_FINAL_STATUS" == "blocked" ]]; then
+    RESUME_STRATEGY="repair-review-first"
+    RESUME_STRATEGY_REASON="source repair result still needs operator review"
+  elif [[ "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" != "1" ]]; then
+    RESUME_STRATEGY="inspect-after-apply-attention"
+    RESUME_STRATEGY_REASON="source apply recovery marked resume as not recommended"
+  elif [[ "$SHOULD_SKIP_APPLY_PLAN" == "1" ]]; then
+    RESUME_STRATEGY="reuse-apply-plan"
+    RESUME_STRATEGY_REASON="source apply plan artifact is reusable"
+  elif [[ "$SHOULD_SKIP_GENERATOR" == "1" ]]; then
+    RESUME_STRATEGY="reuse-generated-output"
+    RESUME_STRATEGY_REASON="source generated output directory is reusable"
+  elif [[ "$SHOULD_SKIP_PREFLIGHT" == "1" ]]; then
+    RESUME_STRATEGY="reuse-preflight"
+    RESUME_STRATEGY_REASON="source preflight/config artifacts are reusable"
+  else
+    RESUME_STRATEGY="re-enter-from-inputs"
+    RESUME_STRATEGY_REASON="resume can only continue from stored inputs"
+  fi
+
+  if resume_strategy_prefers_review_boundary "$RESUME_STRATEGY"; then
+    resume_force_reuse_from_available_artifacts
+  fi
+}
+
 state_json_bool() {
   if [[ "${1:-0}" == "1" ]]; then
     printf 'true'

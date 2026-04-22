@@ -308,6 +308,23 @@ source "$ROOT_DIR/scripts/lib/status-contracts.sh"
 source "$ROOT_DIR/scripts/lib/state.sh"
 RUNS_ROOT_DIR="$WORKDIR/runs"
 
+plan_resume_runtime_for_run() {
+  local run_id="$1"
+  SHOULD_SKIP_INPUTS="0"
+  SHOULD_SKIP_PREFLIGHT="0"
+  SHOULD_SKIP_GENERATOR="0"
+  SHOULD_SKIP_APPLY_PLAN="0"
+  INSTALLER_REPAIR_STATUS=""
+  INSTALLER_ROLLBACK_STATUS=""
+  RESUME_STRATEGY="fresh"
+  RESUME_STRATEGY_REASON="new-run"
+  EXECUTE_APPLY="0"
+  RUN_NGINX_TEST_AFTER_EXECUTE="0"
+
+  state_load_resume_context "$run_id"
+  state_plan_resume_runtime
+}
+
 check_contract_set "fixture-legacy-fallback"
 check_contract_set "fixture-resumed-repair-review"
 check_contract_set "fixture-current-apply-attention"
@@ -408,6 +425,47 @@ assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "ok" "post repair final statu
 assert_equals "$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS" "passed" "post repair nginx rerun status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-post-repair-verification/ROLLBACK-RESULT.json" "post repair rollback fallback path"
 assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "0" "post repair rollback execute flag"
+POST_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
+POST_REPAIR_RERUN_STATUS="$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS"
+
+plan_resume_runtime_for_run "fixture-post-repair-verification"
+assert_equals "$RESUME_STRATEGY" "post-repair-verification" "resume planner picks post-repair-verification from repair result truth"
+assert_equals "$SHOULD_SKIP_INPUTS" "1" "post repair verification forces input reuse from available artifacts"
+assert_equals "$SHOULD_SKIP_PREFLIGHT" "1" "post repair verification forces preflight reuse from available artifacts"
+assert_equals "$SHOULD_SKIP_GENERATOR" "1" "post repair verification forces generator reuse from available artifacts"
+assert_equals "$SHOULD_SKIP_APPLY_PLAN" "1" "post repair verification forces apply plan reuse from available artifacts"
+assert_equals "$INSTALLER_REPAIR_STATUS" "ok" "post repair verification effective repair status follows repair result truth"
+assert_equals "$INSTALLER_ROLLBACK_STATUS" "ok" "post repair verification effective rollback status follows rollback result truth"
+
+python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['status']['repair'] = ''
+obj['status']['rollback'] = ''
+obj['status']['final'] = 'needs-attention'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+plan_resume_runtime_for_run "fixture-post-repair-verification"
+assert_equals "$RESUME_STRATEGY" "post-repair-verification" "semantic drift post repair planner still follows repair result truth"
+assert_equals "$SHOULD_SKIP_INPUTS" "1" "semantic drift post repair still reuses inputs from existing config artifacts"
+assert_equals "$SHOULD_SKIP_PREFLIGHT" "1" "semantic drift post repair still reuses preflight from existing config artifacts"
+assert_equals "$SHOULD_SKIP_GENERATOR" "1" "semantic drift post repair still reuses generator output"
+assert_equals "$SHOULD_SKIP_APPLY_PLAN" "1" "semantic drift post repair still reuses apply plan artifacts"
+assert_equals "$INSTALLER_REPAIR_STATUS" "ok" "semantic drift post repair effective repair status comes from repair result final"
+assert_equals "$INSTALLER_ROLLBACK_STATUS" "ok" "semantic drift post repair effective rollback status comes from rollback result final"
+
+python3 - "$TEMPLATE_DIR/runs/fixture-post-repair-verification/state.json" "$WORKDIR/runs/fixture-post-repair-verification/state.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+state_load_resume_context "fixture-post-repair-verification"
 POST_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
 POST_REPAIR_RERUN_STATUS="$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS"
 
