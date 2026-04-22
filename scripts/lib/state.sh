@@ -198,19 +198,23 @@ import shlex
 import sys
 from pathlib import Path
 
+
+def ensure_dict(value):
+    return value if isinstance(value, dict) else {}
+
 state_path = Path(sys.argv[1]).resolve()
 runs_root = state_path.parent.parent
-state = json.loads(state_path.read_text(encoding="utf-8"))
-status = state.get("status", {})
-artifacts = state.get("artifacts", {})
+state = ensure_dict(json.loads(state_path.read_text(encoding="utf-8")))
+status = ensure_dict(state.get("status"))
+artifacts = ensure_dict(state.get("artifacts"))
 apply_result_path = artifacts.get("apply_result_json", "")
 apply_result = {}
 if apply_result_path and Path(apply_result_path).exists():
     try:
-        apply_result = json.loads(Path(apply_result_path).read_text(encoding="utf-8"))
+        apply_result = ensure_dict(json.loads(Path(apply_result_path).read_text(encoding="utf-8")))
     except Exception:
         apply_result = {}
-recovery = apply_result.get("recovery") or {}
+recovery = ensure_dict(apply_result.get("recovery"))
 
 
 def load_state_by_run_id(run_id: str):
@@ -220,13 +224,13 @@ def load_state_by_run_id(run_id: str):
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return ensure_dict(json.loads(path.read_text(encoding="utf-8")))
     except Exception:
         return None
 
 
 def with_companion_fallback(artifacts_map: dict):
-    resolved = dict(artifacts_map)
+    resolved = dict(ensure_dict(artifacts_map))
     apply_result_json = resolved.get("apply_result_json") or ""
     apply_result_md = resolved.get("apply_result") or ""
     base_dir = None
@@ -255,6 +259,7 @@ def with_companion_fallback(artifacts_map: dict):
 
 
 def resolve_companion_result(cur_state: dict, kind: str, visited: set[str]):
+    cur_state = ensure_dict(cur_state)
     run_id = cur_state.get("run_id", "") or ""
     if run_id in visited:
         return None
@@ -269,7 +274,7 @@ def resolve_companion_result(cur_state: dict, kind: str, visited: set[str]):
     if candidate_json and Path(candidate_json).exists():
         payload = {}
         try:
-            payload = json.loads(Path(candidate_json).read_text(encoding="utf-8"))
+            payload = ensure_dict(json.loads(Path(candidate_json).read_text(encoding="utf-8")))
         except Exception:
             payload = {}
         if not candidate_md:
@@ -289,7 +294,7 @@ def resolve_companion_result(cur_state: dict, kind: str, visited: set[str]):
             "payload": {},
         }
 
-    parent_run_id = cur_state.get("resumed_from") or (cur_state.get("lineage") or {}).get("source_run_id") or ""
+    parent_run_id = cur_state.get("resumed_from") or ensure_dict(cur_state.get("lineage")).get("source_run_id") or ""
     if parent_run_id:
         parent_state = load_state_by_run_id(parent_run_id)
         if parent_state is not None:
@@ -314,10 +319,10 @@ repair_result_json_path = repair_resolved.get("json_path", "")
 rollback_result_json_path = rollback_resolved.get("json_path", "")
 repair_result_path = repair_resolved.get("markdown_path", "")
 rollback_result_path = rollback_resolved.get("markdown_path", "")
-repair_result = repair_resolved.get("payload") or {}
-rollback_result = rollback_resolved.get("payload") or {}
-repair_execution = repair_result.get("execution") or {}
-rollback_flags = rollback_result.get("flags") or {}
+repair_result = ensure_dict(repair_resolved.get("payload"))
+rollback_result = ensure_dict(rollback_resolved.get("payload"))
+repair_execution = ensure_dict(repair_result.get("execution"))
+rollback_flags = ensure_dict(rollback_result.get("flags"))
 
 values = {
     "RESUME_SOURCE_RUN_ID": state.get("run_id", ""),
@@ -771,8 +776,32 @@ import json
 import sys
 from pathlib import Path
 
+
+def ensure_dict(value):
+    return value if isinstance(value, dict) else {}
+
+
+def jsonish_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    if isinstance(value, (int, float)):
+        return value != 0
+    return bool(value)
+
+
+def is_effectively_resumed_run(state: dict, lineage: dict):
+    state = ensure_dict(state)
+    lineage = ensure_dict(lineage)
+    return (
+        jsonish_bool(lineage.get("is_resumed_run", False))
+        or bool(state.get("resumed_from"))
+        or bool(lineage.get("source_run_id"))
+    )
+
 state_path, journal_path, inputs_path = sys.argv[1:]
-state = json.loads(Path(state_path).read_text(encoding="utf-8"))
+state = ensure_dict(json.loads(Path(state_path).read_text(encoding="utf-8")))
 last_event = None
 journal_entries = 0
 jp = Path(journal_path)
@@ -782,7 +811,9 @@ if jp.exists():
             continue
         journal_entries += 1
         try:
-            last_event = json.loads(line)
+            parsed = json.loads(line)
+            if isinstance(parsed, dict):
+                last_event = parsed
         except Exception:
             pass
 
@@ -794,7 +825,7 @@ def load_json_if_exists(path_str: str, label: str):
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return ensure_dict(json.loads(path.read_text(encoding="utf-8")))
     except Exception as exc:
         print(f"[doctor] {label}")
         print(f"- 读取失败: {path} ({exc})")
@@ -809,13 +840,13 @@ def load_state_by_run_id(run_id: str, runs_root: Path):
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return ensure_dict(json.loads(path.read_text(encoding="utf-8")))
     except Exception:
         return None
 
 
 def with_companion_fallback(artifacts_map: dict):
-    resolved = dict(artifacts_map)
+    resolved = dict(ensure_dict(artifacts_map))
     apply_result_json = resolved.get("apply_result_json") or ""
     apply_result = resolved.get("apply_result") or ""
     base_dir = None
@@ -840,6 +871,7 @@ def with_companion_fallback(artifacts_map: dict):
 
 
 def first_existing_artifact(artifacts: dict, *keys: str):
+    artifacts = ensure_dict(artifacts)
     for key in keys:
         value = artifacts.get(key) or ""
         if value:
@@ -848,6 +880,7 @@ def first_existing_artifact(artifacts: dict, *keys: str):
 
 
 def summarize_artifact_priority(item: dict):
+    item = ensure_dict(item)
     alerts = item.get("alerts") or []
     artifacts = with_companion_fallback(item.get("artifacts") or {})
 
@@ -900,6 +933,7 @@ def print_priority_artifact_hint(prefix: str, priority_artifact, missing_hint: s
 
 
 def collect_abnormal_status_alerts(status: dict):
+    status = ensure_dict(status)
     alerts = []
     abnormal_statuses = {"needs-attention", "blocked", "failed"}
     for key in ["preflight", "generator", "apply_plan", "apply_dry_run", "apply_execute", "repair", "rollback", "final"]:
@@ -914,6 +948,8 @@ def find_nearest_abnormal_ancestor(lineage_chain):
 
 
 def choose_resume_strategy_priority_artifact(state: dict, lineage: dict):
+    state = ensure_dict(state)
+    lineage = ensure_dict(lineage)
     resume_strategy = lineage.get("resume_strategy", "") or ""
     artifacts = with_companion_fallback(state.get("artifacts") or {})
 
@@ -973,6 +1009,8 @@ def print_lineage_chain(lineage_chain, include_resume_metadata: bool):
 
 
 def print_resume_lineage_summary(state: dict, lineage: dict, lineage_chain):
+    state = ensure_dict(state)
+    lineage = ensure_dict(lineage)
     source_run_id = lineage.get("source_run_id", "") or state.get("resumed_from", "") or "未知"
     source_checkpoint = lineage.get("source_checkpoint", "") or "未知"
     source_resumed_from = lineage.get("source_resumed_from", "") or "无"
@@ -1018,9 +1056,11 @@ def print_current_run_machine_summary(current_run_alerts, current_run_priority):
         print(f"- current_run_priority_note: {note}")
 
 
-def print_lineage_machine_summary(lineage: dict):
+def print_lineage_machine_summary(state: dict, lineage: dict):
+    state = ensure_dict(state)
+    lineage = ensure_dict(lineage)
     print(f"- lineage.mode: {lineage.get('mode', '')}")
-    print(f"- lineage.is_resumed_run: {lineage.get('is_resumed_run', False)}")
+    print(f"- lineage.is_resumed_run: {is_effectively_resumed_run(state, lineage)}")
     print(f"- lineage.source_run_id: {lineage.get('source_run_id', '') or '无'}")
     print(f"- lineage.source_checkpoint: {lineage.get('source_checkpoint', '') or '无'}")
     print(f"- lineage.source_resumed_from: {lineage.get('source_resumed_from', '') or '无'}")
@@ -1029,6 +1069,7 @@ def print_lineage_machine_summary(lineage: dict):
 
 
 def print_status_summary(status: dict):
+    status = ensure_dict(status)
     print("[doctor] 状态")
     for key in ["preflight", "generator", "apply_plan", "apply_dry_run", "apply_execute", "repair", "rollback", "final"]:
         print(f"- {key}: {status.get(key, '')}")
@@ -1036,6 +1077,7 @@ def print_status_summary(status: dict):
 
 
 def print_inputs_summary(inputs: dict):
+    inputs = ensure_dict(inputs)
     print("[doctor] 输入")
     for key in [
         "deployment_name",
@@ -1056,6 +1098,7 @@ def print_inputs_summary(inputs: dict):
 
 
 def print_artifacts_summary(artifacts: dict):
+    artifacts = ensure_dict(artifacts)
     print("[doctor] 产物")
     for key, value in artifacts.items():
         if value:
@@ -1065,25 +1108,26 @@ def print_artifacts_summary(artifacts: dict):
 
 
 def print_apply_result_summary(apply_result: dict, apply_result_json_path: str):
+    apply_result = ensure_dict(apply_result)
     print("[doctor] apply result json")
     print(f"- path: {apply_result_json_path}")
     print(f"- mode: {apply_result.get('mode', '')}")
     print(f"- final_status: {apply_result.get('final_status', '')}")
-    nginx_test = apply_result.get("nginx_test", {})
+    nginx_test = ensure_dict(apply_result.get("nginx_test"))
     print(f"- nginx_test.requested: {nginx_test.get('requested', False)}")
     print(f"- nginx_test.status: {nginx_test.get('status', '')}")
-    execution = apply_result.get("execution", {})
+    execution = ensure_dict(apply_result.get("execution"))
     if execution:
         print(f"- execution.backup_status: {execution.get('backup_status', '')}")
         print(f"- execution.copy_status: {execution.get('copy_status', '')}")
         print(f"- execution.reload_performed: {execution.get('reload_performed', False)}")
-    recovery = apply_result.get("recovery", {})
+    recovery = ensure_dict(apply_result.get("recovery"))
     if recovery:
         print(f"- recovery.installer_status: {recovery.get('installer_status', '')}")
         print(f"- recovery.resume_strategy: {recovery.get('resume_strategy', '')}")
         print(f"- recovery.resume_recommended: {recovery.get('resume_recommended', False)}")
         print(f"- recovery.operator_action: {recovery.get('operator_action', '')}")
-    summary = apply_result.get("summary", {})
+    summary = ensure_dict(apply_result.get("summary"))
     for key in ["new", "replace", "same", "conflict", "target_block", "missing_source"]:
         if key in summary:
             print(f"- summary.{key}: {summary.get(key)}")
@@ -1094,20 +1138,21 @@ def print_apply_result_summary(apply_result: dict, apply_result_json_path: str):
 
 
 def print_repair_result_summary(repair_result: dict, repair_result_json_path: str):
+    repair_result = ensure_dict(repair_result)
     print("[doctor] repair result json")
     print(f"- path: {repair_result_json_path}")
     print(f"- mode: {repair_result.get('mode', '')}")
     print(f"- final_status: {repair_result.get('final_status', '')}")
-    source_recovery = repair_result.get("source_recovery", {})
+    source_recovery = ensure_dict(repair_result.get("source_recovery"))
     if source_recovery:
         print(f"- source_recovery.installer_status: {source_recovery.get('installer_status', '')}")
         print(f"- source_recovery.resume_recommended: {source_recovery.get('resume_recommended', False)}")
         print(f"- source_recovery.operator_action: {source_recovery.get('operator_action', '')}")
-    execution = repair_result.get("execution", {})
+    execution = ensure_dict(repair_result.get("execution"))
     if execution:
         print(f"- execution.nginx_test_rerun_status: {execution.get('nginx_test_rerun_status', '')}")
         print(f"- execution.nginx_test_rerun_exit_code: {execution.get('nginx_test_rerun_exit_code', '')}")
-    diagnosis = repair_result.get("diagnosis", {})
+    diagnosis = ensure_dict(repair_result.get("diagnosis"))
     for key in ["items_total", "targets_present", "targets_missing", "targets_non_regular", "replace_backups_present", "replace_backups_missing"]:
         if key in diagnosis:
             print(f"- diagnosis.{key}: {diagnosis.get(key)}")
@@ -1118,15 +1163,16 @@ def print_repair_result_summary(repair_result: dict, repair_result_json_path: st
 
 
 def print_rollback_result_summary(rollback_result: dict, rollback_result_json_path: str):
+    rollback_result = ensure_dict(rollback_result)
     print("[doctor] rollback result json")
     print(f"- path: {rollback_result_json_path}")
     print(f"- mode: {rollback_result.get('mode', '')}")
     print(f"- final_status: {rollback_result.get('final_status', '')}")
-    flags = rollback_result.get("flags", {})
+    flags = ensure_dict(rollback_result.get("flags"))
     if flags:
         print(f"- flags.delete_new: {flags.get('delete_new', False)}")
         print(f"- flags.execute: {flags.get('execute', False)}")
-    summary = rollback_result.get("summary", {})
+    summary = ensure_dict(rollback_result.get("summary"))
     for key in ["restore", "delete", "skip", "blocked", "pending", "restored", "deleted"]:
         if key in summary:
             print(f"- summary.{key}: {summary.get(key)}")
@@ -1154,6 +1200,7 @@ def print_suggestion_summary(suggestion: str, inputs_path: str):
 
 
 def resolve_followup_result_json_paths(artifacts: dict, apply_result_json_path: str):
+    artifacts = ensure_dict(artifacts)
     repair_result_json_path = artifacts.get("repair_result_json") or ""
     rollback_result_json_path = artifacts.get("rollback_result_json") or ""
     if apply_result_json_path:
@@ -1166,17 +1213,19 @@ def resolve_followup_result_json_paths(artifacts: dict, apply_result_json_path: 
 
 
 def build_lineage_chain(current_state: dict, runs_root: Path):
+    current_state = ensure_dict(current_state)
     chain = []
     seen = set()
     cur = current_state
 
     while cur:
+        cur = ensure_dict(cur)
         run_id = cur.get("run_id", "")
         if not run_id or run_id in seen:
             break
         seen.add(run_id)
-        status = cur.get("status") or {}
-        lineage = cur.get("lineage") or {}
+        status = ensure_dict(cur.get("status"))
+        lineage = ensure_dict(cur.get("lineage"))
         alerts = collect_abnormal_status_alerts(status)
         chain.append({
             "run_id": run_id,
@@ -1184,9 +1233,9 @@ def build_lineage_chain(current_state: dict, runs_root: Path):
             "final": status.get("final", "") or "未知",
             "resume_strategy": lineage.get("resume_strategy", "") or "",
             "resume_strategy_reason": lineage.get("resume_strategy_reason", "") or "",
-            "is_resumed_run": bool(lineage.get("is_resumed_run")) or bool(cur.get("resumed_from")),
+            "is_resumed_run": is_effectively_resumed_run(cur, lineage),
             "alerts": alerts,
-            "artifacts": cur.get("artifacts") or {},
+            "artifacts": ensure_dict(cur.get("artifacts")),
         })
         parent_run_id = cur.get("resumed_from") or lineage.get("source_run_id") or ""
         if not parent_run_id:
@@ -1229,19 +1278,19 @@ print(f"- checkpoint: {state.get('checkpoint', '')}")
 print(f"- resumed_from: {state.get('resumed_from', '') or '无'}")
 runs_root = Path(state_path).resolve().parent.parent
 lineage_chain = build_lineage_chain(state, runs_root)
-current_run_status = state.get("status") or {}
+current_run_status = ensure_dict(state.get("status"))
 current_run_alerts = collect_abnormal_status_alerts(current_run_status)
 current_run_priority = summarize_artifact_priority({
     "alerts": current_run_alerts,
-    "artifacts": state.get("artifacts") or {},
+    "artifacts": ensure_dict(state.get("artifacts")),
 })
 print_current_run_machine_summary(current_run_alerts, current_run_priority)
-lineage = state.get("lineage") or {}
+lineage = ensure_dict(state.get("lineage"))
 if lineage:
-    print_lineage_machine_summary(lineage)
+    print_lineage_machine_summary(state, lineage)
     print()
     print("[doctor] lineage 摘要")
-    if lineage.get("is_resumed_run"):
+    if is_effectively_resumed_run(state, lineage):
         preferred_lineage_priority = print_resume_lineage_summary(state, lineage, lineage_chain)
     else:
         preferred_lineage_priority = None
@@ -1267,11 +1316,11 @@ if current_run_alerts:
         "当前 run 虽有异常状态，但暂未解析到匹配的优先产物路径。",
     )
     print()
-inputs = state.get("inputs", {})
+inputs = ensure_dict(state.get("inputs"))
 print_inputs_summary(inputs)
-status = state.get("status", {})
+status = ensure_dict(state.get("status"))
 print_status_summary(status)
-artifacts = state.get("artifacts", {})
+artifacts = ensure_dict(state.get("artifacts"))
 print_artifacts_summary(artifacts)
 
 apply_result_json_path = artifacts.get("apply_result_json") or ""
@@ -1300,9 +1349,10 @@ final_status = status.get("final", "")
 checkpoint = state.get("checkpoint", "")
 suggestion = None
 if apply_result:
+    apply_result = ensure_dict(apply_result)
     apply_final = apply_result.get("final_status", "")
-    summary = apply_result.get("summary") or {}
-    recovery = apply_result.get("recovery") or {}
+    summary = ensure_dict(apply_result.get("summary"))
+    recovery = ensure_dict(apply_result.get("recovery"))
     operator_action = recovery.get("operator_action", "")
     resume_recommended = recovery.get("resume_recommended")
     if apply_final == "blocked":
@@ -1338,8 +1388,9 @@ if apply_result:
         suggestion += " 当前不建议把 resume 当作默认下一步。"
 
 if repair_result:
+    repair_result = ensure_dict(repair_result)
     repair_final = repair_result.get("final_status", "")
-    repair_execution = repair_result.get("execution") or {}
+    repair_execution = ensure_dict(repair_result.get("execution"))
     rerun_status = repair_execution.get("nginx_test_rerun_status", "")
     if rerun_status == "passed":
         suggestion = repair_result.get("next_step") or "已存在 repair 结果且 nginx -t 重跑已通过；建议人工确认后，再决定是否继续后续操作。"
@@ -1349,9 +1400,10 @@ if repair_result:
         suggestion = repair_result.get("next_step") or "已有 repair 结果；建议先按 repair 结论决定 rollback 还是人工修复。"
 
 if rollback_result:
+    rollback_result = ensure_dict(rollback_result)
     rollback_final = rollback_result.get("final_status", "")
     rollback_mode = rollback_result.get("mode", "")
-    rollback_flags = rollback_result.get("flags") or {}
+    rollback_flags = ensure_dict(rollback_result.get("flags"))
     if rollback_mode == "execute" and rollback_final == "ok":
         suggestion = rollback_result.get("next_step") or "selective rollback 已执行完成；请先手工运行 nginx -t，再决定是否 reload。"
     elif rollback_final in {"blocked", "needs-attention"}:

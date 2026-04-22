@@ -158,19 +158,19 @@
 - `state_load_inputs_env()` 采用**白名单变量 + 静态解析赋值**加载快照；对损坏/越界输入返回**可控错误**，而不是把当前 shell source 过程弄脏
 - `state_doctor()` 对坏 journal 行保持保守忽略：仍能统计行数、提取最后一条有效事件，并继续输出整体摘要
 
-### 12. JSON 合法但缺关键字段的保守降级
+### 13. JSON 合法但字段类型漂移（type drift）的保守降级
 
-这组同样在 regression 运行时对临时 `WORKDIR` 做定点删字段，而不是写坏 JSON 语法：
+这组同样在 regression 运行时对临时 `WORKDIR` 做定点改值，但仍保持 JSON 可解析：
 
-- 删除 resumed run 的 `lineage.resume_strategy` / `lineage.resume_strategy_reason`
-- 删除某个 run 的 `artifacts.apply_result_json`
-- 删除某个 run 的 `status.repair` / `status.final`
+- 把 `lineage.is_resumed_run` 从布尔改成字符串 `"false"`
+- 同时保留 `resumed_from` / `lineage.source_run_id`
+- 把 `status` / `lineage` / `artifacts` 改成错误类型（如字符串）
 
 用于验证：
 
-- `state_doctor()` 在 lineage 元数据缺失时，会显式打印“未记录”，而不是把缺失误渲染成错误语义
-- `state_doctor()` 在 `apply_result_json` 缺失时，仍能依靠同目录 companion fallback 继续输出 repair / rollback 结果摘要
-- `state_load_resume_context()` 对缺失的 status 字段保持空值降级，但不影响 companion result 解析；`state_doctor()` 仍可优先依据可读 result JSON 给下一步建议
+- `state_doctor()` 不会因顶层字段类型漂移而崩溃，会按空对象保守降级
+- 对“是否 resumed run”的判断采用**多信号兜底**，不会因为单个脏字段 `lineage.is_resumed_run="false"` 就把明显的 resumed run 误判成普通新 run
+- 顶层对象字段漂移后，doctor 仍能继续输出可读区块，并在有可用产物时继续给建议
 
 在仓库根目录执行：
 

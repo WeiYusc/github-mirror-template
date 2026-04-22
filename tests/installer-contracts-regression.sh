@@ -607,6 +607,20 @@ assert_contains "$doctor_missing_lineage_fields_output" "[doctor] repair result 
 assert_contains "$doctor_missing_lineage_fields_output" "- path: $WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" "missing apply_result_json doctor still resolves repair result path"
 assert_contains "$doctor_missing_lineage_fields_output" "[doctor] 下一步建议" "missing apply_result_json doctor still prints next step section"
 
+python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['lineage']['is_resumed_run'] = 'false'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_lineage_string_false_output="$(state_doctor "fixture-post-repair-verification")"
+assert_contains "$doctor_lineage_string_false_output" "- lineage.is_resumed_run: True" "string false resumed flag still resolves to effective resumed run"
+assert_contains "$doctor_lineage_string_false_output" "- 这是一轮 resumed run：当前运行继承自 fixture-legacy-fallback（source checkpoint: completed）。" "string false resumed flag still prints resumed lineage summary"
+assert_contains "$doctor_lineage_string_false_output" "- 当前 resume 策略：未记录。" "string false resumed flag still keeps degraded strategy text"
+
 python3 - "$WORKDIR/runs/fixture-legacy-fallback/state.json" <<'PY'
 import json
 import sys
@@ -626,5 +640,37 @@ assert_contains "$doctor_missing_status_fields_output" "- repair: " "missing rep
 assert_contains "$doctor_missing_status_fields_output" "- final: " "missing final status doctor renders empty final field"
 assert_contains "$doctor_missing_status_fields_output" "[doctor] repair result json" "missing status keys doctor still prints repair result section"
 assert_contains "$doctor_missing_status_fields_output" "当前处于 needs-attention；建议先复核诊断项，再决定是 rollback 还是人工修复后重跑 nginx -t。" "missing status keys doctor still derives suggestion from repair result"
+
+python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['status'] = 'broken-status'
+obj['lineage'] = 'broken-lineage'
+obj['artifacts'] = 'broken-artifacts'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_type_drift_top_level_output="$(state_doctor "fixture-post-repair-verification")"
+assert_contains "$doctor_type_drift_top_level_output" "[doctor] 运行摘要" "top-level type drift doctor still prints run summary"
+assert_contains "$doctor_type_drift_top_level_output" "[doctor] 状态" "top-level type drift doctor still prints status section"
+assert_contains "$doctor_type_drift_top_level_output" "[doctor] 产物" "top-level type drift doctor still prints artifacts section"
+assert_contains "$doctor_type_drift_top_level_output" "[doctor] 下一步建议" "top-level type drift doctor still prints next step section"
+assert_contains "$doctor_type_drift_top_level_output" "可尝试执行 ./install-interactive.sh --resume fixture-post-repair-verification 继续；当前版本会复用已完成阶段，并从较安全的边界继续推进。" "top-level type drift doctor falls back to generic resume suggestion"
+
+python3 - "$WORKDIR/runs/fixture-legacy-fallback/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['lineage'] = 'broken-lineage'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_lineage_string_output="$(state_doctor "fixture-legacy-fallback")"
+assert_contains "$doctor_lineage_string_output" "[doctor] 状态" "lineage string doctor still prints status section"
+assert_contains "$doctor_lineage_string_output" "[doctor] apply result json" "lineage string doctor still prints apply result section"
+assert_contains "$doctor_lineage_string_output" "[doctor] 下一步建议" "lineage string doctor still prints next step section"
 
 echo "[PASS] installer contract regression"
