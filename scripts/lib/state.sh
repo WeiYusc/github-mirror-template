@@ -1043,6 +1043,39 @@ def choose_resume_strategy_priority_artifact(state: dict, lineage: dict):
     return None
 
 
+def maybe_prefer_strategy_priority_for_current_run(state: dict, lineage: dict, current_run_alerts, current_run_priority):
+    state = ensure_dict(state)
+    lineage = ensure_dict(lineage)
+    current_run_alerts = list(current_run_alerts or [])
+    if not is_effectively_resumed_run(state, lineage):
+        return current_run_priority
+
+    preferred_priority = choose_resume_strategy_priority_artifact(state, lineage)
+    if preferred_priority is None:
+        return current_run_priority
+
+    explicit_alert_prefixes = (
+        "preflight=",
+        "generator=",
+        "apply_plan=",
+        "apply_dry_run=",
+        "apply_execute=",
+        "repair=",
+        "rollback=",
+    )
+    if any(alert.startswith(explicit_alert_prefixes) for alert in current_run_alerts):
+        return current_run_priority
+
+    if current_run_priority is None:
+        return preferred_priority
+
+    kind, _path, _note = current_run_priority
+    if kind == "generic-artifact":
+        return preferred_priority
+
+    return current_run_priority
+
+
 def print_nearest_abnormal_ancestor_summary(lineage_chain, preferred_priority_artifact=None):
     nearest_abnormal_ancestor = find_nearest_abnormal_ancestor(lineage_chain)
     if nearest_abnormal_ancestor is not None:
@@ -1362,12 +1395,18 @@ runs_root = Path(state_path).resolve().parent.parent
 lineage_chain = build_lineage_chain(state, runs_root)
 current_run_status = ensure_dict(state.get("status"))
 current_run_alerts = collect_abnormal_status_alerts(current_run_status)
+lineage = ensure_dict(state.get("lineage"))
 current_run_priority = summarize_artifact_priority({
     "alerts": current_run_alerts,
     "artifacts": ensure_dict(state.get("artifacts")),
 })
+current_run_priority = maybe_prefer_strategy_priority_for_current_run(
+    state,
+    lineage,
+    current_run_alerts,
+    current_run_priority,
+)
 print_current_run_machine_summary(current_run_alerts, current_run_priority)
-lineage = ensure_dict(state.get("lineage"))
 if lineage:
     print_lineage_machine_summary(state, lineage)
     print()

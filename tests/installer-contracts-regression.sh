@@ -338,6 +338,34 @@ assert_equals "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" "1" "legacy fallback app
 LEGACY_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
 LEGACY_APPLY_RESUME_RECOMMENDED_BOOL="$(bool_01_to_python_bool_text "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED")"
 
+python3 - "$WORKDIR/runs/fixture-legacy-fallback/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['status']['repair'] = 'ok'
+obj['status']['final'] = 'success'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+state_load_resume_context "fixture-legacy-fallback"
+assert_equals "$RESUME_SOURCE_REPAIR_STATUS" "ok" "semantic drift legacy state repair status still reflects drifted state"
+assert_equals "$RESUME_SOURCE_FINAL_STATUS" "success" "semantic drift legacy state final status still reflects drifted state"
+assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "needs-attention" "semantic drift legacy repair final still follows repair result truth"
+LEGACY_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
+
+python3 - "$TEMPLATE_DIR/runs/fixture-legacy-fallback/state.json" "$WORKDIR/runs/fixture-legacy-fallback/state.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+state_load_resume_context "fixture-legacy-fallback"
+assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "needs-attention" "legacy fallback repair final status restored after semantic drift probe"
+LEGACY_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
+
 state_load_resume_context "fixture-resumed-repair-review"
 assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-legacy-fallback" "resumed run resumed_from"
 assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "fixture-resumed-repair-review" "resumed run repair owner stays current"
@@ -486,6 +514,22 @@ assert_contains "$doctor_post_rollback_output" "- 当前策略优先产物：$WO
 assert_contains "$doctor_post_rollback_output" "- 说明：当前 run 已产出 rollback 结果；在 post-rollback-inspection 下应先看这一份。" "post rollback doctor explains current rollback priority"
 assert_contains "$doctor_post_rollback_output" "- 祖先参考产物：$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]" "post rollback doctor keeps ancestor artifact as reference"
 assert_contains "$doctor_post_rollback_output" "最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。" "post rollback doctor still highlights abnormal ancestor"
+
+python3 - "$WORKDIR/runs/fixture-post-rollback-inspection/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['status']['rollback'] = ''
+obj['status']['final'] = 'needs-attention'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_post_rollback_semantic_drift_output="$(state_doctor "fixture-post-rollback-inspection")"
+assert_contains "$doctor_post_rollback_semantic_drift_output" "- current_run_alerts: final=needs-attention" "post rollback semantic drift still shows current final alert"
+assert_contains "$doctor_post_rollback_semantic_drift_output" "- current_run_priority_artifact: $WORKDIR/artifacts/fixture-post-rollback-inspection/ROLLBACK-RESULT.json [rollback-result]" "post rollback semantic drift still prefers rollback artifact for current run summary"
+assert_contains "$doctor_post_rollback_semantic_drift_output" "- current_run_priority_note: 当前 run 已产出 rollback 结果；在 post-rollback-inspection 下应先看这一份。" "post rollback semantic drift current summary inherits strategy-specific note"
+assert_not_contains "$doctor_post_rollback_semantic_drift_output" "$WORKDIR/artifacts/fixture-post-rollback-inspection/REPAIR-RESULT.json [generic-artifact]" "post rollback semantic drift no longer lets generic repair artifact steal current priority"
 
 doctor_post_repair_output="$(state_doctor "fixture-post-repair-verification")"
 assert_contains "$doctor_post_repair_output" "- final_status: $POST_REPAIR_FINAL_STATUS" "post repair doctor repair final status stays consistent with resume context"
