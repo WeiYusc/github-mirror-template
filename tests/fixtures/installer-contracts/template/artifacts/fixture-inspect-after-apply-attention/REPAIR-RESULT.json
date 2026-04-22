@@ -1,0 +1,62 @@
+{
+  "schema_kind": "repair-result",
+  "schema_version": 1,
+  "mode": "execute",
+  "final_status": "ok",
+  "source_apply_result": "__FIXTURE_ROOT__/artifacts/fixture-inspect-after-apply-attention/APPLY-RESULT.json",
+  "source_mode": "execute",
+  "source_final_status": "needs-attention",
+  "platform": "plain-nginx",
+  "backup_dir": "/tmp/backup",
+  "nginx_test_cmd": "nginx -t",
+  "next_step": "repair 结果当前仅供参考；本场景主语义仍以 apply recovery 的人工复核建议为准。",
+  "source_recovery": {
+    "installer_status": "needs-attention",
+    "resume_strategy": "repair-review-first",
+    "resume_recommended": false,
+    "operator_action": "rollback-or-fix"
+  },
+  "execution": {
+    "source_backup_status": "ok",
+    "source_copy_status": "ok",
+    "source_reload_performed": false,
+    "nginx_test_rerun_status": "not-run",
+    "nginx_test_rerun_exit_code": "",
+    "nginx_test_rerun_output": "nginx: configuration file /etc/nginx/nginx.conf test is successful"
+  },
+  "source_summary": {
+    "new": 0,
+    "replace": 2,
+    "same": 18,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0
+  },
+  "diagnosis": {
+    "items_total": 2,
+    "targets_present": 2,
+    "targets_missing": 0,
+    "targets_non_regular": 0,
+    "sources_missing": 0,
+    "replace_backups_present": 2,
+    "replace_backups_missing": 0
+  },
+  "items": [
+    {
+      "category": "snippet",
+      "source": "snippets/a.conf",
+      "dest": "/tmp/snippets/a.conf",
+      "original_status": "REPLACE",
+      "diagnosis": "target-present",
+      "backup_status": "present"
+    },
+    {
+      "category": "vhost",
+      "source": "conf.d/b.conf",
+      "dest": "/tmp/conf.d/b.conf",
+      "original_status": "REPLACE",
+      "diagnosis": "target-present",
+      "backup_status": "present"
+    }
+  ]
+}

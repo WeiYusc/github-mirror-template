@@ -1124,6 +1124,11 @@ def choose_resume_strategy_priority_artifact(state: dict, lineage: dict):
     resume_strategy = lineage.get("resume_strategy", "") or ""
     artifacts = with_companion_fallback(state.get("artifacts") or {})
 
+    if resume_strategy == "inspect-after-apply-attention":
+        path = first_existing_artifact(artifacts, "apply_result_json", "apply_result", "repair_result_json", "repair_result")
+        if path:
+            return ("apply-result", path, "当前 run 已明确进入 inspect-after-apply-attention；应先看 apply result / recovery 字段，再决定后续动作。")
+
     if resume_strategy == "post-repair-verification":
         path = first_existing_artifact(artifacts, "repair_result_json", "repair_result", "apply_result_json")
         if path:

@@ -252,7 +252,7 @@ check_contract_value_smoke_matrix() {
 
   assert_json_value_in "$run_root/state.json" "lineage.mode" "$run_id state lineage mode enum" new resume
   assert_json_value_in "$run_root/state.json" "lineage.resume_strategy" "$run_id state resume strategy enum" \
-    fresh repair-review-first post-rollback-inspection post-repair-verification
+    fresh repair-review-first post-rollback-inspection post-repair-verification inspect-after-apply-attention
   assert_json_value_in_contract "$run_root/state.json" "status.preflight" "$run_id state preflight enum" preflight
   assert_json_value_in_contract "$run_root/state.json" "status.generator" "$run_id state generator enum" generator
   assert_json_value_in_contract "$run_root/state.json" "status.apply_plan" "$run_id state apply plan enum" apply_plan
@@ -328,6 +328,7 @@ plan_resume_runtime_for_run() {
 check_contract_set "fixture-legacy-fallback"
 check_contract_set "fixture-resumed-repair-review"
 check_contract_set "fixture-current-apply-attention"
+check_contract_set "fixture-inspect-after-apply-attention"
 check_contract_set "fixture-post-rollback-inspection"
 check_contract_set "fixture-post-repair-verification"
 # resume-only priority fixtures intentionally skip the full 6-contract bundle; they exist to pin state_load_resume_context lineage walk order.
@@ -335,12 +336,14 @@ check_contract_set "fixture-post-repair-verification"
 check_stable_contract_smoke_matrix "fixture-legacy-fallback"
 check_stable_contract_smoke_matrix "fixture-resumed-repair-review"
 check_stable_contract_smoke_matrix "fixture-current-apply-attention"
+check_stable_contract_smoke_matrix "fixture-inspect-after-apply-attention"
 check_stable_contract_smoke_matrix "fixture-post-rollback-inspection"
 check_stable_contract_smoke_matrix "fixture-post-repair-verification"
 
 check_contract_value_smoke_matrix "fixture-legacy-fallback"
 check_contract_value_smoke_matrix "fixture-resumed-repair-review"
 check_contract_value_smoke_matrix "fixture-current-apply-attention"
+check_contract_value_smoke_matrix "fixture-inspect-after-apply-attention"
 check_contract_value_smoke_matrix "fixture-post-rollback-inspection"
 check_contract_value_smoke_matrix "fixture-post-repair-verification"
 
@@ -427,6 +430,21 @@ assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "$WORKDIR/artifacts/fix
 assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "0" "post repair rollback execute flag"
 POST_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
 POST_REPAIR_RERUN_STATUS="$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS"
+
+state_load_resume_context "fixture-inspect-after-apply-attention"
+assert_equals "$RESUME_SOURCE_RESUMED_FROM" "fixture-legacy-fallback" "inspect-after-apply attention run resumed_from"
+assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "fixture-inspect-after-apply-attention" "inspect-after-apply attention repair owner stays current"
+assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_OWNER_RUN_ID" "fixture-inspect-after-apply-attention" "inspect-after-apply attention rollback owner stays current via local fallback"
+assert_equals "$RESUME_SOURCE_APPLY_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-inspect-after-apply-attention/APPLY-RESULT.json" "inspect-after-apply attention apply result json path"
+assert_equals "$RESUME_SOURCE_APPLY_RESUME_STRATEGY" "post-apply-review" "inspect-after-apply attention apply recovery strategy stays current"
+assert_equals "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" "0" "inspect-after-apply attention apply resume recommended"
+assert_equals "$RESUME_SOURCE_APPLY_OPERATOR_ACTION" "manual-review" "inspect-after-apply attention operator action"
+assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "ok" "inspect-after-apply attention repair final status"
+assert_equals "$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS" "not-run" "inspect-after-apply attention repair rerun status"
+assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-inspect-after-apply-attention/ROLLBACK-RESULT.json" "inspect-after-apply attention rollback fallback path"
+assert_equals "$RESUME_SOURCE_ROLLBACK_EXECUTE" "0" "inspect-after-apply attention rollback execute flag"
+INSPECT_AFTER_APPLY_RESUME_RECOMMENDED_BOOL="$(bool_01_to_python_bool_text "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED")"
+INSPECT_AFTER_APPLY_RECOVERY_STATUS="$RESUME_SOURCE_APPLY_RECOVERY_STATUS"
 
 plan_resume_runtime_for_run "fixture-post-repair-verification"
 assert_equals "$RESUME_STRATEGY" "post-repair-verification" "resume planner picks post-repair-verification from repair result truth"
@@ -643,6 +661,20 @@ assert_contains "$doctor_post_repair_output" "- 祖先参考产物：$WORKDIR/ar
 assert_contains "$doctor_post_repair_output" "- execution.nginx_test_rerun_status: passed" "post repair doctor prints rerun status"
 assert_contains "$doctor_post_repair_output" "已完成 repair 复查且 nginx -t 通过；建议人工确认现场后，再决定是否继续后续操作。" "post repair doctor prints repair next step"
 assert_contains "$doctor_post_repair_output" "[doctor] 下一步建议" "post repair doctor prints next step section"
+
+doctor_inspect_after_apply_output="$(state_doctor "fixture-inspect-after-apply-attention")"
+assert_contains "$doctor_inspect_after_apply_output" "- resumed_from: fixture-legacy-fallback" "inspect-after-apply attention doctor prints resumed_from"
+assert_contains "$doctor_inspect_after_apply_output" "当前 resume 策略：inspect-after-apply-attention。" "inspect-after-apply attention doctor prints resume strategy"
+assert_contains "$doctor_inspect_after_apply_output" "操作建议：优先查看 apply result / recovery 建议，先理解为什么该 run 不推荐直接继续 apply。" "inspect-after-apply attention doctor prints operator guidance"
+assert_contains "$doctor_inspect_after_apply_output" "- 当前策略优先产物：$WORKDIR/artifacts/fixture-inspect-after-apply-attention/APPLY-RESULT.json [apply-result]" "inspect-after-apply attention doctor prefers current apply artifact in lineage summary"
+assert_contains "$doctor_inspect_after_apply_output" "- 说明：当前 run 已明确进入 inspect-after-apply-attention；应先看 apply result / recovery 字段，再决定后续动作。" "inspect-after-apply attention doctor explains current apply priority"
+assert_contains "$doctor_inspect_after_apply_output" "- 祖先参考产物：$WORKDIR/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]" "inspect-after-apply attention doctor keeps ancestor artifact as reference"
+assert_contains "$doctor_inspect_after_apply_output" "- recovery.installer_status: $INSPECT_AFTER_APPLY_RECOVERY_STATUS" "inspect-after-apply attention doctor recovery status stays consistent with resume context"
+assert_contains "$doctor_inspect_after_apply_output" "- recovery.resume_strategy: post-apply-review" "inspect-after-apply attention doctor prints apply recovery strategy"
+assert_contains "$doctor_inspect_after_apply_output" "- recovery.resume_recommended: $INSPECT_AFTER_APPLY_RESUME_RECOMMENDED_BOOL" "inspect-after-apply attention doctor resume_recommended stays consistent with resume context"
+assert_contains "$doctor_inspect_after_apply_output" "- recovery.operator_action: manual-review" "inspect-after-apply attention doctor prints operator action"
+assert_contains "$doctor_inspect_after_apply_output" "- path: $WORKDIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json" "inspect-after-apply attention doctor still prints repair result path"
+assert_contains "$doctor_inspect_after_apply_output" "当前处于 inspect-after-apply-attention；建议先跑 ./install-interactive.sh --doctor fixture-inspect-after-apply-attention 复核当前 run 与 companion result，再决定是否只做 dry-run、repair、rollback 或人工处理。" "inspect-after-apply attention doctor keeps conservative fallback suggestion"
 
 doctor_missing_source_output="$(state_doctor "fixture-missing-source-state")"
 assert_contains "$doctor_missing_source_output" "当前已解析到 2 段 lineage 链。" "missing source doctor prints lineage depth with sentinel"

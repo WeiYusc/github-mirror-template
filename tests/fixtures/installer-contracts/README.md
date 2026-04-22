@@ -115,7 +115,25 @@
 - `state_doctor()` 对 `post-rollback-inspection` 的摘要文案与策略优先产物提示
 - semantic drift / artifact drift 下，rollback 主语义不会被 generic artifact 或旧 `state.status` 摘要抢走
 
-### 6. `fixture-source-priority-over-ancestor`
+### 6. `fixture-inspect-after-apply-attention`
+
+模拟 resumed run 继承到一个 **apply recovery 已明确标注“不建议默认 resume”** 的 inspection-first 场景：
+
+- `lineage.resume_strategy=inspect-after-apply-attention`
+- `resumed_from=fixture-legacy-fallback`
+- `APPLY-RESULT.json.recovery.resume_strategy=post-apply-review`
+- `APPLY-RESULT.json.recovery.resume_recommended=false`
+- `APPLY-RESULT.json.recovery.operator_action=manual-review`
+- 当前 run 仍保留中性的 repair / rollback companion result，用于验证它们不会抢走 apply recovery 主语义
+
+用于验证：
+
+- `state_doctor()` 在 `inspect-after-apply-attention` 下会优先把 **当前 run 的 `APPLY-RESULT.json`** 当作策略优先产物
+- doctor 的 operator hint 会明确回到 “先看 apply result / recovery 字段，再决定后续动作”
+- 即使同目录存在 repair / rollback companion result，也不会让它们在该策略下抢走当前 run 的主观察面
+- 这类场景真正钉住的是 **`lineage.resume_strategy` + `APPLY-RESULT.json.recovery.*` 的组合语义**，而不是某句中文提示文案逐字相同
+
+### 7. `fixture-source-priority-over-ancestor`
 
 模拟 resumed run 本身没有 companion result，但直接 source run 有：
 
@@ -129,7 +147,7 @@
 - `state_load_resume_context()` 在 **current 缺失** 时，优先取 **direct source**，而不是直接跳到更早 ancestor
 - rollback / repair 两类 companion result 的 owner run id 与关键字段能跟着最近 source 保持一致
 
-### 7. `fixture-ancestor-fallback-after-source-gap`
+### 8. `fixture-ancestor-fallback-after-source-gap`
 
 模拟 current run 与 direct source run 都没有 companion result，需要继续沿 lineage 向上回溯：
 
@@ -145,7 +163,7 @@
 
 > 说明：这两个 fixture 主要用于 resume 载入优先级回归，不进入 6 类 contract 全套 smoke/check 矩阵。
 
-### 8. `fixture-missing-source-state`
+### 9. `fixture-missing-source-state`
 
 模拟 resumed run 指向的 source state 不存在或不可读：
 
@@ -159,7 +177,7 @@
 - `state_doctor()` 会把缺失 source state 显式渲染到 lineage chain
 - 最近异常祖先摘要会明确说明“state.json 缺失或不可读”，而不是静默截断
 
-### 9. `fixture-lineage-cycle-a` / `fixture-lineage-cycle-b`
+### 10. `fixture-lineage-cycle-a` / `fixture-lineage-cycle-b`
 
 模拟两个 run 在 lineage 上互相指回，形成循环：
 
@@ -173,7 +191,7 @@
 - lineage chain 会显式输出 cycle sentinel
 - 最近异常祖先摘要会明确说明检测到 lineage 循环并已停止解析
 
-### 10. 临时坏样本注入：损坏 JSON 的保守降级
+### 11. 临时坏样本注入：损坏 JSON 的保守降级
 
 这组不是静态 fixture 目录，而是在 regression 运行时对 `WORKDIR` 里的临时副本做“定点写坏”：
 
@@ -185,7 +203,7 @@
 - `state_load_resume_context()` 在 source state **存在但坏掉** 时，行为与 source 缺失保持同级保守：保留 lineage 线索，但不伪造 companion result
 - `state_doctor()` 在 follow-up result JSON **存在但坏掉** 时，会明确打印“读取失败”，但仍继续输出其它可读产物（如 apply/rollback）与下一步建议，而不是整段崩掉
 
-### 11. 损坏输入快照 / 混入坏 journal 行
+### 12. 损坏输入快照 / 混入坏 journal 行
 
 这组同样在 regression 运行时对临时 `WORKDIR` 做定点扰动：
 
@@ -218,12 +236,13 @@
 - `repair-review-first`
 - `post-repair-verification`
 - `post-rollback-inspection`
-- 以及“当前 apply attention / review-first 提示”这一类过渡场景
+- `inspect-after-apply-attention`
 
 其中：
 
 - `post-repair-verification` 的关键事实字段是 `REPAIR-RESULT.json.execution.nginx_test_rerun_status=passed`
 - `post-rollback-inspection` 的关键事实字段是 `ROLLBACK-RESULT.json.final_status=ok` 且 `flags.execute=true`
+- `inspect-after-apply-attention` 的关键事实字段是 `lineage.resume_strategy=inspect-after-apply-attention` 配合 `APPLY-RESULT.json.recovery.resume_recommended=false` 与 `operator_action=manual-review`
 - `repair-review-first` 更偏 source/current repair result 仍需 operator review 的场景
 
 这意味着 README 当前表达的覆盖边界也应理解为：
