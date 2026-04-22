@@ -133,6 +133,22 @@
 
 > companion result 的“同目录约定名”当前也是兼容契约的一部分。
 
+### 4.4 inspection-first 策略的字段消费顺序
+
+当 `resume` / `doctor` 面对 inspection-first 四类策略时，当前更可靠的消费顺序不是“只看某一个 final/status 字段”，而是：
+
+1. 先看 `state.json.lineage.resume_strategy`
+2. 再看 `APPLY-RESULT.json.recovery.resume_strategy` / `resume_recommended` / `operator_action`
+3. 若已有 repair 结果，则优先看 `REPAIR-RESULT.json.final_status` 与 `execution.nginx_test_rerun_status`
+4. 若已有 rollback 结果，则优先看 `ROLLBACK-RESULT.json.final_status`、`mode`、`flags.execute`
+5. 最后才把 `next_step` 当成人类说明补充，而不是唯一机器判定来源
+
+也就是说：
+
+> inspection-first 相关判断当前依赖的是 **lineage + recovery.* + companion result final/execution 字段** 的组合，而不是单独依赖某一句 `next_step` 文案。
+
+这也是为什么当前 contract regression 更适合优先钉这些字段，而不会把完整中文提示句当成强契约。
+
 ---
 
 ## 5. `state.json`
@@ -450,6 +466,39 @@
 - `final_status` 和 `recovery.installer_status` 不是同一层语义，不能混用
 - 后续如果要增强恢复语义，优先在 `recovery` 下追加字段
 
+### 8.4.1 inspection-first 时先看哪些字段
+
+若 `APPLY-RESULT.json` 把当前 run 引到 inspection-first 语义，当前最值得优先消费的是：
+
+1. `recovery.resume_strategy`
+2. `recovery.resume_recommended`
+3. `recovery.operator_action`
+4. `recovery.installer_status`
+5. `next_step`
+
+其中优先级含义是：
+
+- `resume_strategy` 决定它属于哪一类 inspection-first 语义
+- `resume_recommended` 决定是否应默认继续普通 resume
+- `operator_action` 决定操作者当前更像该先 doctor / repair / rollback / 人工检查什么
+- `installer_status` 反映 installer 视角下当前是否仍处于 attention / blocked
+- `next_step` 更适合作为展示与人工提示，不宜单独当成机器判定来源
+
+换句话说：
+
+> 对 inspection-first 场景，`APPLY-RESULT.json` 里最关键的不是“最后一句怎么写”，而是 `recovery.*` 这组恢复语义字段。
+
+### 8.4.2 与 repair / rollback companion 的衔接
+
+一旦同目录或 `state.artifacts.*` 中已经存在 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`，当前实现会把这些 companion result 视作比旧 `state.status.*` 更接近事实的补充语义来源：
+
+- repair 已产出时，优先看 `REPAIR-RESULT.json.final_status` 与 `execution.nginx_test_rerun_status`
+- rollback 已产出时，优先看 `ROLLBACK-RESULT.json.final_status`、`mode`、`flags.execute`
+
+因此 inspection-first 的真实消费链条当前更接近：
+
+> `lineage.resume_strategy` → `APPLY-RESULT.recovery.*` → `REPAIR/ROLLBACK-RESULT` 核心状态字段 → `next_step` 文案。
+
 ---
 
 ## 9. `REPAIR-RESULT.json`
@@ -537,6 +586,16 @@
 - `execution.nginx_test_rerun_status`
 - `next_step`
 
+在 inspection-first 语义里，当前可以更具体地理解为：
+
+- `final_status` 用来判断 repair 是否仍处于 `needs-attention` / `blocked`
+- `execution.nginx_test_rerun_status=passed` 是进入 `post-repair-verification` 的关键信号
+- `next_step` 主要用于向操作者解释“现在更像该继续观察、人工复查、还是转 rollback”
+
+也就是说：
+
+> `REPAIR-RESULT.json` 对 inspection-first 的核心机器贡献，不是替代 apply result，而是把“repair 是否已把现场带到 verification 边界”这件事补实。
+
 ### 9.4 兼容备注
 
 - `items[*]` 更偏诊断细节，可继续扩展
@@ -616,6 +675,16 @@
 - `flags.execute`
 - `next_step`
 
+在 inspection-first 语义里，当前可以更具体地理解为：
+
+- `final_status=ok` 且 `flags.execute=true` 是进入 `post-rollback-inspection` 的关键事实来源
+- `mode` 用来区分这只是 rollback 预演，还是已经真实执行过
+- `next_step` 主要负责告诉操作者 rollback 后该先核对什么，而不是单独决定 resume 策略
+
+也就是说：
+
+> `ROLLBACK-RESULT.json` 的关键价值，是把“rollback 是否真的执行并成功”这件事从旧 `state.status.rollback` 的摘要，提升成可直接消费的 companion contract。
+
 ### 10.4 兼容备注
 
 - `items[*].action/outcome` 当前已经是最像正式 rollback 动作枚举的区域
@@ -648,6 +717,22 @@
 - `ROLLBACK-RESULT.md`
 
 它们更偏人类阅读摘要，不应作为自动化主要输入。
+
+### 11.4 inspection-first 场景下不要过度绑定的内容
+
+对 inspection-first 四类策略，当前尤其不要把下面这些内容当成唯一真相源：
+
+- 只看 `state.status.final`
+- 只看 `state.status.repair` / `state.status.rollback`
+- 只看 `next_step` 的完整中文句子
+- 只看某一个 Markdown 文件里的总结段落
+
+更稳妥的契约理解应该是：
+
+- 策略类别先看 `lineage.resume_strategy` / `APPLY-RESULT.recovery.resume_strategy`
+- 是否建议普通 resume 先看 `recovery.resume_recommended`
+- repair / rollback 是否已把现场推进到新边界，先看 companion result 的 `final_status` / execution 字段
+- 中文说明文案主要用于展示和人工判断补充
 
 ---
 
