@@ -72,6 +72,7 @@
 - `lineage.mode=new`
 - `status.apply_execute=needs-attention`
 - `status.final=needs-attention`
+- `APPLY-RESULT.json.recovery.resume_strategy=manual-recovery-first`
 - `APPLY-RESULT.json.recovery.operator_action=rollback-or-fix`
 - `APPLY-RESULT.json.nginx_test.status=failed`
 
@@ -80,6 +81,7 @@
 - `state_doctor()` 的“当前 run 异常摘要”区块
 - 当前 run 优先产物应指向 `APPLY-RESULT.json`
 - apply attention 场景下的 suggestion 文案与 repair dry-run 引导
+- 当前 run 自身的 apply recovery 语义仍保持“先人工恢复/修复”，不会误漂成 inspection-first resumed run 的 `post-apply-review`
 
 ### 4. `fixture-post-repair-verification`
 

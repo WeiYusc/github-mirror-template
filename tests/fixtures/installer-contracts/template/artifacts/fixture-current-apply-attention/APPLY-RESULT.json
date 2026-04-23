@@ -17,7 +17,7 @@
   },
   "recovery": {
     "installer_status": "needs-attention",
-    "resume_strategy": "repair-review-first",
+    "resume_strategy": "manual-recovery-first",
     "resume_recommended": false,
     "operator_action": "rollback-or-fix"
   },

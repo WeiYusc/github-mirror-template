@@ -275,7 +275,7 @@ check_contract_value_smoke_matrix() {
   assert_json_value_in "$artifact_root/APPLY-RESULT.json" "final_status" "$run_id apply result final status enum" ok needs-attention
   assert_json_value_in "$artifact_root/APPLY-RESULT.json" "recovery.installer_status" "$run_id apply result installer status enum" success needs-attention
   assert_json_value_in "$artifact_root/APPLY-RESULT.json" "recovery.resume_strategy" "$run_id apply result resume strategy enum" \
-    post-apply-review dry-run-ok repair-review-first
+    post-apply-review dry-run-ok repair-review-first manual-recovery-first
   assert_json_value_type "$artifact_root/APPLY-RESULT.json" "recovery.resume_recommended" bool "$run_id apply result resume recommended bool"
   assert_json_value_type "$artifact_root/APPLY-RESULT.json" "execution.reload_performed" bool "$run_id apply result reload_performed bool"
   assert_json_value_type "$artifact_root/APPLY-RESULT.json" "nginx_test.requested" bool "$run_id apply result nginx requested bool"
@@ -408,6 +408,7 @@ assert_equals "$RESUME_SOURCE_ROLLBACK_RESULT_OWNER_RUN_ID" "fixture-current-app
 assert_equals "$RESUME_SOURCE_REPAIR_RESULT_JSON_PATH" "$WORKDIR/artifacts/fixture-current-apply-attention/REPAIR-RESULT.json" "current apply attention repair json path"
 assert_equals "$RESUME_SOURCE_REPAIR_FINAL_STATUS" "ok" "current apply attention repair final status"
 assert_equals "$RESUME_SOURCE_ROLLBACK_FINAL_STATUS" "ok" "current apply attention rollback final status"
+assert_equals "$RESUME_SOURCE_APPLY_RESUME_STRATEGY" "manual-recovery-first" "current apply attention apply recovery strategy stays current"
 assert_equals "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" "0" "current apply attention apply resume recommended"
 CURRENT_APPLY_RESUME_RECOMMENDED_BOOL="$(bool_01_to_python_bool_text "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED")"
 CURRENT_APPLY_RECOVERY_STATUS="$RESUME_SOURCE_APPLY_RECOVERY_STATUS"
@@ -621,6 +622,7 @@ assert_contains "$doctor_current_apply_attention_output" "- 当前 run 存在异
 assert_contains "$doctor_current_apply_attention_output" "$WORKDIR/artifacts/fixture-current-apply-attention/APPLY-RESULT.json [apply-result]" "current apply attention doctor points to current apply result artifact"
 assert_contains "$doctor_current_apply_attention_output" "最近异常出在 apply 阶段，建议先看 apply 结果/计划文件。" "current apply attention doctor explains priority artifact"
 assert_contains "$doctor_current_apply_attention_output" "- recovery.installer_status: $CURRENT_APPLY_RECOVERY_STATUS" "current apply attention doctor recovery status stays consistent with resume context"
+assert_contains "$doctor_current_apply_attention_output" "- recovery.resume_strategy: manual-recovery-first" "current apply attention doctor prints apply recovery strategy"
 assert_contains "$doctor_current_apply_attention_output" "- recovery.resume_recommended: $CURRENT_APPLY_RESUME_RECOMMENDED_BOOL" "current apply attention doctor resume_recommended stays consistent with resume context"
 assert_contains "$doctor_current_apply_attention_output" "[doctor] journal" "current apply attention doctor prints journal section"
 assert_contains "$doctor_current_apply_attention_output" "- entries: 3" "current apply attention doctor prints journal entry count"
