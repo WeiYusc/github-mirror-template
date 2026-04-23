@@ -73,29 +73,44 @@
 - 特殊字符、注释符、边界空白、多行值可能破坏 YAML 语义
 - 项目本身已依赖 `python3 + PyYAML`，继续手工拼接属于不必要技术债
 
-### P1-B. 缺真实 smoke/integration tests
+### P1-B. 已补真实 smoke/integration 护栏
 
-当前已有：
+当前已新增并持续扩充：
 
-- `tests/fixtures/installer-contracts/`
+- `tests/installer-smoke.sh`
 - `tests/installer-contracts-regression.sh`
+- `tests/deploy-config-yaml-regression.sh`
 
-这说明项目已有测试意识，但当前测试更偏：
+其中真实 CLI smoke 已不再只停留在 happy path，而是至少覆盖：
 
-- fixture / contract regression
-- doctor / resume / companion result 消费链
+- `install-interactive.sh` 非交互真实执行成功路径
+- `--execute-apply --run-nginx-test --nginx-test-cmd 'false' --yes` 的 `needs-attention` 收口
+- inspection-first `--resume ... --execute-apply --yes` refusal
+- generator fail-fast / 非零退出样本
 
-目前仍缺：
+所以这里的重点已经从“有没有 smoke”转成：
 
-- 真实跑 `install-interactive.sh` 的 smoke/integration tests
-- 对非交互主路径的自动化断言
+- 是否继续补最值钱的新入口
+- 是否让 smoke 断言始终对齐实现真相源
+- 是否避免 fixture / smoke / docs 三层重新漂移
 
-### P1-C. 缺 CI
+### P1-C. 已接入最小 CI 护栏
 
-当前没有可见 `.github/workflows`，意味着：
+当前仓库已存在：
 
-- 现有 regression 没有每次提交自动执行的证据
-- heavily stateful 的脚本工程缺少自动护栏
+- `.github/workflows/installer-regressions.yml`
+
+并会自动执行：
+
+- `bash tests/deploy-config-yaml-regression.sh`
+- `bash tests/installer-smoke.sh`
+- `bash tests/installer-contracts-regression.sh`
+
+所以这条不再是“从 0 到 1 接 CI”，而是：
+
+- 持续保持 workflow 与本地推荐回归入口一致
+- 避免 handoff / roadmap 继续把已完成的 smoke / CI 写成未来 TODO
+- 后续若新增高价值回归，应优先判断是否纳入现有 workflow，而不是另起一套口径
 
 ### P2. 文档入口层级混杂
 

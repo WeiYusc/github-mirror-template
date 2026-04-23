@@ -310,24 +310,31 @@ bash tests/installer-contracts-regression.sh
 - `doctor` / `resume` 所依赖的 run 可信度
 - 后续 smoke / CI 是否有可靠主路径可钉
 
-### 10.2 第二优先级：补真实 CLI smoke / integration tests
+### 10.2 第二优先级：继续扩真实 CLI smoke / integration tests
 
-当前已有的 contract regression 很有价值，但仍更偏 fixture / 结果契约层。
+这块在 2026-04-23 前后已经不是空白：
 
-下次更值得补的是：
+- 已有 `bash tests/installer-smoke.sh`
+- 已覆盖真实非交互 happy path / execute `needs-attention` / inspection-first resume refusal / generator fail-fast
 
-- 直接跑 `install-interactive.sh` 的真实非交互 smoke
-- 至少覆盖 1 条 happy path 和 1 条 early-exit / refused-path
-- 把“主脚本入口行为”从手工验证升级为自动化护栏
+所以下一步不再是“从 0 到 1 补 smoke”，而是：
 
-### 10.3 第三优先级：把 CI 接上
+- 继续挑**最值钱、最容易漂移**的入口补回归
+- 让 smoke 断言始终对齐实现真相源，而不是沿用过期 fixture/文案假设
+- 在补新 smoke 时，顺手检查 contract regression / fixture README 是否也要同步更新
 
-在已有 `bash tests/installer-contracts-regression.sh` 基础上，至少让下面两类检查自动化：
+### 10.3 第三优先级：维护已接入的 CI 护栏
 
-1. contract regression
-2. 最小真实 CLI smoke
+这块同样已不是未来事项：
 
-原则不是一上来铺很重的流水线，而是先给当前这个 heavily stateful 的 control-plane 一个最低限度的自动护栏。
+- 仓库已有 `.github/workflows/installer-regressions.yml`
+- 当前会自动执行 contract regression、真实 CLI smoke、deploy-config YAML regression
+
+因此更自然的后续工作是：
+
+1. 保持 workflow 与 README / INSTALL 里的本地推荐回归入口一致
+2. 新增高价值 regression 时，优先纳入现有 workflow
+3. 定期清理 handoff / roadmap 里的过期 TODO，避免下次续接被旧优先级带偏
 
 ### 10.4 第四优先级：修 YAML 写入方式
 
