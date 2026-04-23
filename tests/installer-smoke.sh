@@ -6,7 +6,7 @@ GENERATED_DIR="$ROOT_DIR/scripts/generated"
 RUNS_ROOT_DIR="$GENERATED_DIR/runs"
 SUMMARY_PRIMARY="$GENERATED_DIR/INSTALLER-SUMMARY.generated.json"
 TMP_DIR="$(mktemp -d)"
-NEW_RUN_DIR=""
+NEW_RUN_DIRS=()
 
 backup_file() {
   local src="$1"
@@ -30,10 +30,20 @@ restore_file() {
   fi
 }
 
-cleanup() {
-  if [[ -n "$NEW_RUN_DIR" && -d "$NEW_RUN_DIR" ]]; then
-    rm -rf "$NEW_RUN_DIR"
+register_new_run_dir() {
+  local dir="$1"
+  if [[ -n "$dir" && -d "$dir" ]]; then
+    NEW_RUN_DIRS+=("$dir")
   fi
+}
+
+cleanup() {
+  local dir
+  for dir in "${NEW_RUN_DIRS[@]}"; do
+    if [[ -d "$dir" ]]; then
+      rm -rf "$dir"
+    fi
+  done
   restore_file "$SUMMARY_PRIMARY" summary_primary
   restore_file "$GENERATED_DIR/deploy.generated.yaml" deploy_generated
   restore_file "$GENERATED_DIR/preflight.generated.json" preflight_json
@@ -121,6 +131,7 @@ if [[ -z "$NEW_RUN_DIR" || ! -d "$NEW_RUN_DIR" ]]; then
   echo "[FAIL] smoke run did not create a new run directory" >&2
   exit 1
 fi
+register_new_run_dir "$NEW_RUN_DIR"
 
 state_json="$NEW_RUN_DIR/state.json"
 summary_output="$smoke_workspace/output/INSTALLER-SUMMARY.json"
@@ -196,6 +207,7 @@ if [[ -z "$EXEC_RUN_DIR" || ! -d "$EXEC_RUN_DIR" ]]; then
   echo "[FAIL] execute smoke run did not create a new run directory" >&2
   exit 1
 fi
+register_new_run_dir "$EXEC_RUN_DIR"
 
 execute_state_json="$EXEC_RUN_DIR/state.json"
 execute_summary_output="$execute_workspace/output/INSTALLER-SUMMARY.json"
@@ -230,6 +242,190 @@ assert (workspace / "error-target").is_dir(), workspace
 assert any((workspace / "snippets-target").iterdir()), "snippets target empty"
 assert any((workspace / "conf-target").iterdir()), "conf target empty"
 assert any((workspace / "error-target").iterdir()), "error target empty"
+PY
+
+needs_name="smoke-needs-attention-$(date +%s)-$$"
+needs_workspace="$TMP_DIR/needs-attention"
+mkdir -p "$needs_workspace/logs" "$needs_workspace/output" "$needs_workspace/snippets-target" "$needs_workspace/conf-target" "$needs_workspace/error-target"
+
+before_runs_needs="$TMP_DIR/before-runs-needs.txt"
+after_runs_needs="$TMP_DIR/after-runs-needs.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_needs"
+
+if ! "$ROOT_DIR/install-interactive.sh" \
+  --deployment-name "$needs_name" \
+  --base-domain smoke.example.com \
+  --domain-mode flat-siblings \
+  --platform plain-nginx \
+  --tls-cert /tmp/fake-cert.pem \
+  --tls-key /tmp/fake-key.pem \
+  --input-mode advanced \
+  --error-root "$needs_workspace/error-target" \
+  --log-dir "$needs_workspace/logs" \
+  --output-dir "$needs_workspace/output" \
+  --snippets-target "$needs_workspace/snippets-target" \
+  --vhost-target "$needs_workspace/conf-target" \
+  --execute-apply \
+  --run-nginx-test \
+  --nginx-test-cmd 'false' \
+  --yes \
+  >/dev/null 2>"$TMP_DIR/needs.stderr"; then
+  echo "[FAIL] needs-attention smoke run unexpectedly exited non-zero" >&2
+  cat "$TMP_DIR/needs.stderr" >&2
+  exit 1
+fi
+
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_runs_needs"
+NEEDS_RUN_DIR="$(comm -13 "$before_runs_needs" "$after_runs_needs" | tail -n 1)"
+if [[ -z "$NEEDS_RUN_DIR" || ! -d "$NEEDS_RUN_DIR" ]]; then
+  echo "[FAIL] needs-attention smoke run did not create a new run directory" >&2
+  exit 1
+fi
+register_new_run_dir "$NEEDS_RUN_DIR"
+
+needs_state_json="$NEEDS_RUN_DIR/state.json"
+needs_summary_output="$needs_workspace/output/INSTALLER-SUMMARY.json"
+needs_apply_result_json="$needs_workspace/output/APPLY-RESULT.json"
+python3 - "$needs_state_json" "$SUMMARY_PRIMARY" "$needs_summary_output" "$needs_apply_result_json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+summary_primary_path = Path(sys.argv[2])
+summary_output_path = Path(sys.argv[3])
+apply_result_path = Path(sys.argv[4])
+
+state = json.loads(state_path.read_text(encoding="utf-8"))
+summary_primary = json.loads(summary_primary_path.read_text(encoding="utf-8"))
+summary_output = json.loads(summary_output_path.read_text(encoding="utf-8"))
+apply_result = json.loads(apply_result_path.read_text(encoding="utf-8"))
+journal = [json.loads(line) for line in (state_path.parent / "journal.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+
+assert state["checkpoint"] == "completed", state
+assert state["status"]["apply_execute"] == "needs-attention", state
+assert state["status"]["final"] == "needs-attention", state
+assert state["note"] == "installer completed status=needs-attention", state
+assert summary_primary["status"]["apply_execute"] == "needs-attention", summary_primary
+assert summary_primary["status"]["final"] == "needs-attention", summary_primary
+assert summary_primary["status"]["exit_code"] == 0, summary_primary
+assert summary_output["status"]["apply_execute"] == "needs-attention", summary_output
+assert summary_output["status"]["final"] == "needs-attention", summary_output
+assert apply_result["mode"] == "execute", apply_result
+assert apply_result["nginx_test"]["requested"] is True, apply_result
+assert apply_result["nginx_test"]["status"] == "failed", apply_result
+assert apply_result["recovery"]["installer_status"] == "needs-attention", apply_result
+assert apply_result["recovery"]["resume_strategy"] == "manual-recovery-first", apply_result
+assert apply_result["recovery"]["operator_action"] == "rollback-or-fix", apply_result
+assert journal[-2]["event"] == "run.complete", journal
+assert journal[-2]["status"] == "needs-attention", journal
+assert journal[-1]["event"] == "run.exit", journal
+assert journal[-1]["status"] == "needs-attention", journal
+assert journal[-1]["message"] == "exit_code=0", journal
+PY
+
+before_runs_resume_refusal="$TMP_DIR/before-runs-resume-refusal.txt"
+after_runs_resume_refusal="$TMP_DIR/after-runs-resume-refusal.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_resume_refusal"
+
+if "$ROOT_DIR/install-interactive.sh" \
+  --resume "$(basename "$NEEDS_RUN_DIR")" \
+  --execute-apply \
+  --yes \
+  >/dev/null 2>"$TMP_DIR/resume-refusal.stderr"; then
+  echo "[FAIL] inspection-first resume refusal unexpectedly succeeded" >&2
+  exit 1
+fi
+
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_runs_resume_refusal"
+if [[ -n "$(comm -13 "$before_runs_resume_refusal" "$after_runs_resume_refusal")" ]]; then
+  echo "[FAIL] inspection-first resume refusal unexpectedly created a new run directory" >&2
+  exit 1
+fi
+if ! grep -q '不允许直接执行真实 apply' "$TMP_DIR/resume-refusal.stderr"; then
+  echo "[FAIL] inspection-first resume refusal message not found" >&2
+  cat "$TMP_DIR/resume-refusal.stderr" >&2
+  exit 1
+fi
+if grep -q -- '--deployment-name' "$TMP_DIR/resume-refusal.stderr"; then
+  echo "[FAIL] inspection-first resume refusal regressed to new-run validation error" >&2
+  cat "$TMP_DIR/resume-refusal.stderr" >&2
+  exit 1
+fi
+
+generator_fail_name="smoke-generator-fail-$(date +%s)-$$"
+generator_fail_workspace="$TMP_DIR/generator-fail"
+mkdir -p "$generator_fail_workspace/logs" "$generator_fail_workspace/output" "$generator_fail_workspace/snippets-target" "$generator_fail_workspace/conf-target" "$generator_fail_workspace/error-target"
+
+before_runs_generator_fail="$TMP_DIR/before-runs-generator-fail.txt"
+after_runs_generator_fail="$TMP_DIR/after-runs-generator-fail.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_generator_fail"
+
+set +e
+"$ROOT_DIR/install-interactive.sh" \
+  --deployment-name "$generator_fail_name" \
+  --base-domain invalidnodot \
+  --domain-mode flat-siblings \
+  --platform plain-nginx \
+  --tls-cert /tmp/fake-cert.pem \
+  --tls-key /tmp/fake-key.pem \
+  --input-mode advanced \
+  --error-root "$generator_fail_workspace/error-target" \
+  --log-dir "$generator_fail_workspace/logs" \
+  --output-dir "$generator_fail_workspace/output" \
+  --snippets-target "$generator_fail_workspace/snippets-target" \
+  --vhost-target "$generator_fail_workspace/conf-target" \
+  --yes \
+  >/dev/null 2>"$TMP_DIR/generator-fail.stderr"
+generator_fail_rc=$?
+set -e
+if [[ "$generator_fail_rc" == "0" ]]; then
+  echo "[FAIL] generator failure smoke run unexpectedly succeeded" >&2
+  exit 1
+fi
+if [[ "$generator_fail_rc" != "1" ]]; then
+  echo "[FAIL] generator failure smoke run returned unexpected rc: $generator_fail_rc" >&2
+  cat "$TMP_DIR/generator-fail.stderr" >&2
+  exit 1
+fi
+
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_runs_generator_fail"
+GENERATOR_FAIL_RUN_DIR="$(comm -13 "$before_runs_generator_fail" "$after_runs_generator_fail" | tail -n 1)"
+if [[ -z "$GENERATOR_FAIL_RUN_DIR" || ! -d "$GENERATOR_FAIL_RUN_DIR" ]]; then
+  echo "[FAIL] generator failure smoke run did not create a new run directory" >&2
+  exit 1
+fi
+register_new_run_dir "$GENERATOR_FAIL_RUN_DIR"
+if ! grep -q 'flat-siblings mode requires BASE_DOMAIN to contain at least one dot' "$TMP_DIR/generator-fail.stderr"; then
+  echo "[FAIL] generator failure reason not found in stderr" >&2
+  cat "$TMP_DIR/generator-fail.stderr" >&2
+  exit 1
+fi
+
+generator_fail_state_json="$GENERATOR_FAIL_RUN_DIR/state.json"
+python3 - "$generator_fail_state_json" "$SUMMARY_PRIMARY" "$generator_fail_rc" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+summary_primary_path = Path(sys.argv[2])
+expected_rc = int(sys.argv[3])
+
+state = json.loads(state_path.read_text(encoding="utf-8"))
+summary_primary = json.loads(summary_primary_path.read_text(encoding="utf-8"))
+journal = [json.loads(line) for line in (state_path.parent / "journal.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+
+assert state["status"]["generator"] == "failed", state
+assert state["status"]["final"] == "failed", state
+assert state["checkpoint"] == "generator-running", state
+assert state["note"] == "installer_on_exit", state
+assert summary_primary["status"]["generator"] == "failed", summary_primary
+assert summary_primary["status"]["final"] == "failed", summary_primary
+assert summary_primary["status"]["exit_code"] == expected_rc, summary_primary
+assert journal[-1]["event"] == "run.exit", journal
+assert journal[-1]["status"] == "failed", journal
+assert journal[-1]["message"] == f"exit_code={expected_rc}", journal
 PY
 
 echo "[PASS] installer smoke regression"
