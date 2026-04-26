@@ -63,6 +63,19 @@ assert_not_contains() {
   fi
 }
 
+extract_doctor_next_step_section() {
+  python3 -c '
+import sys
+text = sys.stdin.read()
+marker = "[doctor] 下一步建议"
+idx = text.find(marker)
+if idx == -1:
+    sys.stdout.write(text)
+else:
+    sys.stdout.write(text[idx:])
+'
+}
+
 bool_01_to_python_bool_text() {
   local value="$1"
   if [[ "$value" == "1" ]]; then
@@ -707,6 +720,30 @@ assert_contains "$doctor_post_rollback_semantic_drift_output" "- current_run_pri
 assert_contains "$doctor_post_rollback_semantic_drift_output" "- current_run_priority_note: 当前 run 已产出 rollback 结果；在 post-rollback-inspection 下应先看这一份。" "post rollback semantic drift current summary inherits strategy-specific note"
 assert_not_contains "$doctor_post_rollback_semantic_drift_output" "$WORKDIR/artifacts/fixture-post-rollback-inspection/REPAIR-RESULT.json [generic-artifact]" "post rollback semantic drift no longer lets generic repair artifact steal current priority"
 
+python3 - "$WORKDIR/artifacts/fixture-post-rollback-inspection/REPAIR-RESULT.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['final_status'] = 'blocked'
+obj['next_step'] = '【DRIFT-REPAIR】repair companion 抢到了建议位。'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_post_rollback_suggestion_drift_output="$(state_doctor "fixture-post-rollback-inspection")"
+doctor_post_rollback_suggestion_drift_next_step="$(printf '%s' "$doctor_post_rollback_suggestion_drift_output" | extract_doctor_next_step_section)"
+assert_contains "$doctor_post_rollback_suggestion_drift_next_step" "已执行 selective rollback；建议先做现场复查，再决定是否重新 dry-run / apply。" "post rollback suggestion drift still keeps rollback-first next step"
+assert_not_contains "$doctor_post_rollback_suggestion_drift_next_step" "【DRIFT-REPAIR】repair companion 抢到了建议位。" "post rollback suggestion drift no longer lets repair companion steal next step"
+
+python3 - "$TEMPLATE_DIR/artifacts/fixture-post-rollback-inspection/REPAIR-RESULT.json" "$WORKDIR/artifacts/fixture-post-rollback-inspection/REPAIR-RESULT.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+
 doctor_post_repair_output="$(state_doctor "fixture-post-repair-verification")"
 assert_contains "$doctor_post_repair_output" "- final_status: $POST_REPAIR_FINAL_STATUS" "post repair doctor repair final status stays consistent with resume context"
 assert_contains "$doctor_post_repair_output" "- execution.nginx_test_rerun_status: $POST_REPAIR_RERUN_STATUS" "post repair doctor rerun status stays consistent with resume context"
@@ -735,6 +772,30 @@ assert_contains "$doctor_post_repair_semantic_drift_output" "- current_run_prior
 assert_contains "$doctor_post_repair_semantic_drift_output" "- current_run_priority_note: 当前 run 已产出 repair 复查结果；在 post-repair-verification 下应先看这一份。" "post repair semantic drift current summary inherits strategy-specific note"
 assert_not_contains "$doctor_post_repair_semantic_drift_output" "$WORKDIR/artifacts/fixture-post-repair-verification/APPLY-RESULT.json [generic-artifact]" "post repair semantic drift no longer lets generic apply artifact steal current priority"
 
+python3 - "$WORKDIR/artifacts/fixture-post-repair-verification/ROLLBACK-RESULT.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['final_status'] = 'blocked'
+obj['next_step'] = '【DRIFT-ROLLBACK】rollback companion 抢到了建议位。'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_post_repair_suggestion_drift_output="$(state_doctor "fixture-post-repair-verification")"
+doctor_post_repair_suggestion_drift_next_step="$(printf '%s' "$doctor_post_repair_suggestion_drift_output" | extract_doctor_next_step_section)"
+assert_contains "$doctor_post_repair_suggestion_drift_next_step" "已完成 repair 复查且 nginx -t 通过；建议人工确认现场后，再决定是否继续后续操作。" "post repair suggestion drift still keeps repair-first next step"
+assert_not_contains "$doctor_post_repair_suggestion_drift_next_step" "【DRIFT-ROLLBACK】rollback companion 抢到了建议位。" "post repair suggestion drift no longer lets rollback companion steal next step"
+
+python3 - "$TEMPLATE_DIR/artifacts/fixture-post-repair-verification/ROLLBACK-RESULT.json" "$WORKDIR/artifacts/fixture-post-repair-verification/ROLLBACK-RESULT.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+
 python3 - "$TEMPLATE_DIR/runs/fixture-post-repair-verification/state.json" "$WORKDIR/runs/fixture-post-repair-verification/state.json" "$WORKDIR" <<'PY'
 import sys
 from pathlib import Path
@@ -759,7 +820,7 @@ assert_contains "$doctor_inspect_after_apply_output" "- recovery.resume_strategy
 assert_contains "$doctor_inspect_after_apply_output" "- recovery.resume_recommended: $INSPECT_AFTER_APPLY_RESUME_RECOMMENDED_BOOL" "inspect-after-apply attention doctor resume_recommended stays consistent with resume context"
 assert_contains "$doctor_inspect_after_apply_output" "- recovery.operator_action: manual-review" "inspect-after-apply attention doctor prints operator action"
 assert_contains "$doctor_inspect_after_apply_output" "- path: $WORKDIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json" "inspect-after-apply attention doctor still prints repair result path"
-assert_contains "$doctor_inspect_after_apply_output" "当前处于 inspect-after-apply-attention；建议先跑 ./install-interactive.sh --doctor fixture-inspect-after-apply-attention 复核当前 run 与 companion result，再决定是否只做 dry-run、repair、rollback 或人工处理。" "inspect-after-apply attention doctor keeps conservative fallback suggestion"
+assert_contains "$doctor_inspect_after_apply_output" "apply 已明确要求先人工复核；建议先检查当前 run 的 apply result 与 recovery 字段，再决定是否只做 dry-run 或人工处理。 当前不建议把 resume 当作默认下一步。" "inspect-after-apply attention doctor now prefers apply-result next step over conservative fallback"
 
 python3 - "$WORKDIR/runs/fixture-inspect-after-apply-attention/state.json" <<'PY'
 import json
@@ -776,6 +837,30 @@ assert_contains "$doctor_inspect_after_apply_semantic_drift_output" "- current_r
 assert_contains "$doctor_inspect_after_apply_semantic_drift_output" "- current_run_priority_artifact: $WORKDIR/artifacts/fixture-inspect-after-apply-attention/APPLY-RESULT.json [apply-result]" "inspect-after-apply semantic drift still prefers apply artifact for current run summary"
 assert_contains "$doctor_inspect_after_apply_semantic_drift_output" "- current_run_priority_note: 当前 run 已明确进入 inspect-after-apply-attention；应先看 apply result / recovery 字段，再决定后续动作。" "inspect-after-apply semantic drift current summary inherits strategy-specific note"
 assert_not_contains "$doctor_inspect_after_apply_semantic_drift_output" "$WORKDIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json [generic-artifact]" "inspect-after-apply semantic drift no longer lets generic repair artifact steal current priority"
+
+python3 - "$WORKDIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['final_status'] = 'needs-attention'
+obj['next_step'] = '【DRIFT-REPAIR】repair companion 抢到了建议位。'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_inspect_after_apply_suggestion_drift_output="$(state_doctor "fixture-inspect-after-apply-attention")"
+doctor_inspect_after_apply_suggestion_drift_next_step="$(printf '%s' "$doctor_inspect_after_apply_suggestion_drift_output" | extract_doctor_next_step_section)"
+assert_contains "$doctor_inspect_after_apply_suggestion_drift_next_step" "apply 已明确要求先人工复核；建议先检查当前 run 的 apply result 与 recovery 字段，再决定是否只做 dry-run 或人工处理。 当前不建议把 resume 当作默认下一步。" "inspect-after-apply suggestion drift still keeps apply-first next step"
+assert_not_contains "$doctor_inspect_after_apply_suggestion_drift_next_step" "【DRIFT-REPAIR】repair companion 抢到了建议位。" "inspect-after-apply suggestion drift no longer lets repair companion steal next step"
+
+python3 - "$TEMPLATE_DIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json" "$WORKDIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
 
 python3 - "$TEMPLATE_DIR/runs/fixture-inspect-after-apply-attention/state.json" "$WORKDIR/runs/fixture-inspect-after-apply-attention/state.json" "$WORKDIR" <<'PY'
 import sys

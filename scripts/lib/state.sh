@@ -1159,6 +1159,19 @@ def choose_resume_strategy_priority_artifact(state: dict, lineage: dict):
     return None
 
 
+def choose_resume_strategy_suggestion_focus(lineage: dict):
+    lineage = ensure_dict(lineage)
+    resume_strategy = lineage.get("resume_strategy", "") or ""
+
+    if resume_strategy == "inspect-after-apply-attention":
+        return "apply"
+    if resume_strategy in {"repair-review-first", "post-repair-verification"}:
+        return "repair"
+    if resume_strategy == "post-rollback-inspection":
+        return "rollback"
+    return ""
+
+
 def maybe_prefer_strategy_priority_for_current_run(state: dict, lineage: dict, current_run_alerts, current_run_priority):
     state = ensure_dict(state)
     lineage = ensure_dict(lineage)
@@ -1587,10 +1600,11 @@ checkpoint = state.get("checkpoint", "")
 suggestion = None
 lineage = ensure_dict(state.get("lineage"))
 resume_strategy = lineage.get("resume_strategy", "") or ""
+suggestion_focus = choose_resume_strategy_suggestion_focus(lineage)
 repair_result_hint_path = first_existing_artifact(artifacts, "repair_result_json", "repair_result")
 rollback_result_hint_path = first_existing_artifact(artifacts, "rollback_result_json", "rollback_result")
 
-if apply_result:
+if apply_result and suggestion_focus in {"", "apply"}:
     apply_result = ensure_dict(apply_result)
     apply_final = apply_result.get("final_status", "")
     summary = ensure_dict(apply_result.get("summary"))
@@ -1621,6 +1635,8 @@ if apply_result:
             )
         else:
             suggestion = "真实 apply 已落盘，但尚未执行 nginx -t；建议先手工执行 nginx -t，再决定是否继续。"
+    elif operator_action == "manual-review":
+        suggestion = apply_result.get("next_step") or "apply 已明确要求先人工复核；建议先检查当前 run 的 apply result 与 recovery 字段，再决定是否继续。"
     elif status.get("apply_execute") == "success":
         suggestion = apply_result.get("next_step") or "真实 apply 已完成；建议人工确认后再决定是否 reload nginx。"
     elif status.get("apply_dry_run") == "success":
@@ -1629,7 +1645,7 @@ if apply_result:
     if suggestion and resume_recommended is False:
         suggestion += " 当前不建议把 resume 当作默认下一步。"
 
-if repair_result:
+if repair_result and suggestion_focus in {"", "repair"}:
     repair_result = ensure_dict(repair_result)
     repair_final = repair_result.get("final_status", "")
     repair_execution = ensure_dict(repair_result.get("execution"))
@@ -1640,10 +1656,10 @@ if repair_result:
         suggestion = repair_result.get("next_step") or "已存在 repair 结果且 nginx -t 重跑仍失败；建议优先查看 REPAIR-RESULT，再决定 selective rollback 还是人工修复。"
     elif repair_final in {"blocked", "needs-attention"}:
         suggestion = repair_result.get("next_step") or "已有 repair 结果；建议先按 repair 结论决定 rollback 还是人工修复。"
-elif resume_strategy == "post-repair-verification" and repair_result_hint_path:
+elif suggestion_focus == "repair" and resume_strategy == "post-repair-verification" and repair_result_hint_path:
     suggestion = "当前处于 post-repair-verification，但结构化 repair 结果缺失或不可读；建议先查看当前 run 的 repair 结果文件，再确认 nginx -t 复查结论。"
 
-if rollback_result:
+if rollback_result and suggestion_focus in {"", "rollback"}:
     rollback_result = ensure_dict(rollback_result)
     rollback_final = rollback_result.get("final_status", "")
     rollback_mode = rollback_result.get("mode", "")
@@ -1654,7 +1670,7 @@ if rollback_result:
         suggestion = rollback_result.get("next_step") or "已存在 rollback 结果；建议先处理 rollback 结果里提示的阻断项或待确认项。"
     elif rollback_flags.get("execute"):
         suggestion = rollback_result.get("next_step") or "已存在 rollback 执行结果；建议先按 rollback 结果复核当前系统状态。"
-elif resume_strategy == "post-rollback-inspection" and rollback_result_hint_path:
+elif suggestion_focus == "rollback" and resume_strategy == "post-rollback-inspection" and rollback_result_hint_path:
     suggestion = "当前处于 post-rollback-inspection，但结构化 rollback 结果缺失或不可读；建议先查看当前 run 的 rollback 结果文件，再确认现场状态后决定是否继续。"
 
 if suggestion is None:
