@@ -226,25 +226,33 @@
 
 ---
 
-### P0-3. 补最小真实 smoke test
+### P0-3. 已补最小真实 smoke test
 
-#### 目标
+#### 当前状态
 
-在 fixture/contract regression 之外，新增至少一条真实执行主路径的自动测试。
+这条已不再是未来任务。
 
-#### 最低建议覆盖
+当前仓库已具备并持续扩充：
 
-- 按 README/INSTALL 的非交互命令跑一次 installer
-- 断言：
-  - `checkpoint` 有推进
-  - `status.final != running`
-  - 关键产物存在
-  - summary 与 state 不自相矛盾
+- `tests/installer-smoke.sh`
 
-#### 验收标准
+且已覆盖的真实 CLI 主路径不再只停留在最小 happy path，而是至少包括：
 
-- 不再只靠 fixtures 判断 installer 是否“可能能跑”
-- 能尽早发现主路径炸裂 / 假成功 / checkpoint 卡死
+- README/INSTALL 风格的非交互真实执行成功路径
+- `--execute-apply --run-nginx-test --nginx-test-cmd 'false' --yes` 的 `needs-attention` 收口
+- inspection-first `--resume ... --execute-apply --yes` refusal
+- generator fail-fast / 非零退出样本
+- 普通 success-source 的正向 `resume + dry-run`
+- `--doctor` CLI 入口
+- inspection-first source run 的正向 review-first `resume + dry-run`
+
+#### 现在的重点
+
+这条的重点已经从“先补一个 smoke test”转成：
+
+- 是否继续补最值钱的新入口
+- 是否让 smoke 断言持续对齐实现真相源
+- 是否避免 fixture / smoke / docs / handoff 四层重新漂移
 
 ---
 
@@ -322,26 +330,27 @@
 
 ---
 
-### P1-4. 补最小 CI
+### P1-4. 已接入最小 CI
 
-#### 目标
+#### 当前状态
 
-让至少两类回归自动跑起来：
+这条同样已不再是未来任务。
 
-- contract regression
-- smoke test
+当前仓库已存在：
 
-#### 最低建议
+- `.github/workflows/installer-regressions.yml`
 
-- `.github/workflows/installer-regression.yml`
-- 跑：
-  - `bash tests/installer-contracts-regression.sh`
-  - 新增的 smoke/integration test
+并会自动执行：
 
-#### 验收标准
+- `bash tests/deploy-config-yaml-regression.sh`
+- `bash tests/installer-smoke.sh`
+- `bash tests/installer-contracts-regression.sh`
 
-- 每次提交 / PR 都有自动执行证据
-- 不再只靠人手工记得去跑
+#### 现在的重点
+
+- 保持 workflow 与本地推荐回归入口一致
+- 新增高价值 regression 时，优先判断是否纳入现有 workflow
+- 避免 roadmap / handoff / README 继续把已完成的 smoke / CI 写成未来 TODO
 
 ---
 
@@ -416,11 +425,11 @@
 
 1. 修非交互 happy path / 提前退出 / summary 假成功
 2. 统一 `status.*` 枚举
-3. 补最小真实 smoke test
+3. 继续扩最值钱的真实 smoke 入口，并保持断言与实现真相源对齐
 
 ### Phase 2：补工程护栏
 
-4. 补最小 CI
+4. 维护已接入 CI，与本地回归入口保持一致
 5. 用 Python 接管 deploy config 序列化
 
 ### Phase 3：拆 Bash 编排层
@@ -459,11 +468,11 @@
 ### Task 2（P0）
 统一状态枚举，先修 `status.preflight` 漂移
 
-### Task 3（P0）
-新增最小 smoke test：真实跑 README 非交互命令
+### Task 3（P1）
+继续扩最值钱的新 smoke 入口，并保持 smoke / contract / docs / handoff 口径同步
 
 ### Task 4（P1）
-加最小 CI，先跑 contract regression + smoke
+维护现有 CI workflow 与本地推荐回归入口一致
 
 ### Task 5（P1）
 替换 `write_deploy_config()`，改为 Python/PyYAML 序列化

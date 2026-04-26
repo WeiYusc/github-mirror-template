@@ -5,7 +5,7 @@
 > 分支：`weiyusc/exp/interactive-installer`
 > 远端：`origin`
 > handoff 时间：2026-04-22
-> 当前停点提交：`4bb1ef5 fix: allow resume before noninteractive validation`
+> 当前停点提交：`5a966c8 test: cover installer resume review-first and doctor smoke flows`
 
 ---
 
@@ -238,6 +238,7 @@
 ```bash
 git checkout weiyusc/exp/interactive-installer
 git pull --ff-only
+bash tests/installer-smoke.sh
 bash tests/installer-contracts-regression.sh
 ```
 
@@ -250,7 +251,7 @@ bash tests/installer-contracts-regression.sh
 5. `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
 6. `tests/fixtures/installer-contracts/README.md`
 
-如果回归是绿的，说明当前停点仍然适合作为下一轮基线。
+如果 smoke 与 contract regression 都是绿的，说明当前停点仍然适合作为下一轮基线。
 
 ---
 
@@ -262,29 +263,40 @@ bash tests/installer-contracts-regression.sh
 
 ### 第一优先级
 
-继续补**还没完全 fixture 化的 inspection-first 变体**，尤其是：
+先回到**control-plane correctness / happy path 可靠性**，尤其是：
 
-- `inspect-after-apply-attention` 的更细粒度样本
-- `operator_action` / `resume_recommended` 组合边界
-- source / current / ancestor 之间多层结果互相打架时的更细回归
+- 非交互 `preflight -> generator -> apply` 串通是否还存在脆弱点
+- 提前退出 / on-exit summary / `status.final` / `checkpoint` 是否还有互相打架的边角
+- `doctor` / `resume` 所依赖 run 的可信度是否已经足够稳
 
 ### 第二优先级
 
-继续补**消费层与 contract 层之间的最后一小段缝**，但仍坚持最小修复：
+继续补**最值钱、最贴近 operator 入口的真实 CLI smoke / integration**，但这条线现在已不再是空白：
 
-- 不做状态机大手术
-- 不做“为了文档更漂亮”式的大改
-- 只处理会误导实际 resume / doctor / operator 判断的缝
+- 当前已覆盖普通 success-source 的正向 `resume + dry-run`
+- 已覆盖 `--doctor` CLI
+- 已覆盖 inspection-first source run 的正向 review-first `resume + dry-run`
+- 已覆盖 execute `needs-attention`、inspection-first execute refusal、generator fail-fast
+
+所以下一步不再是“从 0 到 1 补 smoke”，而是：
+
+- 继续挑**最容易漂移**且**真正贴入口**的场景补回归
+- 让 smoke 断言持续对齐实现真相源，而不是沿用过期 fixture / 文案假设
+- 在补新 smoke 时，顺手检查 contract regression / fixture README / handoff 是否也要同步更新
 
 ### 第三优先级
 
-再考虑是否要做下一轮 phase roundup / 面向外部的整理，而不是现在继续抛光文风。
+维护已接入的 CI 护栏与文档停点，避免 roadmap / handoff 再把已完成的 smoke / CI 写成未来 TODO。
+
+### 第四优先级
+
+再考虑 YAML 安全序列化、控制面拆分、文档信息架构分层，而不是继续机械补 inspection-first 文案小变体。
 
 ---
 
 ## 9. 一句话停点结论
 
-> 到 `4bb1ef5` 为止，interactive installer 这条 inspection-first 线已经从“实现有这个意思”推进到“实现、回归、结果契约、状态模型、操作手册、fixture 说明、CLI 入口行为都基本讲同一种话”；如果现在停，这已经是一个干净、可恢复、可继续演化的阶段性停点。
+> 到 `5a966c8` 为止，interactive installer 这条线已经不只是把 inspection-first 的实现/契约/文档压齐，还把普通 success-source resume、inspection-first review-first resume 与 `--doctor` CLI 入口一起钉进了真实 smoke；如果现在停，这已经是一个更稳、更接近 operator 真实入口、且可继续演化的阶段性停点。
 
 ---
 
