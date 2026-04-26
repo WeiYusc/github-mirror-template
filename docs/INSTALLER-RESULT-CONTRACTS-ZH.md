@@ -318,9 +318,11 @@
 
 其中：
 
+- `config` 应稳定指向 **当前 run 的 deploy config 快照**（优先是 `scripts/generated/runs/<run_id>/deploy.generated.yaml`）
+- `preflight_markdown` / `preflight_json` 应稳定指向 **当前 run 的 preflight 快照**（优先是 `scripts/generated/runs/<run_id>/preflight.generated.md|json`）
 - `summary_generated` 应稳定指向 **当前 run 的 generated summary 快照**（优先是 `scripts/generated/runs/<run_id>/INSTALLER-SUMMARY.generated.json`）
 - `summary_output` 是当前 output 目录下的 summary 镜像（通常为 `<output_dir>/INSTALLER-SUMMARY.json`）
-- 共享 `scripts/generated/INSTALLER-SUMMARY.generated.json` 仅代表 latest summary 视图，可供人工快速查看最近一轮，但不应被当作历史 run 的唯一真相源
+- 共享 `scripts/generated/deploy.generated.yaml`、`scripts/generated/preflight.generated.*`、`scripts/generated/INSTALLER-SUMMARY.generated.json` 都只代表 latest 视图，可供人工快速查看最近一轮，但不应被当作历史 run 的唯一真相源
 
 ### 6.3 当前主要消费方
 

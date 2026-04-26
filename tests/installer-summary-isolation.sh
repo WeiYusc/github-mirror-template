@@ -84,24 +84,66 @@ rc2 = int(sys.argv[3])
 
 sum1 = Path(state1['artifacts']['summary_generated'])
 sum2 = Path(state2['artifacts']['summary_generated'])
+pre1_md = Path(state1['artifacts']['preflight_markdown'])
+pre1_json = Path(state1['artifacts']['preflight_json'])
+pre2_md = Path(state2['artifacts']['preflight_markdown'])
+pre2_json = Path(state2['artifacts']['preflight_json'])
+cfg1 = Path(state1['artifacts']['config'])
+cfg2 = Path(state2['artifacts']['config'])
 assert sum1.exists(), sum1
 assert sum2.exists(), sum2
+assert pre1_md.exists(), pre1_md
+assert pre1_json.exists(), pre1_json
+assert pre2_md.exists(), pre2_md
+assert pre2_json.exists(), pre2_json
+assert cfg1.exists(), cfg1
+assert cfg2.exists(), cfg2
 assert sum1 != sum2, (sum1, sum2)
+assert pre1_md != pre2_md, (pre1_md, pre2_md)
+assert pre1_json != pre2_json, (pre1_json, pre2_json)
+assert cfg1 != cfg2, (cfg1, cfg2)
 assert str(sum1).endswith('/INSTALLER-SUMMARY.generated.json'), sum1
 assert str(sum2).endswith('/INSTALLER-SUMMARY.generated.json'), sum2
+assert str(pre1_md).endswith('/preflight.generated.md'), pre1_md
+assert str(pre1_json).endswith('/preflight.generated.json'), pre1_json
+assert str(cfg1).endswith('/deploy.generated.yaml'), cfg1
 assert '/runs/' in str(sum1), sum1
 assert '/runs/' in str(sum2), sum2
+assert '/runs/' in str(pre1_md), pre1_md
+assert '/runs/' in str(pre1_json), pre1_json
+assert '/runs/' in str(pre2_md), pre2_md
+assert '/runs/' in str(pre2_json), pre2_json
+assert '/runs/' in str(cfg1), cfg1
+assert '/runs/' in str(cfg2), cfg2
 
 payload1 = json.loads(sum1.read_text(encoding='utf-8'))
 payload2 = json.loads(sum2.read_text(encoding='utf-8'))
+pre1 = json.loads(pre1_json.read_text(encoding='utf-8'))
+pre2 = json.loads(pre2_json.read_text(encoding='utf-8'))
+cfg1_text = cfg1.read_text(encoding='utf-8')
+cfg2_text = cfg2.read_text(encoding='utf-8')
 
 assert payload1['deployment_name'] == 'summary-isolation-success', payload1
 assert payload1['status']['final'] == 'success', payload1
 assert payload2['deployment_name'] == 'summary-isolation-fail', payload2
 assert payload2['status']['final'] == 'failed', payload2
 assert payload2['status']['exit_code'] == rc2, payload2
+assert pre1['context']['deployment_name'] == 'summary-isolation-success', pre1
+assert pre2['context']['deployment_name'] == 'summary-isolation-fail', pre2
+assert pre1['status'] in {'ok', 'warn', 'blocked'}, pre1
+assert pre2['status'] in {'warn', 'blocked', 'ok'}, pre2
+assert pre1['context']['base_domain'] == 'smoke.example.com', pre1
+assert pre2['context']['base_domain'] == 'invalidnodot', pre2
+assert 'deployment_name: summary-isolation-success' in cfg1_text, cfg1_text
+assert 'deployment_name: summary-isolation-fail' in cfg2_text, cfg2_text
 
 assert state1['artifacts']['summary_generated'] == str(sum1), state1
 assert state2['artifacts']['summary_generated'] == str(sum2), state2
+assert state1['artifacts']['preflight_markdown'] == str(pre1_md), state1
+assert state1['artifacts']['preflight_json'] == str(pre1_json), state1
+assert state2['artifacts']['preflight_markdown'] == str(pre2_md), state2
+assert state2['artifacts']['preflight_json'] == str(pre2_json), state2
+assert state1['artifacts']['config'] == str(cfg1), state1
+assert state2['artifacts']['config'] == str(cfg2), state2
 print('[PASS] installer summary isolation regression')
 PY

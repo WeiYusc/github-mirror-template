@@ -322,6 +322,9 @@ installer_prepare_output_artifact_paths() {
   fi
 
   SUMMARY_JSON_RUN_COPY="$STATE_DIR/INSTALLER-SUMMARY.generated.json"
+  PREFLIGHT_REPORT_MD_RUN_COPY="$STATE_DIR/preflight.generated.md"
+  PREFLIGHT_REPORT_JSON_RUN_COPY="$STATE_DIR/preflight.generated.json"
+  CONFIG_PATH_RUN_COPY="$STATE_DIR/deploy.generated.yaml"
   APPLY_PLAN_PATH="$OUTPUT_DIR_ABS/APPLY-PLAN.md"
   APPLY_PLAN_JSON_PATH="$OUTPUT_DIR_ABS/APPLY-PLAN.json"
   APPLY_RESULT_PATH="$OUTPUT_DIR_ABS/APPLY-RESULT.md"
@@ -335,12 +338,15 @@ installer_run_or_reuse_preflight() {
     INSTALLER_PREFLIGHT_STATUS="$RESUME_SOURCE_PREFLIGHT_STATUS"
     if [[ -n "$RESUME_SOURCE_PREFLIGHT_REPORT_MD" ]]; then
       PREFLIGHT_REPORT_MD="$RESUME_SOURCE_PREFLIGHT_REPORT_MD"
+      PREFLIGHT_REPORT_MD_RUN_COPY="$RESUME_SOURCE_PREFLIGHT_REPORT_MD"
     fi
     if [[ -n "$RESUME_SOURCE_PREFLIGHT_REPORT_JSON" ]]; then
       PREFLIGHT_REPORT_JSON="$RESUME_SOURCE_PREFLIGHT_REPORT_JSON"
+      PREFLIGHT_REPORT_JSON_RUN_COPY="$RESUME_SOURCE_PREFLIGHT_REPORT_JSON"
     fi
     if [[ -n "$RESUME_SOURCE_CONFIG_PATH" ]]; then
       CONFIG_PATH="$RESUME_SOURCE_CONFIG_PATH"
+      CONFIG_PATH_RUN_COPY="$RESUME_SOURCE_CONFIG_PATH"
     fi
     state_mark_checkpoint "preflight-reused" "resume reused preflight artifacts"
     state_append_journal "preflight.reused" "ok" "resume reused preflight artifacts" "$PREFLIGHT_REPORT_JSON"
@@ -361,6 +367,12 @@ installer_run_or_reuse_preflight() {
   mkdir -p "$GENERATED_DIR"
   write_preflight_report_markdown "$PREFLIGHT_REPORT_MD"
   write_preflight_report_json "$PREFLIGHT_REPORT_JSON"
+  if [[ -n "${PREFLIGHT_REPORT_MD_RUN_COPY:-}" ]]; then
+    write_preflight_report_markdown "$PREFLIGHT_REPORT_MD_RUN_COPY"
+  fi
+  if [[ -n "${PREFLIGHT_REPORT_JSON_RUN_COPY:-}" ]]; then
+    write_preflight_report_json "$PREFLIGHT_REPORT_JSON_RUN_COPY"
+  fi
   state_append_journal "preflight.complete" "$INSTALLER_PREFLIGHT_STATUS" "preflight finished" "$PREFLIGHT_REPORT_JSON"
 
   ui_section "已写出 preflight 报告"
@@ -383,6 +395,9 @@ installer_run_or_reuse_generator() {
   fi
 
   write_deploy_config "$CONFIG_PATH"
+  if [[ -n "${CONFIG_PATH_RUN_COPY:-}" ]]; then
+    write_deploy_config "$CONFIG_PATH_RUN_COPY"
+  fi
   state_mark_checkpoint "config-written" "deploy config written"
   state_append_journal "config.written" "ok" "deploy config generated" "$CONFIG_PATH"
 
@@ -526,10 +541,13 @@ STATE_JOURNAL_PATH=""
 STATE_INPUTS_PATH=""
 PREFLIGHT_REPORT_MD="$GENERATED_DIR/preflight.generated.md"
 PREFLIGHT_REPORT_JSON="$GENERATED_DIR/preflight.generated.json"
+PREFLIGHT_REPORT_MD_RUN_COPY=""
+PREFLIGHT_REPORT_JSON_RUN_COPY=""
 SUMMARY_JSON_PRIMARY="$GENERATED_DIR/INSTALLER-SUMMARY.generated.json"
 SUMMARY_JSON_RUN_COPY=""
 SUMMARY_JSON_SECONDARY=""
 CONFIG_PATH="$GENERATED_DIR/deploy.generated.yaml"
+CONFIG_PATH_RUN_COPY=""
 OUTPUT_DIR_ABS=""
 APPLY_PLAN_PATH=""
 APPLY_PLAN_JSON_PATH=""
@@ -652,6 +670,9 @@ fi
 
 state_prepare_run "$INSTALLER_MODE"
 SUMMARY_JSON_RUN_COPY="$STATE_DIR/INSTALLER-SUMMARY.generated.json"
+PREFLIGHT_REPORT_MD_RUN_COPY="$STATE_DIR/preflight.generated.md"
+PREFLIGHT_REPORT_JSON_RUN_COPY="$STATE_DIR/preflight.generated.json"
+CONFIG_PATH_RUN_COPY="$STATE_DIR/deploy.generated.yaml"
 INSTALLER_RUNTIME_READY="1"
 export RUNS_ROOT_DIR RUN_ID STATE_DIR STATE_JSON_PATH STATE_JOURNAL_PATH STATE_INPUTS_PATH
 export INSTALLER_MODE INSTALLER_CHECKPOINT RESUME_RUN_ID RESUME_STRATEGY RESUME_STRATEGY_REASON

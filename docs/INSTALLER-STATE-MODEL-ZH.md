@@ -246,6 +246,8 @@ scripts/generated/runs/<run_id>/
 
 其中：
 
+- `config` 应优先指向 **当前 run 自己的 deploy config 快照**（通常是 `scripts/generated/runs/<run_id>/deploy.generated.yaml`）；共享 `scripts/generated/deploy.generated.yaml` 仅代表 latest config 视图
+- `preflight_markdown` / `preflight_json` 应优先指向 **当前 run 自己的 preflight 快照**（通常是 `scripts/generated/runs/<run_id>/preflight.generated.md|json`）；共享 `scripts/generated/preflight.generated.*` 仅代表 latest preflight 视图
 - `summary_generated` 应视为 **当前 run 自己的 generated summary 快照路径**，优先指向 `scripts/generated/runs/<run_id>/INSTALLER-SUMMARY.generated.json`
 - `summary_output` 应视为 **当前 output_dir 下的人机共用 summary**（通常是 `<output_dir>/INSTALLER-SUMMARY.json`）
 - 共享 `scripts/generated/INSTALLER-SUMMARY.generated.json` 仅表示最近一轮 installer 的 latest summary，不应用作历史 run 的稳定追溯锚点
