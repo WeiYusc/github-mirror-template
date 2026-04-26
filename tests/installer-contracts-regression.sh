@@ -182,6 +182,34 @@ raise SystemExit(
 PY
 }
 
+assert_json_value_equals() {
+  local path="$1"
+  local dotted="$2"
+  local expected="$3"
+  local label="$4"
+  python3 - "$path" "$dotted" "$expected" "$label" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+dotted = sys.argv[2]
+expected = sys.argv[3]
+label = sys.argv[4]
+obj = json.loads(path.read_text(encoding="utf-8"))
+value = obj
+for part in dotted.split('.'):
+    if not isinstance(value, dict) or part not in value:
+        raise SystemExit(f"[FAIL] {label}: missing path {dotted}")
+    value = value[part]
+value_as_text = str(value)
+if value_as_text != expected:
+    raise SystemExit(
+        f"[FAIL] {label}: expected {dotted} == {expected!r}, got {value_as_text!r}"
+    )
+PY
+}
+
 assert_json_value_in_contract() {
   local path="$1"
   local dotted="$2"
@@ -300,6 +328,22 @@ check_contract_value_smoke_matrix() {
   assert_json_value_type "$artifact_root/ROLLBACK-RESULT.json" "summary.deleted" int "$run_id rollback result summary.deleted int"
 }
 
+check_per_run_artifact_snapshot_contract() {
+  local run_id="$1"
+  local run_root="$WORKDIR/runs/$run_id"
+  local artifact_root="$WORKDIR/artifacts/$run_id"
+
+  assert_json_value_equals "$run_root/state.json" "artifacts.config" "$artifact_root/deploy.generated.yaml" "$run_id state config points to run-scoped snapshot"
+  assert_json_value_equals "$run_root/state.json" "artifacts.preflight_markdown" "$artifact_root/preflight.generated.md" "$run_id state preflight markdown points to run-scoped snapshot"
+  assert_json_value_equals "$run_root/state.json" "artifacts.preflight_json" "$artifact_root/preflight.generated.json" "$run_id state preflight json points to run-scoped snapshot"
+  assert_json_value_equals "$run_root/state.json" "artifacts.summary_generated" "$artifact_root/INSTALLER-SUMMARY.generated.json" "$run_id state summary_generated points to run-scoped snapshot"
+
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.config" "$artifact_root/deploy.generated.yaml" "$run_id summary config points to run-scoped snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.preflight_markdown" "$artifact_root/preflight.generated.md" "$run_id summary preflight markdown points to run-scoped snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.preflight_json" "$artifact_root/preflight.generated.json" "$run_id summary preflight json points to run-scoped snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.summary_generated" "$artifact_root/INSTALLER-SUMMARY.generated.json" "$run_id summary summary_generated points to run-scoped snapshot"
+}
+
 materialize_fixtures
 
 install_help_output="$(bash "$ROOT_DIR/install-interactive.sh" --help)"
@@ -350,6 +394,13 @@ check_contract_value_smoke_matrix "fixture-current-apply-attention"
 check_contract_value_smoke_matrix "fixture-inspect-after-apply-attention"
 check_contract_value_smoke_matrix "fixture-post-rollback-inspection"
 check_contract_value_smoke_matrix "fixture-post-repair-verification"
+
+check_per_run_artifact_snapshot_contract "fixture-legacy-fallback"
+check_per_run_artifact_snapshot_contract "fixture-resumed-repair-review"
+check_per_run_artifact_snapshot_contract "fixture-current-apply-attention"
+check_per_run_artifact_snapshot_contract "fixture-inspect-after-apply-attention"
+check_per_run_artifact_snapshot_contract "fixture-post-rollback-inspection"
+check_per_run_artifact_snapshot_contract "fixture-post-repair-verification"
 
 state_load_resume_context "fixture-legacy-fallback"
 assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "fixture-legacy-fallback" "legacy fallback repair owner run id"
