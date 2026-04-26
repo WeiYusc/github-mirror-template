@@ -316,6 +316,12 @@
 - `apply_result_exists`
 - `apply_result_json_exists`
 
+其中：
+
+- `summary_generated` 应稳定指向 **当前 run 的 generated summary 快照**（优先是 `scripts/generated/runs/<run_id>/INSTALLER-SUMMARY.generated.json`）
+- `summary_output` 是当前 output 目录下的 summary 镜像（通常为 `<output_dir>/INSTALLER-SUMMARY.json`）
+- 共享 `scripts/generated/INSTALLER-SUMMARY.generated.json` 仅代表 latest summary 视图，可供人工快速查看最近一轮，但不应被当作历史 run 的唯一真相源
+
 ### 6.3 当前主要消费方
 
 - 人工排查

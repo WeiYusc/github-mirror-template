@@ -122,7 +122,8 @@ scripts/generated/runs/<run_id>/
 
 - `scripts/generated/preflight.generated.md`
 - `scripts/generated/preflight.generated.json`
-- `scripts/generated/INSTALLER-SUMMARY.generated.json`
+- `scripts/generated/INSTALLER-SUMMARY.generated.json`（共享 latest summary，表示最近一轮主流程摘要，不保证绑定某个历史 run）
+- `scripts/generated/runs/<run_id>/INSTALLER-SUMMARY.generated.json`（当前 run 的不可变 summary 快照）
 - `<output_dir>/APPLY-PLAN.md`
 - `<output_dir>/APPLY-PLAN.json`
 - `<output_dir>/APPLY-RESULT.md`
@@ -242,6 +243,12 @@ scripts/generated/runs/<run_id>/
 - `state_json`
 - `inputs_env`
 - `journal_jsonl`
+
+其中：
+
+- `summary_generated` 应视为 **当前 run 自己的 generated summary 快照路径**，优先指向 `scripts/generated/runs/<run_id>/INSTALLER-SUMMARY.generated.json`
+- `summary_output` 应视为 **当前 output_dir 下的人机共用 summary**（通常是 `<output_dir>/INSTALLER-SUMMARY.json`）
+- 共享 `scripts/generated/INSTALLER-SUMMARY.generated.json` 仅表示最近一轮 installer 的 latest summary，不应用作历史 run 的稳定追溯锚点
 
 ---
 
