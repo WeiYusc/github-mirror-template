@@ -719,6 +719,34 @@ assert_contains "$doctor_post_repair_output" "- execution.nginx_test_rerun_statu
 assert_contains "$doctor_post_repair_output" "已完成 repair 复查且 nginx -t 通过；建议人工确认现场后，再决定是否继续后续操作。" "post repair doctor prints repair next step"
 assert_contains "$doctor_post_repair_output" "[doctor] 下一步建议" "post repair doctor prints next step section"
 
+python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['status']['repair'] = ''
+obj['status']['final'] = 'needs-attention'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_post_repair_semantic_drift_output="$(state_doctor "fixture-post-repair-verification")"
+assert_contains "$doctor_post_repair_semantic_drift_output" "- current_run_alerts: final=needs-attention" "post repair semantic drift still shows current final alert"
+assert_contains "$doctor_post_repair_semantic_drift_output" "- current_run_priority_artifact: $WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json [repair-result]" "post repair semantic drift still prefers repair artifact for current run summary"
+assert_contains "$doctor_post_repair_semantic_drift_output" "- current_run_priority_note: 当前 run 已产出 repair 复查结果；在 post-repair-verification 下应先看这一份。" "post repair semantic drift current summary inherits strategy-specific note"
+assert_not_contains "$doctor_post_repair_semantic_drift_output" "$WORKDIR/artifacts/fixture-post-repair-verification/APPLY-RESULT.json [generic-artifact]" "post repair semantic drift no longer lets generic apply artifact steal current priority"
+
+python3 - "$TEMPLATE_DIR/runs/fixture-post-repair-verification/state.json" "$WORKDIR/runs/fixture-post-repair-verification/state.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+state_load_resume_context "fixture-post-repair-verification"
+POST_REPAIR_FINAL_STATUS="$RESUME_SOURCE_REPAIR_FINAL_STATUS"
+POST_REPAIR_RERUN_STATUS="$RESUME_SOURCE_REPAIR_NGINX_TEST_RERUN_STATUS"
+
 doctor_inspect_after_apply_output="$(state_doctor "fixture-inspect-after-apply-attention")"
 assert_contains "$doctor_inspect_after_apply_output" "- resumed_from: fixture-legacy-fallback" "inspect-after-apply attention doctor prints resumed_from"
 assert_contains "$doctor_inspect_after_apply_output" "当前 resume 策略：inspect-after-apply-attention。" "inspect-after-apply attention doctor prints resume strategy"
@@ -732,6 +760,34 @@ assert_contains "$doctor_inspect_after_apply_output" "- recovery.resume_recommen
 assert_contains "$doctor_inspect_after_apply_output" "- recovery.operator_action: manual-review" "inspect-after-apply attention doctor prints operator action"
 assert_contains "$doctor_inspect_after_apply_output" "- path: $WORKDIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json" "inspect-after-apply attention doctor still prints repair result path"
 assert_contains "$doctor_inspect_after_apply_output" "当前处于 inspect-after-apply-attention；建议先跑 ./install-interactive.sh --doctor fixture-inspect-after-apply-attention 复核当前 run 与 companion result，再决定是否只做 dry-run、repair、rollback 或人工处理。" "inspect-after-apply attention doctor keeps conservative fallback suggestion"
+
+python3 - "$WORKDIR/runs/fixture-inspect-after-apply-attention/state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+obj = json.loads(path.read_text(encoding='utf-8'))
+obj['status']['apply_execute'] = ''
+obj['status']['final'] = 'needs-attention'
+path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+doctor_inspect_after_apply_semantic_drift_output="$(state_doctor "fixture-inspect-after-apply-attention")"
+assert_contains "$doctor_inspect_after_apply_semantic_drift_output" "- current_run_alerts: final=needs-attention" "inspect-after-apply semantic drift still shows current final alert"
+assert_contains "$doctor_inspect_after_apply_semantic_drift_output" "- current_run_priority_artifact: $WORKDIR/artifacts/fixture-inspect-after-apply-attention/APPLY-RESULT.json [apply-result]" "inspect-after-apply semantic drift still prefers apply artifact for current run summary"
+assert_contains "$doctor_inspect_after_apply_semantic_drift_output" "- current_run_priority_note: 当前 run 已明确进入 inspect-after-apply-attention；应先看 apply result / recovery 字段，再决定后续动作。" "inspect-after-apply semantic drift current summary inherits strategy-specific note"
+assert_not_contains "$doctor_inspect_after_apply_semantic_drift_output" "$WORKDIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json [generic-artifact]" "inspect-after-apply semantic drift no longer lets generic repair artifact steal current priority"
+
+python3 - "$TEMPLATE_DIR/runs/fixture-inspect-after-apply-attention/state.json" "$WORKDIR/runs/fixture-inspect-after-apply-attention/state.json" "$WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+workdir = sys.argv[3]
+dst.write_text(src.read_text(encoding='utf-8').replace('__FIXTURE_ROOT__', workdir), encoding='utf-8')
+PY
+state_load_resume_context "fixture-inspect-after-apply-attention"
+INSPECT_AFTER_APPLY_RESUME_RECOMMENDED_BOOL="$(bool_01_to_python_bool_text "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED")"
+INSPECT_AFTER_APPLY_RECOVERY_STATUS="$RESUME_SOURCE_APPLY_RECOVERY_STATUS"
 
 mv "$ROOT_DIR/scripts/generated/runs" "$ROOT_DIR/scripts/generated/runs.test-backup"
 cp -a "$WORKDIR/runs" "$ROOT_DIR/scripts/generated/runs"
