@@ -428,4 +428,208 @@ assert journal[-1]["status"] == "failed", journal
 assert journal[-1]["message"] == f"exit_code={expected_rc}", journal
 PY
 
+resume_source_name="smoke-resume-source-$(date +%s)-$$"
+resume_source_workspace="$TMP_DIR/resume-source"
+mkdir -p "$resume_source_workspace/logs" "$resume_source_workspace/output" "$resume_source_workspace/snippets-target" "$resume_source_workspace/conf-target" "$resume_source_workspace/error-target"
+
+before_runs_resume_source="$TMP_DIR/before-runs-resume-source.txt"
+after_runs_resume_source="$TMP_DIR/after-runs-resume-source.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_resume_source"
+
+"$ROOT_DIR/install-interactive.sh" \
+  --deployment-name "$resume_source_name" \
+  --base-domain smoke.example.com \
+  --domain-mode flat-siblings \
+  --platform plain-nginx \
+  --tls-cert /tmp/fake-cert.pem \
+  --tls-key /tmp/fake-key.pem \
+  --input-mode advanced \
+  --error-root "$resume_source_workspace/error-target" \
+  --log-dir "$resume_source_workspace/logs" \
+  --output-dir "$resume_source_workspace/output" \
+  --snippets-target "$resume_source_workspace/snippets-target" \
+  --vhost-target "$resume_source_workspace/conf-target" \
+  --run-apply-dry-run \
+  --yes \
+  >/dev/null 2>"$TMP_DIR/resume-source.stderr"
+
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_runs_resume_source"
+RESUME_SOURCE_RUN_DIR="$(comm -13 "$before_runs_resume_source" "$after_runs_resume_source" | tail -n 1)"
+if [[ -z "$RESUME_SOURCE_RUN_DIR" || ! -d "$RESUME_SOURCE_RUN_DIR" ]]; then
+  echo "[FAIL] resume source smoke run did not create a new run directory" >&2
+  exit 1
+fi
+register_new_run_dir "$RESUME_SOURCE_RUN_DIR"
+
+before_runs_resume_positive="$TMP_DIR/before-runs-resume-positive.txt"
+after_runs_resume_positive="$TMP_DIR/after-runs-resume-positive.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_resume_positive"
+
+"$ROOT_DIR/install-interactive.sh" \
+  --resume "$(basename "$RESUME_SOURCE_RUN_DIR")" \
+  --run-apply-dry-run \
+  --yes \
+  >/dev/null 2>"$TMP_DIR/resume-positive.stderr"
+
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_runs_resume_positive"
+RESUME_POSITIVE_RUN_DIR="$(comm -13 "$before_runs_resume_positive" "$after_runs_resume_positive" | tail -n 1)"
+if [[ -z "$RESUME_POSITIVE_RUN_DIR" || ! -d "$RESUME_POSITIVE_RUN_DIR" ]]; then
+  echo "[FAIL] positive resume smoke run did not create a new run directory" >&2
+  exit 1
+fi
+register_new_run_dir "$RESUME_POSITIVE_RUN_DIR"
+if grep -q -- '--deployment-name' "$TMP_DIR/resume-positive.stderr"; then
+  echo "[FAIL] positive resume smoke regressed to new-run validation error" >&2
+  cat "$TMP_DIR/resume-positive.stderr" >&2
+  exit 1
+fi
+
+resume_positive_state_json="$RESUME_POSITIVE_RUN_DIR/state.json"
+resume_positive_summary_output="$resume_source_workspace/output/INSTALLER-SUMMARY.json"
+resume_positive_apply_result_json="$resume_source_workspace/output/APPLY-RESULT.json"
+python3 - "$resume_positive_state_json" "$SUMMARY_PRIMARY" "$resume_positive_summary_output" "$resume_positive_apply_result_json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+summary_primary_path = Path(sys.argv[2])
+summary_output_path = Path(sys.argv[3])
+apply_result_path = Path(sys.argv[4])
+
+state = json.loads(state_path.read_text(encoding="utf-8"))
+summary_primary = json.loads(summary_primary_path.read_text(encoding="utf-8"))
+summary_output = json.loads(summary_output_path.read_text(encoding="utf-8"))
+apply_result = json.loads(apply_result_path.read_text(encoding="utf-8"))
+journal = [json.loads(line) for line in (state_path.parent / "journal.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+events = [item["event"] for item in journal]
+
+assert state["lineage"]["mode"] == "resume", state
+assert state["status"]["apply_execute"] != "success", state
+assert state["status"]["final"] == summary_primary["status"]["final"], (state, summary_primary)
+assert state["status"]["final"] == summary_output["status"]["final"], (state, summary_output)
+assert apply_result["mode"] == "dry-run", apply_result
+assert summary_primary["status"]["apply_execute"] == state["status"]["apply_execute"], (summary_primary, state)
+assert summary_output["status"]["apply_execute"] == state["status"]["apply_execute"], (summary_output, state)
+assert "inputs.reused" in events, journal
+assert "preflight.reused" in events, journal
+assert "generator.reused" in events, journal
+assert "apply-plan.reused" in events, journal
+assert journal[-2]["event"] == "run.complete", journal
+assert journal[-1]["event"] == "run.exit", journal
+assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
+PY
+
+before_runs_inspect_resume="$TMP_DIR/before-runs-inspect-resume.txt"
+after_runs_inspect_resume="$TMP_DIR/after-runs-inspect-resume.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_inspect_resume"
+
+"$ROOT_DIR/install-interactive.sh" \
+  --resume "$(basename "$NEEDS_RUN_DIR")" \
+  --run-apply-dry-run \
+  --yes \
+  >"$TMP_DIR/inspect-resume.stdout" 2>"$TMP_DIR/inspect-resume.stderr"
+
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_runs_inspect_resume"
+INSPECT_RESUME_RUN_DIR="$(comm -13 "$before_runs_inspect_resume" "$after_runs_inspect_resume" | tail -n 1)"
+if [[ -z "$INSPECT_RESUME_RUN_DIR" || ! -d "$INSPECT_RESUME_RUN_DIR" ]]; then
+  echo "[FAIL] inspection-first positive resume smoke run did not create a new run directory" >&2
+  exit 1
+fi
+register_new_run_dir "$INSPECT_RESUME_RUN_DIR"
+if grep -q -- '--deployment-name' "$TMP_DIR/inspect-resume.stderr"; then
+  echo "[FAIL] inspection-first positive resume regressed to new-run validation error" >&2
+  cat "$TMP_DIR/inspect-resume.stderr" >&2
+  exit 1
+fi
+
+inspect_resume_state_json="$INSPECT_RESUME_RUN_DIR/state.json"
+inspect_resume_summary_output="$needs_workspace/output/INSTALLER-SUMMARY.json"
+inspect_resume_apply_result_json="$needs_workspace/output/APPLY-RESULT.json"
+python3 - "$inspect_resume_state_json" "$SUMMARY_PRIMARY" "$inspect_resume_summary_output" "$inspect_resume_apply_result_json" "$TMP_DIR/inspect-resume.stdout" "$TMP_DIR/inspect-resume.stderr" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+summary_primary_path = Path(sys.argv[2])
+summary_output_path = Path(sys.argv[3])
+apply_result_path = Path(sys.argv[4])
+stdout_path = Path(sys.argv[5])
+stderr_path = Path(sys.argv[6])
+
+state = json.loads(state_path.read_text(encoding="utf-8"))
+summary_primary = json.loads(summary_primary_path.read_text(encoding="utf-8"))
+summary_output = json.loads(summary_output_path.read_text(encoding="utf-8"))
+apply_result = json.loads(apply_result_path.read_text(encoding="utf-8"))
+stdout_text = stdout_path.read_text(encoding="utf-8")
+stderr_text = stderr_path.read_text(encoding="utf-8")
+journal = [json.loads(line) for line in (state_path.parent / "journal.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+events = [item["event"] for item in journal]
+
+assert state["lineage"]["mode"] == "resume", state
+assert state["lineage"]["resume_strategy"] == "inspect-after-apply-attention", state
+assert "resume as not recommended" in state["lineage"]["resume_strategy_reason"], state
+assert state["status"]["apply_execute"] != "success", state
+assert state["status"]["final"] == "success", state
+assert state["status"]["final"] == summary_primary["status"]["final"], (state, summary_primary)
+assert state["status"]["final"] == summary_output["status"]["final"], (state, summary_output)
+assert apply_result["mode"] == "dry-run", apply_result
+assert apply_result["recovery"]["resume_strategy"] == "dry-run-ok", apply_result
+assert "inputs.reused" in events, journal
+assert "preflight.reused" in events, journal
+assert "generator.reused" in events, journal
+assert "apply-plan.reused" in events, journal
+assert journal[-2]["event"] == "run.complete", journal
+assert journal[-1]["event"] == "run.exit", journal
+assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
+assert "本次 resume 策略：inspect-after-apply-attention" in stdout_text, stdout_text
+assert "inspection-first 续接" in stdout_text, stdout_text
+assert "inspect-after-apply-attention / review-first 续接" in stderr_text, stderr_text
+assert "默认不会继承上次的真实 apply / nginx test 执行意图" in stderr_text, stderr_text
+PY
+
+before_runs_doctor="$TMP_DIR/before-runs-doctor.txt"
+after_runs_doctor="$TMP_DIR/after-runs-doctor.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_doctor"
+rm -f "$SUMMARY_PRIMARY"
+
+"$ROOT_DIR/install-interactive.sh" \
+  --doctor "$(basename "$RESUME_SOURCE_RUN_DIR")" \
+  >"$TMP_DIR/doctor.stdout" 2>"$TMP_DIR/doctor.stderr"
+
+after_doctor_runs_check="$TMP_DIR/after-runs-doctor.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_doctor_runs_check"
+if [[ -n "$(comm -13 "$before_runs_doctor" "$after_doctor_runs_check")" ]]; then
+  echo "[FAIL] doctor unexpectedly created a new run directory" >&2
+  exit 1
+fi
+if [[ -f "$SUMMARY_PRIMARY" ]]; then
+  echo "[FAIL] --doctor polluted $SUMMARY_PRIMARY" >&2
+  exit 1
+fi
+if [[ -s "$TMP_DIR/doctor.stderr" ]]; then
+  echo "[FAIL] --doctor unexpectedly wrote to stderr" >&2
+  cat "$TMP_DIR/doctor.stderr" >&2
+  exit 1
+fi
+python3 - "$TMP_DIR/doctor.stdout" "$(basename "$RESUME_SOURCE_RUN_DIR")" <<'PY'
+import sys
+from pathlib import Path
+
+stdout_path = Path(sys.argv[1])
+run_id = sys.argv[2]
+text = stdout_path.read_text(encoding="utf-8")
+
+assert f"run_id: {run_id}" in text, text
+assert "[doctor] apply result json" in text, text
+assert "- mode: dry-run" in text, text
+assert "- recovery.resume_strategy: dry-run-ok" in text, text
+assert "[doctor] journal" in text, text
+assert "- last_event: run.exit [success]" in text, text
+assert "[doctor] 下一步建议" in text, text
+assert "可带 --execute-apply 继续真实 apply" in text, text
+assert "inputs.env" in text, text
+PY
+
 echo "[PASS] installer smoke regression"
