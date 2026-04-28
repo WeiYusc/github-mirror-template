@@ -6,6 +6,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 CONFIG_PATH="$TMP_DIR/deploy.generated.yaml"
+BOUNDARY_CONFIG_PATH="$TMP_DIR/deploy.boundary.yaml"
 OUTPUT_DIR="$TMP_DIR/output:with#chars"
 export DEPLOYMENT_NAME='yaml-smoke:demo#1'
 export BASE_DOMAIN='demo.example.com'
@@ -97,6 +98,40 @@ assert values['GIST_DOMAIN'] == 'gist.example.com', values
 assert values['ASSETS_DOMAIN'] == 'assets.example.com', values
 assert values['ARCHIVE_DOMAIN'] == 'archive.example.com', values
 assert values['DOWNLOAD_DOMAIN'] == 'download.example.com', values
+PY
+
+# Writer-only boundary cases: pin YAML serialization semantics on existing fields
+# without changing downstream generator validation rules.
+export DEPLOYMENT_NAME='true'
+export BASE_DOMAIN='null'
+export DOMAIN_MODE='  flat-siblings  '
+export TLS_CERT='00123'
+export TLS_KEY=$'line1\nline2: # still content'
+export ERROR_ROOT='  /tmp/error root with padding  '
+export LOG_DIR=''
+export NGINX_SNIPPETS_TARGET_HINT=''
+export NGINX_VHOST_TARGET_HINT='  /tmp/conf.d padded  '
+write_deploy_config "$BOUNDARY_CONFIG_PATH"
+
+python3 - "$BOUNDARY_CONFIG_PATH" <<'PY'
+import sys
+from pathlib import Path
+import yaml
+
+config_path = Path(sys.argv[1])
+data = yaml.safe_load(config_path.read_text(encoding='utf-8')) or {}
+assert data['deployment_name'] == 'true', data
+assert isinstance(data['deployment_name'], str), data
+assert data['domain']['base_domain'] == 'null', data
+assert isinstance(data['domain']['base_domain'], str), data
+assert data['domain']['mode'] == '  flat-siblings  ', data
+assert data['tls']['cert'] == '00123', data
+assert isinstance(data['tls']['cert'], str), data
+assert data['tls']['key'] == 'line1\nline2: # still content', data
+assert data['paths']['error_root'] == '  /tmp/error root with padding  ', data
+assert data['paths']['log_dir'] == '', data
+assert data['nginx']['snippets_target_hint'] == '', data
+assert data['nginx']['vhost_target_hint'] == '  /tmp/conf.d padded  ', data
 PY
 
 echo "[PASS] deploy config yaml serialization regression"

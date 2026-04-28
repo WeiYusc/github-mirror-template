@@ -64,14 +64,15 @@
 
 这说明当前尚未真正做到“代码即真相 / 单一真相源”。
 
-### P1-A. 配置写入仍是手工拼 YAML
+### P1-A. deploy config 写入已切到 Python/PyYAML，后续重点转回归样本
 
-`scripts/lib/config.sh` 中 `write_deploy_config()` 直接把 shell 变量插进 YAML 文本。
+`scripts/lib/config.sh` 中的 `write_deploy_config()` 已改为通过内嵌 Python + `PyYAML` 做结构化序列化，而不是继续用 shell 文本拼接。
 
-风险：
+当前更值得持续盯住的是：
 
-- 特殊字符、注释符、边界空白、多行值可能破坏 YAML 语义
-- 项目本身已依赖 `python3 + PyYAML`，继续手工拼接属于不必要技术债
+- `tests/deploy-config-yaml-regression.sh` 是否覆盖了最容易回退的字符串边界（特殊字符、空字符串、前后空白、多行值、YAML-like scalars）
+- 后续若扩字段，是否继续沿用结构化 writer，而不是重新退回 shell 手工拼 YAML
+- regression 断言是否同时覆盖“installer 写出 config”与“generator 重新读入 config”这两段链路
 
 ### P1-B. 已补真实 smoke/integration 护栏
 
@@ -311,22 +312,23 @@
 
 ---
 
-### P1-3. 用 Python / PyYAML 接管 deploy config 序列化
+### P1-3. deploy config 序列化改造已完成，后续保持 regression 护栏
 
-#### 目标
+#### 当前状态
 
-替换 `write_deploy_config()` 的手工 YAML 拼接。
+`write_deploy_config()` 已由 Python / `PyYAML` 接管，当前重点不再是替换 writer 本身，而是防止后续字段扩展或重构时把安全序列化能力写回退。
 
 #### 建议动作
 
-- 新增一个最小 Python writer（可内嵌小脚本或独立文件）
-- Bash 只负责收集值并传参
-- Python 负责结构化序列化与安全输出
+- 持续维护 `tests/deploy-config-yaml-regression.sh` 的高风险样本
+- 新增 deploy config 字段时，优先补对应 regression，再改 writer / reader
+- 保持“installer 写出 YAML”与“generator 读回 YAML”两段链路都在同一条回归里被覆盖
 
 #### 验收标准
 
-- 路径/字符串里的特殊字符不会轻易破坏 YAML 结构
-- 配置写出逻辑更容易测试和复用
+- 多行字符串、空字符串、边界空白、YAML-like scalars 等样本不会把 YAML 结构写坏
+- `bash tests/deploy-config-yaml-regression.sh` 能稳定钉住 writer / reader 的当前行为
+- 后续扩字段时，不需要重新依赖 shell 手工转义
 
 ---
 
@@ -430,7 +432,7 @@
 ### Phase 2：补工程护栏
 
 4. 维护已接入 CI，与本地回归入口保持一致
-5. 用 Python 接管 deploy config 序列化
+5. 维护 deploy config YAML regression，防止序列化回退
 
 ### Phase 3：拆 Bash 编排层
 
@@ -475,7 +477,7 @@
 维护现有 CI workflow 与本地推荐回归入口一致
 
 ### Task 5（P1）
-替换 `write_deploy_config()`，改为 Python/PyYAML 序列化
+维护 `write_deploy_config()` 的 YAML regression，确保后续字段扩展不会把结构化序列化退回到脆弱的字符串拼接
 
 ---
 

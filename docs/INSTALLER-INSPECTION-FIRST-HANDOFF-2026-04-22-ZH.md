@@ -348,17 +348,17 @@ bash tests/installer-contracts-regression.sh
 2. 新增高价值 regression 时，优先纳入现有 workflow
 3. 定期清理 handoff / roadmap 里的过期 TODO，避免下次续接被旧优先级带偏
 
-### 10.4 第四优先级：修 YAML 写入方式
+### 10.4 第四优先级：维护 YAML 序列化 regression，而不是重复规划已完成迁移
 
-`scripts/lib/config.sh` 里的 `write_deploy_config()` 如果仍是手工拼 YAML，那么这笔债仍然成立。
+`scripts/lib/config.sh` 里的 `write_deploy_config()` 现已改为安全序列化，不再是手工拼 YAML。
 
-更合理的方向是：
+更合理的后续重点是：
 
-- 保留 shell 入口
-- 但把 YAML 写入改成安全序列化
-- 避免特殊字符、注释符、多行值、边界空白把配置语义悄悄写坏
+- 保留 shell 入口 + Python/PyYAML writer 这条分工
+- 持续用 regression 钉住特殊字符、注释符、多行值、边界空白、YAML-like scalars 等样本
+- 新增字段时优先补回归，避免后续重构把序列化悄悄写回退
 
-这件事不一定像 P0 那样立刻阻塞，但属于“迟早会咬人、而且修法明确”的问题，值得在 smoke / CI 之后尽快处理。
+这件事不再是“要不要迁移 writer”的方向选择，而是“如何让已完成的安全序列化持续不回退”的维护问题，仍值得在 smoke / CI 之后持续跟着走。
 
 ### 10.5 第五优先级：最后再整理文档信息架构
 
