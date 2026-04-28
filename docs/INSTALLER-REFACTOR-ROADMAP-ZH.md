@@ -105,6 +105,7 @@
 
 - `bash tests/deploy-config-yaml-regression.sh`
 - `bash tests/installer-smoke.sh`
+- `bash tests/installer-summary-isolation.sh`
 - `bash tests/installer-contracts-regression.sh`
 
 所以这条不再是“从 0 到 1 接 CI”，而是：
@@ -346,6 +347,7 @@
 
 - `bash tests/deploy-config-yaml-regression.sh`
 - `bash tests/installer-smoke.sh`
+- `bash tests/installer-summary-isolation.sh`
 - `bash tests/installer-contracts-regression.sh`
 
 #### 现在的重点

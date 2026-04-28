@@ -28,5 +28,8 @@ jobs:
       - name: Run installer smoke regression
         run: bash tests/installer-smoke.sh
 
+      - name: Run installer summary isolation regression
+        run: bash tests/installer-summary-isolation.sh
+
       - name: Run installer contract regression
         run: bash tests/installer-contracts-regression.sh

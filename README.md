@@ -146,7 +146,19 @@ cp deploy.example.yaml deploy.yaml
 bash tests/installer-contracts-regression.sh
 ```
 
-它当前主要覆盖：
+如果你动到了 summary/state/artifact snapshot 这类 control-plane 路径，建议再补一条：
+
+```bash
+bash tests/installer-summary-isolation.sh
+```
+
+它会专门钉住：
+
+- 每轮 run 的 `summary_generated` 是否保持 run 级隔离
+- `preflight.generated.{md,json}` / `deploy.generated.yaml` 是否落到各自 run 目录，而不是被相邻 run 污染
+- `state.json.artifacts.*` 是否始终指向当前 run 自己的快照路径
+
+`installer-contracts-regression.sh` 当前主要覆盖：
 
 - 6 类 JSON 的 `schema_kind` / `schema_version`
 - `state_doctor()` / `state_load_resume_context()` 当前依赖的关键字段
