@@ -324,6 +324,59 @@
 - `summary_output` 是当前 output 目录下的 summary 镜像（通常为 `<output_dir>/INSTALLER-SUMMARY.json`）
 - 共享 `scripts/generated/deploy.generated.yaml`、`scripts/generated/preflight.generated.*`、`scripts/generated/INSTALLER-SUMMARY.generated.json` 都只代表 latest 视图，可供人工快速查看最近一轮，但不应被当作历史 run 的唯一真相源
 
+进一步说，`INSTALLER-SUMMARY.json.artifacts` 与 `state.json.artifacts` 在 path 语义上保持同一套分层：
+
+1. **run-local snapshot**
+   - `config`
+   - `preflight_markdown`
+   - `preflight_json`
+   - `summary_generated`
+   - `state_json`
+   - `journal_jsonl`
+   - `run_id`
+2. **working/output mirror**
+   - `output_dir`
+   - `apply_plan_markdown`
+   - `apply_plan_json`
+   - `apply_result`
+   - `apply_result_json`
+   - `summary_output`
+
+也就是说：
+
+- 前一组字段应尽量稳定锚定到当前 run 自己的快照/账本
+- 后一组字段表达的是“当前这轮实际接着看、接着写、接着消费的 output 结果位置”；在 resume 场景下允许继续沿用源 run 的 output 路径
+
+### 6.2.1 `summary_output` 与 `summary_generated` 不要混用
+
+这是最近最容易漂移的一对字段：
+
+- `summary_generated`
+  - 代表当前 run 的 generated summary 快照
+  - 语义上更接近 run-scoped immutable snapshot
+- `summary_output`
+  - 代表当前工作 output 下的人机共用 summary
+  - 语义上更接近 output mirror / latest-on-that-output
+
+所以在 new / resume / inspection-first / review-first 场景里，都不要把两者混成“随便一个 summary 路径都行”。
+
+### 6.2.2 与 journal path contract 的关系
+
+如果 `journal.jsonl` 中出现：
+
+- `run.complete`
+  - path 应优先回指 `summary_output`
+- `run.exit`
+  - path 应回指 `state_json`
+- `preflight.reused`
+  - path 应回指当前 run 的 `preflight_json`
+- `generator.reused`
+  - path 应回指当前 run 的 `config`
+- `apply-plan.reused`
+  - path 应回指当前续接实际使用的 `apply_plan_json`
+
+也就是说，summary/state/artifact 三层路径语义在当前 contract 中是互相咬合的，而不是各写各的。
+
 ### 6.3 当前主要消费方
 
 - 人工排查

@@ -140,6 +140,61 @@ scripts/generated/runs/<run_id>/
 - `doctor` 会优先从 `state.json.artifacts` 取 companion result
 - 对旧 run，如果 `state.json` 里还没登记，也会按同目录约定名做回退发现
 
+### 3.1 `journal.jsonl` 的 path 语义
+
+`journal.jsonl` 里的 `path` 不是“随手附带一个相关路径”，而是：
+
+> **这条 event 当前最值得直接打开或核对的主锚点路径。**
+
+它是给 `doctor` / 人工排查 / regression 一起消费的轻量指针，不是完整 artifact 列表替代品。
+
+当前主流程里最关键的几类 event，path 语义如下：
+
+- `run.initialized`
+  - path = 当前 run 的 `state_dir`
+  - 表示这一轮状态目录已经建立，后续所有 run-scoped 快照都应落在这里
+- `inputs.start` / `inputs.reused` / `inputs.confirmed`
+  - path = 当前 run 的 `inputs.env`
+  - 表示输入快照写入或复用的锚点
+- `preflight.complete`
+  - path 优先指向当前 run 自己的 `preflight.generated.json`
+  - 语义是“本轮 preflight 的结构化结果快照”，不是共享 latest preflight 视图
+- `preflight.reused`
+  - path = 当前 run 自己的 `preflight.generated.json`
+  - 即使内容来自源 run，也要求先复制到当前 run 再把 path 指向当前 run 快照
+- `config.written`
+  - path 优先指向当前 run 自己的 `deploy.generated.yaml`
+  - 表示本轮 deploy config 真正写入到哪里
+- `generator.start` / `generator.reused`
+  - path 优先指向当前 run 自己的 `deploy.generated.yaml`
+  - 前者表示 generator 读取的 config 锚点；后者表示 resume 已把可复用 config 快照落到当前 run
+- `apply-plan.complete`
+  - path = 当前 run 实际使用的 `APPLY-PLAN.json`
+  - 它是 apply plan 这一步的主机器结果锚点
+- `apply-plan.reused`
+  - path 同样优先指向当前 run 实际续接使用的 `APPLY-PLAN.json`
+  - 语义是“本轮续接依赖的 apply-plan 事实锚点”，不是 generated summary 的替代指针
+- `apply-dry-run.start` / `apply-dry-run.complete`
+  - path 优先指向 `APPLY-RESULT.json`；若结果文件尚未生成，可暂退回 `APPLY-PLAN.json`
+  - 语义是 dry-run 的结果/计划锚点
+- `apply-execute.start` / `apply-execute.complete`
+  - path = `APPLY-RESULT.json`
+  - 语义是真实 apply 的正式结果锚点
+- `repair.result.recorded` / `rollback.result.recorded`
+  - path 分别指向 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`
+  - 语义是 companion result 已回写并成为后续 doctor/resume 可消费输入
+- `run.complete`
+  - path 优先指向 `<output_dir>/INSTALLER-SUMMARY.json`；若该 summary 不存在，再退回 generated summary
+  - 语义是“这一轮主流程已经完成收口，最终摘要落在哪”
+- `run.exit`
+  - path = 当前 run 的 `state.json`
+  - 语义是进程退出时最后一次主账本落点；它不是 summary 指针，而是 exit 时应回看的最终状态账本
+
+可以把它记成两个规则：
+
+1. **能指向当前 run 自己的 run-scoped 快照，就不要回指共享 latest 视图。**
+2. **path 指向的是“这一 event 的主锚点”，不是“和这步有关的所有文件”。**
+
 ---
 
 ## 4. `state.json` 数据模型
@@ -250,7 +305,61 @@ scripts/generated/runs/<run_id>/
 - `preflight_markdown` / `preflight_json` 应优先指向 **当前 run 自己的 preflight 快照**（通常是 `scripts/generated/runs/<run_id>/preflight.generated.md|json`）；共享 `scripts/generated/preflight.generated.*` 仅代表 latest preflight 视图
 - `summary_generated` 应视为 **当前 run 自己的 generated summary 快照路径**，优先指向 `scripts/generated/runs/<run_id>/INSTALLER-SUMMARY.generated.json`
 - `summary_output` 应视为 **当前 output_dir 下的人机共用 summary**（通常是 `<output_dir>/INSTALLER-SUMMARY.json`）
-- 共享 `scripts/generated/INSTALLER-SUMMARY.generated.json` 仅表示最近一轮 installer 的 latest summary，不应用作历史 run 的稳定追溯锚点
+- `state_json` / `inputs_env` / `journal_jsonl` 分别固定回指当前 run 的主账本、输入快照与事件时间线
+- `apply_plan_markdown` / `apply_plan_json` / `apply_result` / `apply_result_json` / `repair_result*` / `rollback_result*` 当前都允许直接指向 **本轮实际续接或执行所使用的结果路径**；如果 resume 选择复用历史 `<output_dir>` 内的产物，它们可以继续指向该可复用路径，而不强制复制回 `state_dir`
+
+这意味着 `artifacts` 目前分成两类：
+
+1. **run-scoped snapshot artifacts**：`config` / `preflight_*` / `summary_generated` / `state_json` / `inputs_env` / `journal_jsonl`
+   - 这些字段应尽量稳定回指当前 run 自己的快照或账本
+   - new run 与 resume run 都应保持同一语义
+2. **working/result artifacts**：`apply_plan_*` / `apply_result*` / `repair_result*` / `rollback_result*` / `summary_output` / `output_dir_abs`
+   - 这些字段描述的是“这轮当前实际接着用、接着看、接着写”的工作结果位置
+   - 在 resume 场景下，它们允许继续复用源 run 或共享 output_dir 内已存在的结果路径
+
+### 4.6.1 new / resume 下几个关键字段怎么理解
+
+#### `config`
+
+- new run：当前 run 新写出的 deploy config 快照
+- resume run：如果复用了历史 config，也要先落一份到当前 run 的 `deploy.generated.yaml`，再把 `artifacts.config` 指回这份当前 run 快照
+
+#### `preflight_markdown` / `preflight_json`
+
+- new run：当前 run 实际生成的 preflight 快照
+- resume run：如果复用了历史 preflight，也要先复制到当前 run 再登记
+
+#### `summary_generated`
+
+- new run：当前 run 的 generated summary 快照
+- resume run：即使复用了历史 apply-plan/apply-result/output，也仍应写出当前 run 自己的 generated summary 快照并登记这里
+
+#### `summary_output`
+
+- new run：通常是当前 `output_dir` 下这轮主流程写出的 `INSTALLER-SUMMARY.json`
+- resume run：如果这轮继续沿用源 run 的 `output_dir`，这里允许仍然指向同一个 output summary 路径；它表达的是“当前工作 output 上的 summary 镜像”，不是 run-scoped 不可变快照
+
+#### `apply_plan_json` / `apply_plan_markdown`
+
+- new run：当前 `output_dir` 下新生成的 apply plan
+- resume 普通复用（`reuse-apply-plan` / inspection-first 强制复用）：允许继续指向当前实际使用的可复用 apply plan 路径
+- 关键语义不是“必须换新路径”，而是“本轮后续动作以这份 apply plan 为事实锚点”
+
+#### `apply_result_json` / `apply_result`
+
+- 未执行 dry-run / execute 前允许为空
+- 如果 dry-run / execute 在当前工作 output 上产出结果，这里回指那份结果
+- 对 review-first / inspection-first resume，如果只是复用源 run 已存在的 apply result 作为上下文输入，也允许保持指向那份可复用结果
+
+#### `repair_result_json` / `rollback_result_json`
+
+- 这些字段默认由 companion helper 回写
+- 如果 `state.json` 已登记，`doctor` / `resume` 会优先按这里消费
+- 对旧 run，允许暂时为空，并通过 `apply_result_json` 同目录 fallback 发现
+
+一句话总结：
+
+> `state.artifacts` 里并不是所有 path 都必须“物理属于当前 run 目录”；真正要求 run-scoped 稳定隔离的，是 config / preflight / generated summary / 主账本类快照。apply/repair/rollback/output summary 则表达当前 run 实际接续的工作结果位置。
 
 ---
 
@@ -618,18 +727,29 @@ installer 会直接拒绝，而不是默默降级。
 
 > 可以做只读预演，但不允许把“复查优先”误变成“继续执行真实 apply”。
 
-### 8.4.1 inspection-first 四类策略的统一动作矩阵
+### 8.4.1 inspection-first / resume strategy 动作矩阵
 
-| strategy | 触发来源 | resume 的默认主语义 | 默认先看什么 | 显式允许 | 明确禁止 |
-| --- | --- | --- | --- | --- | --- |
-| `inspect-after-apply-attention` | `APPLY-RESULT.json.recovery.resume_recommended != 1` | 先复查 apply attention，而不是继续 execute | `APPLY-RESULT.json`、`recovery.operator_action`、`--doctor` | 复用可用产物；显式 `--run-apply-dry-run` | 显式 `--execute-apply`；把 `--resume` 视作 apply 重放 |
-| `repair-review-first` | repair 结果仍是 `needs-attention` / `blocked` | 先看 repair 诊断是否收口 | `REPAIR-RESULT.json`、`diagnosis.*`、`next_step` | 人工继续排查；必要时再次 repair；显式 dry-run | 绕过 repair 结论直接真实 apply |
-| `post-repair-verification` | repair 已重跑 `nginx -t` 且通过 | 先验证“修好”是否真的稳定 | `REPAIR-RESULT.json`、`execution.nginx_test_rerun_status`、手工复核 | 复用可用产物；显式 dry-run；人工确认现场 | 因 repair passed 就默认继续 execute；显式 `--execute-apply` |
-| `post-rollback-inspection` | rollback 已执行且成功 | 先确认 rollback 后现场，而不是继续部署 | `ROLLBACK-RESULT.json`、rollback 后目标机状态 | 复核 rollback 结果；显式 dry-run；必要时新开 run | 把 rollback 后状态直接视作可继续 execute 的干净起点；显式 `--execute-apply` |
+| strategy | 触发来源 | 默认动作 | 是否允许 `--run-apply-dry-run` | 是否允许 `--execute-apply` | 预期当前 run-local artifacts | 可继续复用的 artifacts / 上下文 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `inspect-after-apply-attention` | `APPLY-RESULT.json.recovery.resume_recommended != 1` | 进入 apply attention 复查；优先看 apply result / doctor，不把 resume 当 execute 重放 | 允许 | 不允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | `APPLY-RESULT.json`、`INSTALLER-SUMMARY.json`、必要时 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` |
+| `repair-review-first` | repair 结果仍是 `needs-attention` / `blocked` | 先复核 repair 诊断是否收口，再决定人工处理或新开 run | 允许 | 不允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | `REPAIR-RESULT.json`、相关 `APPLY-RESULT.json`、必要时 rollback 结果 |
+| `post-repair-verification` | repair 已重跑 `nginx -t` 且通过 | 先验证“修好后的现场”是否稳定，而不是继续 apply | 允许 | 不允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | `REPAIR-RESULT.json`、相关 `APPLY-RESULT.json`、已有 output 内 plan/result |
+| `post-rollback-inspection` | rollback 已执行且成功 | 先确认 rollback 后现场状态，再决定是否新开 run 或继续人工处理 | 允许 | 不允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | `ROLLBACK-RESULT.json`、相关 `APPLY-RESULT.json`、必要时 repair 结果 |
+| `reuse-apply-plan` | 源 run 的 `APPLY-PLAN.json` 可复用 | 直接从 apply-plan 边界续接；默认可继续 dry-run/execute 决策 | 允许 | 允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | 已存在的 `APPLY-PLAN.json`、共享 `output_dir`、后续新产出的 `APPLY-RESULT.json` |
+| `reuse-generated-output` | 源 run 的 generated output 目录可复用 | 跳过 generator，重新生成/确认 apply plan 后继续 | 允许 | 允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | 已存在 `output_dir_abs` 与其中渲染结果 |
+| `reuse-preflight` | 源 run 的 config + preflight 可复用 | 跳过输入/preflight，从 generator 之后继续 | 允许 | 允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | 源 run 的可复用 config/preflight 上下文 |
+| `re-enter-from-inputs` | 只有输入快照可复用 | 从输入边界重新进入，后续阶段按普通新 run 重新走 | 允许 | 允许 | `inputs.env`、后续新写出的 run-local config/preflight/summary | 历史 `inputs.env` |
 
-可以把这 4 类统一记成：
+读这张表时，建议把 artifact 分两层理解：
 
-> inspection-first = 先 doctor / 看 companion result / 做人工复查；可 dry-run，但不默认继续真实 apply。
+- **当前 run-local 必备快照**：`inputs.env`、run-local `deploy.generated.yaml`、run-local `preflight.generated.*`、run-local `INSTALLER-SUMMARY.generated.json`
+- **可继续复用的工作结果**：`APPLY-PLAN.json`、`APPLY-RESULT.json`、`REPAIR-RESULT.json`、`ROLLBACK-RESULT.json`、`INSTALLER-SUMMARY.json`、共享 `output_dir_abs`
+
+这也解释了为什么 inspection-first / review-first 看上去“复用了很多东西”，但当前 run 仍然会有自己独立的 state/journal/config/preflight/generated summary 快照。
+
+可以把 inspection-first 那 4 类再统一记成：
+
+> 先 doctor / 看 companion result / 做人工复查；可 dry-run，但不默认继续真实 apply。
 
 ---
 

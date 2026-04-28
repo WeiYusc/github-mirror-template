@@ -389,7 +389,7 @@ installer_run_or_reuse_preflight() {
   if [[ -n "${PREFLIGHT_REPORT_JSON_RUN_COPY:-}" ]]; then
     write_preflight_report_json "$PREFLIGHT_REPORT_JSON_RUN_COPY"
   fi
-  state_append_journal "preflight.complete" "$INSTALLER_PREFLIGHT_STATUS" "preflight finished" "$PREFLIGHT_REPORT_JSON"
+  state_append_journal "preflight.complete" "$INSTALLER_PREFLIGHT_STATUS" "preflight finished" "${PREFLIGHT_REPORT_JSON_RUN_COPY:-$PREFLIGHT_REPORT_JSON}"
 
   ui_section "已写出 preflight 报告"
   ui_info "$PREFLIGHT_REPORT_MD"
@@ -415,7 +415,7 @@ installer_run_or_reuse_generator() {
     write_deploy_config "$CONFIG_PATH_RUN_COPY"
   fi
   state_mark_checkpoint "config-written" "deploy config written"
-  state_append_journal "config.written" "ok" "deploy config generated" "$CONFIG_PATH"
+  state_append_journal "config.written" "ok" "deploy config generated" "${CONFIG_PATH_RUN_COPY:-$CONFIG_PATH}"
 
   ui_section "已生成配置文件"
   ui_info "$CONFIG_PATH"
@@ -423,7 +423,7 @@ installer_run_or_reuse_generator() {
   ui_section "开始调用 generator"
   INSTALLER_GENERATOR_STATUS="running"
   state_mark_checkpoint "generator-running" "calling generate-from-config.sh"
-  state_append_journal "generator.start" "running" "calling generator" "$CONFIG_PATH"
+  state_append_journal "generator.start" "running" "calling generator" "${CONFIG_PATH_RUN_COPY:-$CONFIG_PATH}"
   if "$ROOT_DIR/generate-from-config.sh" --config "$CONFIG_PATH"; then
     INSTALLER_GENERATOR_STATUS="success"
     state_mark_checkpoint "generator-success" "generator completed"
@@ -455,7 +455,7 @@ installer_run_or_reuse_apply_plan() {
       SUMMARY_JSON_SECONDARY="$RESUME_SOURCE_SUMMARY_JSON_SECONDARY"
     fi
     state_mark_checkpoint "apply-plan-reused" "resume reused apply plan artifacts"
-    state_append_journal "apply-plan.reused" "generated" "resume reused apply plan artifacts" "$SUMMARY_JSON_RUN_COPY"
+    state_append_journal "apply-plan.reused" "generated" "resume reused apply plan artifacts" "${APPLY_PLAN_JSON_PATH:-$SUMMARY_JSON_RUN_COPY}"
     return 0
   fi
 

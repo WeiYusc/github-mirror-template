@@ -197,18 +197,27 @@ LOG_DIR=/www/wwwlogs
 - 在这些 inspection-first 的 resume 策略下，仍允许显式传 `--run-apply-dry-run` 做只读预演；但若显式传 `--execute-apply`，当前会直接拒绝
 - 目前常见的 inspection-first 语义包括：`inspect-after-apply-attention`、`post-repair-verification`、`repair-review-first`、`post-rollback-inspection`
 
-### inspection-first 四类策略的统一动作矩阵
+### inspection-first / resume strategy 动作矩阵
 
-| strategy | 典型来源 | 默认先看什么 | 允许什么 | 不允许什么 |
-| --- | --- | --- | --- | --- |
-| `inspect-after-apply-attention` | apply 已落到 attention，且 `resume_recommended != 1` | 当前 run 的 `APPLY-RESULT.json`，必要时补 `--doctor` | 复用已有输入/产物；显式 `--run-apply-dry-run` | 把 `--resume` 当成重放真实 apply 的快捷键；显式 `--execute-apply` |
-| `repair-review-first` | repair 结果仍是 `needs-attention` / `blocked` | 当前或源 run 的 `REPAIR-RESULT.json` + `--doctor` | 只读复查；显式 `--run-apply-dry-run`；必要时继续 repair / 人工处理 | 未完成人工复核前直接真实 apply；把 repair 未收口场景当普通 resume |
-| `post-repair-verification` | repair 已重跑 `nginx -t` 且通过 | 当前 run 的 `REPAIR-RESULT.json`、`nginx -t` 复查结论 | 复用可用产物；显式 dry-run；人工确认现场 | 因为“已经 passed”就直接继续真实 apply；显式 `--execute-apply` |
-| `post-rollback-inspection` | rollback 已执行且成功 | 当前 run 的 `ROLLBACK-RESULT.json` 与目标机落地状态 | 复用可用产物；显式 dry-run；人工核对 rollback 后现场 | 把 rollback 后现场直接当成可继续 execute 的干净起点；显式 `--execute-apply` |
+| strategy | 典型来源 | 默认动作 | 是否允许 `--run-apply-dry-run` | 是否允许 `--execute-apply` | 预期当前 run-local artifacts | 可继续复用的 artifacts / 上下文 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `inspect-after-apply-attention` | apply 已落到 attention，且 `resume_recommended != 1` | 进入 apply attention 复查；先看 `APPLY-RESULT.json` / `--doctor`，不把 `--resume` 当 execute 重放 | 允许 | 不允许 | `inputs.env`、run-local `deploy.generated.yaml`、run-local `preflight.generated.*`、run-local `INSTALLER-SUMMARY.generated.json` | `APPLY-RESULT.json`、`INSTALLER-SUMMARY.json`、必要时 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` |
+| `repair-review-first` | repair 结果仍是 `needs-attention` / `blocked` | 先复核 repair 诊断是否收口，再决定人工处理或新开 run | 允许 | 不允许 | `inputs.env`、run-local `deploy.generated.yaml`、run-local `preflight.generated.*`、run-local `INSTALLER-SUMMARY.generated.json` | `REPAIR-RESULT.json`、相关 `APPLY-RESULT.json`、必要时 rollback 结果 |
+| `post-repair-verification` | repair 已重跑 `nginx -t` 且通过 | 先验证“修好后的现场”是否稳定，而不是继续 apply | 允许 | 不允许 | `inputs.env`、run-local `deploy.generated.yaml`、run-local `preflight.generated.*`、run-local `INSTALLER-SUMMARY.generated.json` | `REPAIR-RESULT.json`、相关 `APPLY-RESULT.json`、已有 output 内 plan/result |
+| `post-rollback-inspection` | rollback 已执行且成功 | 先确认 rollback 后现场状态，再决定是否新开 run 或继续人工处理 | 允许 | 不允许 | `inputs.env`、run-local `deploy.generated.yaml`、run-local `preflight.generated.*`、run-local `INSTALLER-SUMMARY.generated.json` | `ROLLBACK-RESULT.json`、相关 `APPLY-RESULT.json`、必要时 repair 结果 |
+| `reuse-apply-plan` | apply plan 已生成且 JSON 仍可复用 | 从 apply-plan 边界续接；默认仍可继续后续 dry-run / execute 决策 | 允许 | 允许 | `inputs.env`、run-local `deploy.generated.yaml`、run-local `preflight.generated.*`、run-local `INSTALLER-SUMMARY.generated.json` | 已存在的 `APPLY-PLAN.json`、共享 `output_dir`、后续新产出的 `APPLY-RESULT.json` |
+| `reuse-generated-output` | generator 输出目录仍可复用 | 跳过 generator，重新生成/确认 apply plan 后继续 | 允许 | 允许 | `inputs.env`、run-local `deploy.generated.yaml`、run-local `preflight.generated.*`、run-local `INSTALLER-SUMMARY.generated.json` | 已存在 `output_dir_abs` 与其中渲染结果 |
+| `reuse-preflight` | config + preflight 可复用 | 跳过输入/preflight，从 generator 之后继续 | 允许 | 允许 | `inputs.env`、run-local `deploy.generated.yaml`、run-local `preflight.generated.*`、run-local `INSTALLER-SUMMARY.generated.json` | 源 run 的可复用 config/preflight 上下文 |
+| `re-enter-from-inputs` | 只有输入快照可复用 | 从输入边界重新进入，后续阶段按普通新 run 重新走 | 允许 | 允许 | `inputs.env`、后续新写出的 run-local config/preflight/generated summary | 历史 `inputs.env` |
 
-可以把它记成一句话：
+读这张表时，建议把 artifact 分两层理解：
 
-> inspection-first = **先 doctor / 看 result / 做人工复查，可 dry-run，不默认继续真实 apply。**
+- **当前 run-local 必备快照**：`inputs.env`、run-local `deploy.generated.yaml`、run-local `preflight.generated.*`、run-local `INSTALLER-SUMMARY.generated.json`
+- **可继续复用的工作结果**：`APPLY-PLAN.json`、`APPLY-RESULT.json`、`REPAIR-RESULT.json`、`ROLLBACK-RESULT.json`、`INSTALLER-SUMMARY.json`、共享 `output_dir_abs`
+
+可以把 inspection-first 那 4 类再记成一句话：
+
+> 先 doctor / 看 result / 做人工复查；可 dry-run，但不默认继续真实 apply。
 
 一个最小脚本化示例：
 
