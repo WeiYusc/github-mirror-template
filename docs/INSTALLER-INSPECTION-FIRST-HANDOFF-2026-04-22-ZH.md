@@ -1,11 +1,11 @@
-# Interactive Installer inspection-first 收口 handoff（2026-04-22）
+# Interactive Installer inspection-first 收口 handoff（2026-04-22，2026-04-28 refreshed）
 
-> 状态：**本轮 inspection-first 收口已基本完成，可作为阶段性停点**
+> 状态：**inspection-first 主线已收口，当前停在最近一轮可靠性维护后的稳定基线**
 > 仓库：`github-mirror-template`
 > 分支：`weiyusc/exp/interactive-installer`
 > 远端：`origin`
-> handoff 时间：2026-04-22
-> 当前停点提交：`5a966c8 test: cover installer resume review-first and doctor smoke flows`
+> handoff 时间：2026-04-28（首版 2026-04-22）
+> 当前停点提交：`0633d07 test: wire summary isolation regression into CI`
 
 ---
 
@@ -18,6 +18,8 @@
 > **把 2026-04-22 这整轮 inspection-first / review-first 相关收口，压成一份下次续接时能快速恢复上下文的短入口。**
 
 如果未来用户说“继续 interactive installer 这条 inspection-first 线”，优先先读这份，再回看更大的总归档与契约文档，而不是重新从聊天记录倒推。
+
+> 2026-04-28 refresh 说明：最近几笔本地提交不是新开功能面，而是沿着既有 inspection-first / control-plane 线继续补可靠性护栏；把最新停点继续收口在这份 handoff 里，比改写更宽的 roadmap 更利于下次直接恢复上下文。
 
 ---
 
@@ -210,9 +212,27 @@
 19. `cac0b17` — `docs: clarify inspection-first resume messaging`
 20. `4bb1ef5` — `fix: allow resume before noninteractive validation`
 
-如果只想把这一轮的演进压成一句话：
+如果只想把 2026-04-22 这一轮的演进压成一句话：
 
 > 先把坏路径和 drift 场景打牢，再把 inspection-first 的实现语义、字段契约、操作者口径和 fixture 说明压成一套语言系统；最后再把 direct CLI invocation 也真正收口到同一套保护边界里。
+
+在 `48a8a74 docs: refresh installer handoff and roadmap stop points` 之后，又沿同一条线补了 7 个可靠性维护提交：
+
+1. `66dfed1` — `fix: isolate per-run installer summary snapshots`
+2. `5e5a895` — `fix: snapshot preflight and config artifacts per run`
+3. `884a7d7` — `test: lock per-run artifact snapshot contracts`
+4. `0ad3f8e` — `test: cover doctor strategy priority semantic drift`
+5. `0fdc51d` — `fix: align doctor suggestion priority with inspection-first strategy`
+6. `afcb30d` — `test: extend deploy config yaml boundary samples`
+7. `0633d07` — `test: wire summary isolation regression into CI`
+
+这 7 笔的含义不是继续扩功能面，而是把已有 control-plane 语义再压实一层：
+
+- 每轮 run 的 `INSTALLER-SUMMARY.generated.json`、`preflight.generated.{md,json}`、`deploy.generated.yaml` 继续保持 run 级隔离
+- `state.json.artifacts.*` 明确指回当前 run 自己的快照，而不是相邻 run 的产物
+- `doctor` 的 suggestion priority 与 inspection-first 策略边界继续对齐
+- deploy config YAML regression 额外钉住 `true` / `null` / `00123` / 多行值 / 空字符串 / 边界空白 这类最容易回退的 writer 样本
+- summary isolation regression 已进入 CI，不再只是本地额外自觉运行
 
 ---
 
@@ -238,7 +258,9 @@
 ```bash
 git checkout weiyusc/exp/interactive-installer
 git pull --ff-only
+bash tests/deploy-config-yaml-regression.sh
 bash tests/installer-smoke.sh
+bash tests/installer-summary-isolation.sh
 bash tests/installer-contracts-regression.sh
 ```
 
@@ -251,52 +273,56 @@ bash tests/installer-contracts-regression.sh
 5. `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`
 6. `tests/fixtures/installer-contracts/README.md`
 
-如果 smoke 与 contract regression 都是绿的，说明当前停点仍然适合作为下一轮基线。
+如果这 4 条回归都为绿，说明当前停点仍然适合作为下一轮基线。
 
 ---
 
 ## 8. 如果以后还要继续，最值得从哪接
 
-当前我不建议继续无脑扩文档。
+当前我不建议继续无脑扩文档，也不建议在这个停点继续补零碎功能。
 
 如果以后恢复这条线，更合理的优先级是：
 
 ### 第一优先级
 
-先回到**control-plane correctness / happy path 可靠性**，尤其是：
+继续盯 **control-plane correctness / artifact isolation**，尤其是：
 
 - 非交互 `preflight -> generator -> apply` 串通是否还存在脆弱点
 - 提前退出 / on-exit summary / `status.final` / `checkpoint` 是否还有互相打架的边角
-- `doctor` / `resume` 所依赖 run 的可信度是否已经足够稳
+- run 级 summary / preflight / config snapshot 是否在更多路径下都保持隔离
+- `doctor` / `resume` 所依赖 run 的可信度是否继续稳定
 
 ### 第二优先级
 
-继续补**最值钱、最贴近 operator 入口的真实 CLI smoke / integration**，但这条线现在已不再是空白：
+继续补 **最值钱、最贴近 operator 入口的真实 CLI smoke / regression**，但要优先挑最容易漂移的入口：
 
-- 当前已覆盖普通 success-source 的正向 `resume + dry-run`
-- 已覆盖 `--doctor` CLI
-- 已覆盖 inspection-first source run 的正向 review-first `resume + dry-run`
-- 已覆盖 execute `needs-attention`、inspection-first execute refusal、generator fail-fast
+- summary isolation 的相邻 run 污染场景
+- `doctor` suggestion priority 与 inspection-first strategy 的对齐场景
+- deploy config writer/readback 的高风险边界样本
+- 任何会影响 `README` / `INSTALL` 推荐命令的真实入口
 
-所以下一步不再是“从 0 到 1 补 smoke”，而是：
-
-- 继续挑**最容易漂移**且**真正贴入口**的场景补回归
-- 让 smoke 断言持续对齐实现真相源，而不是沿用过期 fixture / 文案假设
-- 在补新 smoke 时，顺手检查 contract regression / fixture README / handoff 是否也要同步更新
+所以这一步的重点不是“补更多测试数量”，而是“补最可能把停点带偏的入口级护栏”。
 
 ### 第三优先级
 
-维护已接入的 CI 护栏与文档停点，避免 roadmap / handoff 再把已完成的 smoke / CI 写成未来 TODO。
+维护 **现有 CI / 文档停点 / roadmap 口径同步**：
 
-### 第四优先级
+- 保持 `.github/workflows/installer-regressions.yml` 与本地推荐回归入口一致
+- 新增高价值 regression 时优先纳入现有 workflow
+- 定期刷新 handoff / roadmap，避免把已完成护栏重新写回未来 TODO
 
-再考虑 YAML 安全序列化、控制面拆分、文档信息架构分层，而不是继续机械补 inspection-first 文案小变体。
+### 现在不值得优先做
+
+- 不继续机械补 inspection-first 文案小变体或 fixture 说明枝节
+- 不为了“看起来更完整”去扩新的 installer 功能面
+- 不急着做 Python 化 / 大规模 Bash 拆分 / 大规模文档搬家
+- 不在没有新失稳证据的前提下，把时间花在零碎测试补丁上替代现有入口级护栏
 
 ---
 
 ## 9. 一句话停点结论
 
-> 到 `5a966c8` 为止，interactive installer 这条线已经不只是把 inspection-first 的实现/契约/文档压齐，还把普通 success-source resume、inspection-first review-first resume 与 `--doctor` CLI 入口一起钉进了真实 smoke；如果现在停，这已经是一个更稳、更接近 operator 真实入口、且可继续演化的阶段性停点。
+> 到 `0633d07` 为止，interactive installer 这条线已经把 inspection-first 的实现/契约/文档收口，进一步补齐了 per-run summary 与 artifact snapshot 隔离、doctor suggestion priority 对齐、deploy config YAML 边界样本，以及把 summary isolation regression 接进 CI；如果现在停，这是一个比继续补零碎测试更适合续接的稳定停点。
 
 ---
 
@@ -340,7 +366,7 @@ bash tests/installer-contracts-regression.sh
 这块同样已不是未来事项：
 
 - 仓库已有 `.github/workflows/installer-regressions.yml`
-- 当前会自动执行 contract regression、真实 CLI smoke、deploy-config YAML regression
+- 当前会自动执行 deploy-config YAML regression、真实 CLI smoke、summary isolation regression 与 contract regression
 
 因此更自然的后续工作是：
 
