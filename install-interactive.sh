@@ -313,6 +313,22 @@ installer_load_platform_helpers() {
   fi
 }
 
+installer_copy_reused_artifact_if_present() {
+  local source_path="$1"
+  local target_path="$2"
+
+  if [[ -z "$source_path" || -z "$target_path" || ! -f "$source_path" ]]; then
+    return 0
+  fi
+
+  if [[ "$source_path" == "$target_path" ]]; then
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$target_path")"
+  cp "$source_path" "$target_path"
+}
+
 installer_prepare_output_artifact_paths() {
   if [[ -z "$OUTPUT_DIR_ABS" ]]; then
     OUTPUT_DIR_ABS="$OUTPUT_DIR"
@@ -337,19 +353,19 @@ installer_run_or_reuse_preflight() {
   if [[ "$SHOULD_SKIP_PREFLIGHT" == "1" ]]; then
     INSTALLER_PREFLIGHT_STATUS="$RESUME_SOURCE_PREFLIGHT_STATUS"
     if [[ -n "$RESUME_SOURCE_PREFLIGHT_REPORT_MD" ]]; then
-      PREFLIGHT_REPORT_MD="$RESUME_SOURCE_PREFLIGHT_REPORT_MD"
-      PREFLIGHT_REPORT_MD_RUN_COPY="$RESUME_SOURCE_PREFLIGHT_REPORT_MD"
+      installer_copy_reused_artifact_if_present "$RESUME_SOURCE_PREFLIGHT_REPORT_MD" "$PREFLIGHT_REPORT_MD"
+      installer_copy_reused_artifact_if_present "$RESUME_SOURCE_PREFLIGHT_REPORT_MD" "$PREFLIGHT_REPORT_MD_RUN_COPY"
     fi
     if [[ -n "$RESUME_SOURCE_PREFLIGHT_REPORT_JSON" ]]; then
-      PREFLIGHT_REPORT_JSON="$RESUME_SOURCE_PREFLIGHT_REPORT_JSON"
-      PREFLIGHT_REPORT_JSON_RUN_COPY="$RESUME_SOURCE_PREFLIGHT_REPORT_JSON"
+      installer_copy_reused_artifact_if_present "$RESUME_SOURCE_PREFLIGHT_REPORT_JSON" "$PREFLIGHT_REPORT_JSON"
+      installer_copy_reused_artifact_if_present "$RESUME_SOURCE_PREFLIGHT_REPORT_JSON" "$PREFLIGHT_REPORT_JSON_RUN_COPY"
     fi
     if [[ -n "$RESUME_SOURCE_CONFIG_PATH" ]]; then
-      CONFIG_PATH="$RESUME_SOURCE_CONFIG_PATH"
-      CONFIG_PATH_RUN_COPY="$RESUME_SOURCE_CONFIG_PATH"
+      installer_copy_reused_artifact_if_present "$RESUME_SOURCE_CONFIG_PATH" "$CONFIG_PATH"
+      installer_copy_reused_artifact_if_present "$RESUME_SOURCE_CONFIG_PATH" "$CONFIG_PATH_RUN_COPY"
     fi
     state_mark_checkpoint "preflight-reused" "resume reused preflight artifacts"
-    state_append_journal "preflight.reused" "ok" "resume reused preflight artifacts" "$PREFLIGHT_REPORT_JSON"
+    state_append_journal "preflight.reused" "ok" "resume reused preflight artifacts" "$PREFLIGHT_REPORT_JSON_RUN_COPY"
     ui_section "基础 preflight"
     ui_info "已复用历史 preflight 结果，跳过重新检查。"
     ui_info "$PREFLIGHT_REPORT_MD"
@@ -388,7 +404,7 @@ installer_run_or_reuse_generator() {
       OUTPUT_DIR_ABS="$RESUME_SOURCE_OUTPUT_DIR_ABS"
     fi
     state_mark_checkpoint "generator-reused" "resume reused generated output"
-    state_append_journal "generator.reused" "success" "resume reused previous generator output" "$OUTPUT_DIR_ABS"
+    state_append_journal "generator.reused" "success" "resume reused previous generator output" "$CONFIG_PATH_RUN_COPY"
     ui_section "开始调用 generator"
     ui_info "已复用历史 generator 输出，跳过重新调用 generate-from-config.sh。"
     return 0
@@ -439,7 +455,7 @@ installer_run_or_reuse_apply_plan() {
       SUMMARY_JSON_SECONDARY="$RESUME_SOURCE_SUMMARY_JSON_SECONDARY"
     fi
     state_mark_checkpoint "apply-plan-reused" "resume reused apply plan artifacts"
-    state_append_journal "apply-plan.reused" "generated" "resume reused apply plan artifacts" "$APPLY_PLAN_JSON_PATH"
+    state_append_journal "apply-plan.reused" "generated" "resume reused apply plan artifacts" "$SUMMARY_JSON_RUN_COPY"
     return 0
   fi
 

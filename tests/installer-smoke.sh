@@ -487,27 +487,47 @@ fi
 resume_positive_state_json="$RESUME_POSITIVE_RUN_DIR/state.json"
 resume_positive_summary_output="$resume_source_workspace/output/INSTALLER-SUMMARY.json"
 resume_positive_apply_result_json="$resume_source_workspace/output/APPLY-RESULT.json"
-python3 - "$resume_positive_state_json" "$SUMMARY_PRIMARY" "$resume_positive_summary_output" "$resume_positive_apply_result_json" <<'PY'
+python3 - "$resume_positive_state_json" "$RESUME_SOURCE_RUN_DIR/state.json" "$SUMMARY_PRIMARY" "$resume_positive_summary_output" "$resume_positive_apply_result_json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 state_path = Path(sys.argv[1])
-summary_primary_path = Path(sys.argv[2])
-summary_output_path = Path(sys.argv[3])
-apply_result_path = Path(sys.argv[4])
+source_state_path = Path(sys.argv[2])
+summary_primary_path = Path(sys.argv[3])
+summary_output_path = Path(sys.argv[4])
+apply_result_path = Path(sys.argv[5])
 
 state = json.loads(state_path.read_text(encoding="utf-8"))
+source_state = json.loads(source_state_path.read_text(encoding="utf-8"))
 summary_primary = json.loads(summary_primary_path.read_text(encoding="utf-8"))
 summary_output = json.loads(summary_output_path.read_text(encoding="utf-8"))
 apply_result = json.loads(apply_result_path.read_text(encoding="utf-8"))
 journal = [json.loads(line) for line in (state_path.parent / "journal.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
 events = [item["event"] for item in journal]
 
+run_dir = state_path.parent
+expected_config = run_dir / "deploy.generated.yaml"
+expected_preflight_md = run_dir / "preflight.generated.md"
+expected_preflight_json = run_dir / "preflight.generated.json"
+expected_summary_generated = run_dir / "INSTALLER-SUMMARY.generated.json"
+
 assert state["lineage"]["mode"] == "resume", state
 assert state["status"]["apply_execute"] != "success", state
 assert state["status"]["final"] == summary_primary["status"]["final"], (state, summary_primary)
 assert state["status"]["final"] == summary_output["status"]["final"], (state, summary_output)
+assert Path(state["artifacts"]["config"]) == expected_config, state
+assert Path(state["artifacts"]["preflight_markdown"]) == expected_preflight_md, state
+assert Path(state["artifacts"]["preflight_json"]) == expected_preflight_json, state
+assert Path(state["artifacts"]["summary_generated"]) == expected_summary_generated, state
+assert expected_config.exists(), expected_config
+assert expected_preflight_md.exists(), expected_preflight_md
+assert expected_preflight_json.exists(), expected_preflight_json
+assert expected_summary_generated.exists(), expected_summary_generated
+assert state["artifacts"]["config"] != source_state["artifacts"]["config"], (state, source_state)
+assert state["artifacts"]["preflight_markdown"] != source_state["artifacts"]["preflight_markdown"], (state, source_state)
+assert state["artifacts"]["preflight_json"] != source_state["artifacts"]["preflight_json"], (state, source_state)
+assert state["artifacts"]["summary_generated"] != source_state["artifacts"]["summary_generated"], (state, source_state)
 assert apply_result["mode"] == "dry-run", apply_result
 assert summary_primary["status"]["apply_execute"] == state["status"]["apply_execute"], (summary_primary, state)
 assert summary_output["status"]["apply_execute"] == state["status"]["apply_execute"], (summary_output, state)
@@ -515,6 +535,12 @@ assert "inputs.reused" in events, journal
 assert "preflight.reused" in events, journal
 assert "generator.reused" in events, journal
 assert "apply-plan.reused" in events, journal
+preflight_reused = next(item for item in journal if item["event"] == "preflight.reused")
+generator_reused = next(item for item in journal if item["event"] == "generator.reused")
+apply_plan_reused = next(item for item in journal if item["event"] == "apply-plan.reused")
+assert Path(preflight_reused["path"]) == expected_preflight_json, preflight_reused
+assert Path(generator_reused["path"]) == expected_config, generator_reused
+assert Path(apply_plan_reused["path"]) == expected_summary_generated, apply_plan_reused
 assert journal[-2]["event"] == "run.complete", journal
 assert journal[-1]["event"] == "run.exit", journal
 assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
@@ -546,19 +572,21 @@ fi
 inspect_resume_state_json="$INSPECT_RESUME_RUN_DIR/state.json"
 inspect_resume_summary_output="$needs_workspace/output/INSTALLER-SUMMARY.json"
 inspect_resume_apply_result_json="$needs_workspace/output/APPLY-RESULT.json"
-python3 - "$inspect_resume_state_json" "$SUMMARY_PRIMARY" "$inspect_resume_summary_output" "$inspect_resume_apply_result_json" "$TMP_DIR/inspect-resume.stdout" "$TMP_DIR/inspect-resume.stderr" <<'PY'
+python3 - "$inspect_resume_state_json" "$NEEDS_RUN_DIR/state.json" "$SUMMARY_PRIMARY" "$inspect_resume_summary_output" "$inspect_resume_apply_result_json" "$TMP_DIR/inspect-resume.stdout" "$TMP_DIR/inspect-resume.stderr" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 state_path = Path(sys.argv[1])
-summary_primary_path = Path(sys.argv[2])
-summary_output_path = Path(sys.argv[3])
-apply_result_path = Path(sys.argv[4])
-stdout_path = Path(sys.argv[5])
-stderr_path = Path(sys.argv[6])
+source_state_path = Path(sys.argv[2])
+summary_primary_path = Path(sys.argv[3])
+summary_output_path = Path(sys.argv[4])
+apply_result_path = Path(sys.argv[5])
+stdout_path = Path(sys.argv[6])
+stderr_path = Path(sys.argv[7])
 
 state = json.loads(state_path.read_text(encoding="utf-8"))
+source_state = json.loads(source_state_path.read_text(encoding="utf-8"))
 summary_primary = json.loads(summary_primary_path.read_text(encoding="utf-8"))
 summary_output = json.loads(summary_output_path.read_text(encoding="utf-8"))
 apply_result = json.loads(apply_result_path.read_text(encoding="utf-8"))
@@ -567,6 +595,12 @@ stderr_text = stderr_path.read_text(encoding="utf-8")
 journal = [json.loads(line) for line in (state_path.parent / "journal.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
 events = [item["event"] for item in journal]
 
+run_dir = state_path.parent
+expected_config = run_dir / "deploy.generated.yaml"
+expected_preflight_md = run_dir / "preflight.generated.md"
+expected_preflight_json = run_dir / "preflight.generated.json"
+expected_summary_generated = run_dir / "INSTALLER-SUMMARY.generated.json"
+
 assert state["lineage"]["mode"] == "resume", state
 assert state["lineage"]["resume_strategy"] == "inspect-after-apply-attention", state
 assert "resume as not recommended" in state["lineage"]["resume_strategy_reason"], state
@@ -574,12 +608,30 @@ assert state["status"]["apply_execute"] != "success", state
 assert state["status"]["final"] == "success", state
 assert state["status"]["final"] == summary_primary["status"]["final"], (state, summary_primary)
 assert state["status"]["final"] == summary_output["status"]["final"], (state, summary_output)
+assert Path(state["artifacts"]["config"]) == expected_config, state
+assert Path(state["artifacts"]["preflight_markdown"]) == expected_preflight_md, state
+assert Path(state["artifacts"]["preflight_json"]) == expected_preflight_json, state
+assert Path(state["artifacts"]["summary_generated"]) == expected_summary_generated, state
+assert expected_config.exists(), expected_config
+assert expected_preflight_md.exists(), expected_preflight_md
+assert expected_preflight_json.exists(), expected_preflight_json
+assert expected_summary_generated.exists(), expected_summary_generated
+assert state["artifacts"]["config"] != source_state["artifacts"]["config"], (state, source_state)
+assert state["artifacts"]["preflight_markdown"] != source_state["artifacts"]["preflight_markdown"], (state, source_state)
+assert state["artifacts"]["preflight_json"] != source_state["artifacts"]["preflight_json"], (state, source_state)
+assert state["artifacts"]["summary_generated"] != source_state["artifacts"]["summary_generated"], (state, source_state)
 assert apply_result["mode"] == "dry-run", apply_result
 assert apply_result["recovery"]["resume_strategy"] == "dry-run-ok", apply_result
 assert "inputs.reused" in events, journal
 assert "preflight.reused" in events, journal
 assert "generator.reused" in events, journal
 assert "apply-plan.reused" in events, journal
+preflight_reused = next(item for item in journal if item["event"] == "preflight.reused")
+generator_reused = next(item for item in journal if item["event"] == "generator.reused")
+apply_plan_reused = next(item for item in journal if item["event"] == "apply-plan.reused")
+assert Path(preflight_reused["path"]) == expected_preflight_json, preflight_reused
+assert Path(generator_reused["path"]) == expected_config, generator_reused
+assert Path(apply_plan_reused["path"]) == expected_summary_generated, apply_plan_reused
 assert journal[-2]["event"] == "run.complete", journal
 assert journal[-1]["event"] == "run.exit", journal
 assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
