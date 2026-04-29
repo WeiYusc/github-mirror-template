@@ -1,3 +1,3 @@
 {"ts": "2026-04-21T01:53:00Z", "run_id": "fixture-post-repair-verification", "event": "run.initialized", "status": "ok", "message": "mode=resume", "path": "__FIXTURE_ROOT__/runs/fixture-post-repair-verification"}
-{"ts": "2026-04-21T01:53:01Z", "run_id": "fixture-post-repair-verification", "event": "repair.review", "status": "ok", "message": "nginx test rerun passed", "path": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json"}
+{"ts": "2026-04-21T01:53:01Z", "run_id": "fixture-post-repair-verification", "event": "repair.result.recorded", "status": "ok", "message": "nginx test rerun passed", "path": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json"}
 {"ts": "2026-04-21T01:53:02Z", "run_id": "fixture-post-repair-verification", "event": "run.complete", "status": "success", "message": "installer completed", "path": "__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/INSTALLER-SUMMARY.json"}

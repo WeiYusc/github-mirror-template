@@ -1,3 +1,3 @@
 {"ts": "2026-04-21T01:32:00Z", "run_id": "fixture-post-rollback-inspection", "event": "run.initialized", "status": "ok", "message": "mode=resume", "path": "__FIXTURE_ROOT__/runs/fixture-post-rollback-inspection"}
-{"ts": "2026-04-21T01:32:01Z", "run_id": "fixture-post-rollback-inspection", "event": "rollback.review", "status": "ok", "message": "post rollback inspection", "path": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/ROLLBACK-RESULT.json"}
+{"ts": "2026-04-21T01:32:01Z", "run_id": "fixture-post-rollback-inspection", "event": "rollback.result.recorded", "status": "ok", "message": "post rollback inspection", "path": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/ROLLBACK-RESULT.json"}
 {"ts": "2026-04-21T01:32:02Z", "run_id": "fixture-post-rollback-inspection", "event": "run.complete", "status": "success", "message": "installer completed", "path": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/INSTALLER-SUMMARY.json"}

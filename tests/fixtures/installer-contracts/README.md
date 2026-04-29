@@ -224,13 +224,13 @@
 - `run.initialized.path` 必须指向当前 run 的 `state_dir`
 - `run.complete.path` 必须指向当前 run 的 `INSTALLER-SUMMARY.json`
 - `apply-execute.complete.path` 必须指向当前 run 的 `APPLY-RESULT.json`
-- `repair.review.path` / `rollback.review.path` 必须分别指向当前 run 的 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`
+- `repair.result.recorded.path` / `rollback.result.recorded.path` 必须分别指向当前 run 的 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`
 
 用于验证：
 
 - event 名称与 path 主锚点不会只在 smoke 里被动发现漂移，而能在 fixture regression 层更早失败
-- inspection-first fixture 的 review 事件仍明确回到 companion result，而不是漂到 generic summary 或祖先产物
-- `run.initialized → state_dir`、`run.complete → summary_output`、阶段 review/execute 事件 → 对应 result json 的关系，始终与 `docs/INSTALLER-STATE-MODEL-ZH.md` 保持一致
+- inspection-first fixture 的 companion result recorded 事件仍明确回到 companion result，而不是漂到 generic summary 或祖先产物
+- `run.initialized → state_dir`、`run.complete → summary_output`、阶段 recorded/execute 事件 → 对应 result json 的关系，始终与 `docs/INSTALLER-STATE-MODEL-ZH.md` 保持一致
 
 ### 15. JSON 合法但路径/产物漂移（path drift / artifact drift）的保守降级
 
