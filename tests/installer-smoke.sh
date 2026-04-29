@@ -538,9 +538,12 @@ assert "apply-plan.reused" in events, journal
 preflight_reused = next(item for item in journal if item["event"] == "preflight.reused")
 generator_reused = next(item for item in journal if item["event"] == "generator.reused")
 apply_plan_reused = next(item for item in journal if item["event"] == "apply-plan.reused")
+run_complete = next(item for item in journal if item["event"] == "run.complete")
 assert Path(preflight_reused["path"]) == expected_preflight_json, preflight_reused
 assert Path(generator_reused["path"]) == expected_config, generator_reused
-assert Path(apply_plan_reused["path"]) == expected_summary_generated, apply_plan_reused
+assert Path(apply_plan_reused["path"]) == Path(state["artifacts"]["apply_plan_json"]), apply_plan_reused
+assert Path(run_complete["path"]) == Path(state["artifacts"]["summary_output"]), run_complete
+assert Path(journal[-1]["path"]) == state_path, journal[-1]
 assert journal[-2]["event"] == "run.complete", journal
 assert journal[-1]["event"] == "run.exit", journal
 assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
@@ -629,9 +632,12 @@ assert "apply-plan.reused" in events, journal
 preflight_reused = next(item for item in journal if item["event"] == "preflight.reused")
 generator_reused = next(item for item in journal if item["event"] == "generator.reused")
 apply_plan_reused = next(item for item in journal if item["event"] == "apply-plan.reused")
+run_complete = next(item for item in journal if item["event"] == "run.complete")
 assert Path(preflight_reused["path"]) == expected_preflight_json, preflight_reused
 assert Path(generator_reused["path"]) == expected_config, generator_reused
-assert Path(apply_plan_reused["path"]) == expected_summary_generated, apply_plan_reused
+assert Path(apply_plan_reused["path"]) == Path(state["artifacts"]["apply_plan_json"]), apply_plan_reused
+assert Path(run_complete["path"]) == Path(state["artifacts"]["summary_output"]), run_complete
+assert Path(journal[-1]["path"]) == state_path, journal[-1]
 assert journal[-2]["event"] == "run.complete", journal
 assert journal[-1]["event"] == "run.exit", journal
 assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
