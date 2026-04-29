@@ -137,17 +137,30 @@
 
 当 `resume` / `doctor` 面对 inspection-first 四类策略时，当前更可靠的消费顺序不是“只看某一个 final/status 字段”，而是：
 
-1. 先看 `state.json.lineage.resume_strategy`
-2. 再看 `APPLY-RESULT.json.recovery.resume_strategy` / `resume_recommended` / `operator_action`
-3. 若已有 repair 结果，则优先看 `REPAIR-RESULT.json.final_status` 与 `execution.nginx_test_rerun_status`
-4. 若已有 rollback 结果，则优先看 `ROLLBACK-RESULT.json.final_status`、`mode`、`flags.execute`
-5. 最后才把 `next_step` 当成人类说明补充，而不是唯一机器判定来源
+1. 先看 **当前可解析到的 companion/apply 结果** 是否已经足以重新推导 effective strategy
+   - `ROLLBACK-RESULT.json.mode=execute && final_status=ok` → `post-rollback-inspection`
+   - `REPAIR-RESULT.json.execution.nginx_test_rerun_status=passed` → `post-repair-verification`
+   - `REPAIR-RESULT.json.final_status in {needs-attention, blocked}` → `repair-review-first`
+   - `APPLY-RESULT.json.recovery.resume_recommended=false` → `inspect-after-apply-attention`
+2. 如果这些 direct truth-source 不足，再回退看 `state.json.lineage.resume_strategy`
+3. 然后再看 `APPLY-RESULT.json.recovery.resume_strategy` / `resume_recommended` / `operator_action`
+4. 若已有 repair 结果，则优先看 `REPAIR-RESULT.json.final_status` 与 `execution.nginx_test_rerun_status`
+5. 若已有 rollback 结果，则优先看 `ROLLBACK-RESULT.json.final_status`、`mode`、`flags.execute`
+6. 最后才把 `next_step` 当成人类说明补充，而不是唯一机器判定来源
 
 也就是说：
 
-> inspection-first 相关判断当前依赖的是 **lineage + recovery.* + companion result final/execution 字段** 的组合，而不是单独依赖某一句 `next_step` 文案。
+> inspection-first 相关判断当前依赖的是 **lineage + recovery.* + companion result final/execution 字段** 的组合；其中当 `lineage.resume_strategy` 缺失、陈旧、或与 companion result 冲突时，`doctor` / `resume planner` 都应优先让当前结果文件重新推导出的 effective strategy 说了算。
 
 这也是为什么当前 contract regression 更适合优先钉这些字段，而不会把完整中文提示句当成强契约。
+
+一个容易误读、但当前实现已经明确的冲突例子是：
+
+- 如果 `APPLY-RESULT.json.recovery.resume_recommended=false`，但同一个当前 run 的 `REPAIR-RESULT.json.final_status=needs-attention`，
+- 那么 `doctor` / `resume planner` 都应把 **repair-review-first** 当成更强的 effective strategy，
+- 而不是继续坚持 `inspect-after-apply-attention`。
+
+换句话说，apply recovery 不是 inspection-first 家族里的“永久最高优先级”；它会被更晚、更贴近现场的 repair / rollback companion 结果覆盖。
 
 ---
 

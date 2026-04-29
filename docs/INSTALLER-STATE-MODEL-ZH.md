@@ -89,9 +89,10 @@
 1. **观察入口**先看 `./install-interactive.sh --doctor <run_id>`
 2. **主账本**再看 `state.json`
 3. **事实来源**则继续按下面顺序理解：
-   - 先看 `state.json.lineage.resume_strategy`
-   - 再看 `APPLY-RESULT.json.recovery.*`
-   - 若存在，再看 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` 的关键状态字段
+   - 先看当前可解析到的 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` / `APPLY-RESULT.json` 是否已经足以重新推导 effective inspection-first strategy
+   - 推导不出来时，再回退看 `state.json.lineage.resume_strategy`
+   - 然后再结合 `APPLY-RESULT.json.recovery.*`
+   - 再看 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` 的关键状态字段
    - 最后才把 `next_step` 当成人类说明补充
 
 也就是说：
@@ -99,6 +100,8 @@
 - `doctor` 是最方便的观察入口，但它本身已经是对 `state.json + APPLY/REPAIR/ROLLBACK-RESULT.json` 的汇总视图
 - `checkpoint` / `status.*` 负责告诉你“走到哪、各阶段结果如何”
 - `lineage + recovery.* + companion result` 负责告诉你 inspection-first / review-first 语义下真正更接近事实的恢复判断
+- 如果 `lineage.resume_strategy` 与当前 companion/apply result 冲突，当前实现应优先让结果文件重新推导出的 effective strategy 说了算
+- 具体顺序上，当前 planner / doctor 以 `rollback execute ok > repair rerun passed > repair needs-attention/blocked > apply recovery resume_recommended=false > lineage fallback` 为主
 
 不要把“先看 doctor”误理解成“真正做机器/语义判断时只用 doctor 或只用 `state.json` 就够”。
 

@@ -675,7 +675,6 @@ assert_equals "$INSTALLER_REPAIR_STATUS" "ok" "post repair verification effectiv
 assert_equals "$INSTALLER_ROLLBACK_STATUS" "ok" "post repair verification effective rollback status follows rollback result truth"
 
 resume_runtime_banner_output="$(bash -c '
-  set -euo pipefail
   source "$1/scripts/lib/ui.sh"
   source "$1/scripts/lib/config.sh"
   source "$1/scripts/lib/apply-plan.sh"
@@ -716,6 +715,13 @@ resume_runtime_banner_output="$(bash -c '
   fi
 ' _ "$ROOT_DIR" "$WORKDIR")"
 assert_contains "$resume_runtime_banner_output" "当前以 resume 模式启动：这轮属于 inspection-first 续接；会优先复查可复用产物，不把继续真实 apply 当默认动作。" "inspection-first runtime banner is explicit about review-first semantics"
+
+plan_resume_runtime_for_run "fixture-inspect-after-apply-attention"
+assert_equals "$RESUME_STRATEGY" "inspect-after-apply-attention" "inspect-after-apply planner falls back to apply recovery when companion results do not demand review boundary override"
+assert_equals "$SHOULD_SKIP_INPUTS" "1" "inspect-after-apply forces input reuse from available artifacts"
+assert_equals "$SHOULD_SKIP_PREFLIGHT" "1" "inspect-after-apply forces preflight reuse from available artifacts"
+assert_equals "$SHOULD_SKIP_GENERATOR" "1" "inspect-after-apply forces generator reuse from available artifacts"
+assert_equals "$SHOULD_SKIP_APPLY_PLAN" "1" "inspect-after-apply forces apply plan reuse from available artifacts"
 
 python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
 import json
@@ -1000,8 +1006,10 @@ path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='
 PY
 doctor_inspect_after_apply_suggestion_drift_output="$(state_doctor "fixture-inspect-after-apply-attention")"
 doctor_inspect_after_apply_suggestion_drift_next_step="$(printf '%s' "$doctor_inspect_after_apply_suggestion_drift_output" | extract_doctor_next_step_section)"
-assert_contains "$doctor_inspect_after_apply_suggestion_drift_next_step" "apply 已明确要求先人工复核；建议先检查当前 run 的 apply result 与 recovery 字段，再决定是否只做 dry-run 或人工处理。 当前不建议把 resume 当作默认下一步。" "inspect-after-apply suggestion drift still keeps apply-first next step"
-assert_not_contains "$doctor_inspect_after_apply_suggestion_drift_next_step" "【DRIFT-REPAIR】repair companion 抢到了建议位。" "inspect-after-apply suggestion drift no longer lets repair companion steal next step"
+assert_contains "$doctor_inspect_after_apply_suggestion_drift_output" "当前 resume 策略：repair-review-first。" "inspect-after-apply suggestion drift upgrades strategy to repair review when companion result truth demands it"
+assert_contains "$doctor_inspect_after_apply_suggestion_drift_output" "- 当前策略优先产物：$WORKDIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json [repair-result]" "inspect-after-apply suggestion drift upgrades priority artifact to repair result"
+assert_contains "$doctor_inspect_after_apply_suggestion_drift_next_step" "【DRIFT-REPAIR】repair companion 抢到了建议位。" "inspect-after-apply suggestion drift now follows repair-first truth when repair companion requires operator review"
+assert_not_contains "$doctor_inspect_after_apply_suggestion_drift_next_step" "apply 已明确要求先人工复核；建议先检查当前 run 的 apply result 与 recovery 字段，再决定是否只做 dry-run 或人工处理。 当前不建议把 resume 当作默认下一步。" "inspect-after-apply suggestion drift no longer pins apply-first guidance against stronger repair review truth"
 
 python3 - "$TEMPLATE_DIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json" "$WORKDIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json" "$WORKDIR" <<'PY'
 import sys
@@ -1151,10 +1159,11 @@ state_load_resume_context "fixture-post-repair-verification"
 assert_equals "${RESUME_SOURCE_APPLY_RESULT_JSON_PATH-}" "" "missing apply_result_json keeps resume apply result json empty"
 assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "fixture-post-repair-verification" "missing apply_result_json still keeps current repair owner"
 doctor_missing_lineage_fields_output="$(state_doctor "fixture-post-repair-verification")"
-assert_contains "$doctor_missing_lineage_fields_output" "- 当前 resume 策略：未记录。" "missing resume strategy doctor prints unrecorded strategy"
-assert_contains "$doctor_missing_lineage_fields_output" "- 触发原因：未记录。" "missing resume strategy reason doctor prints unrecorded reason"
+assert_contains "$doctor_missing_lineage_fields_output" "- 当前 resume 策略：post-repair-verification。" "missing resume strategy doctor re-derives post repair strategy from companion result truth"
+assert_contains "$doctor_missing_lineage_fields_output" "- 触发原因：source repair rerun nginx test already passed。" "missing resume strategy reason doctor re-derives post repair reason from companion result truth"
 assert_contains "$doctor_missing_lineage_fields_output" "[doctor] repair result json" "missing apply_result_json doctor still prints repair result section"
 assert_contains "$doctor_missing_lineage_fields_output" "- path: $WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" "missing apply_result_json doctor still resolves repair result path"
+assert_contains "$doctor_missing_lineage_fields_output" "- 当前策略优先产物：$WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json [repair-result]" "missing resume strategy doctor still keeps repair-first priority artifact"
 assert_contains "$doctor_missing_lineage_fields_output" "[doctor] 下一步建议" "missing apply_result_json doctor still prints next step section"
 
 python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
@@ -1169,7 +1178,7 @@ PY
 doctor_lineage_string_false_output="$(state_doctor "fixture-post-repair-verification")"
 assert_contains "$doctor_lineage_string_false_output" "- lineage.is_resumed_run: True" "string false resumed flag still resolves to effective resumed run"
 assert_contains "$doctor_lineage_string_false_output" "- 这是一轮 resumed run：当前运行继承自 fixture-legacy-fallback（source checkpoint: completed）。" "string false resumed flag still prints resumed lineage summary"
-assert_contains "$doctor_lineage_string_false_output" "- 当前 resume 策略：未记录。" "string false resumed flag still keeps degraded strategy text"
+assert_contains "$doctor_lineage_string_false_output" "- 当前 resume 策略：post-repair-verification。" "string false resumed flag still keeps effective post repair strategy text"
 
 python3 - "$WORKDIR/runs/fixture-legacy-fallback/state.json" <<'PY'
 import json
@@ -1239,6 +1248,7 @@ assert_contains "$doctor_type_drift_top_level_output" "[doctor] 状态" "top-lev
 assert_contains "$doctor_type_drift_top_level_output" "[doctor] 产物" "top-level type drift doctor still prints artifacts section"
 assert_contains "$doctor_type_drift_top_level_output" "[doctor] 下一步建议" "top-level type drift doctor still prints next step section"
 assert_contains "$doctor_type_drift_top_level_output" "当前处于 post-repair-verification；建议先跑 ./install-interactive.sh --doctor fixture-post-repair-verification 复核当前 run 与 companion result，再决定是否只做 dry-run、repair、rollback 或人工处理。" "top-level type drift doctor falls back to inspection-first suggestion instead of generic resume"
+assert_contains "$doctor_type_drift_top_level_output" "- 当前 resume 策略：post-repair-verification。" "top-level type drift doctor still re-derives effective post repair strategy from companion result truth"
 
 python3 - "$WORKDIR/runs/fixture-post-repair-verification/state.json" <<'PY'
 import json

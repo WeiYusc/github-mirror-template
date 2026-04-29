@@ -988,6 +988,18 @@ if jp.exists():
             pass
 
 
+def load_json_if_exists_quiet(path_str: str):
+    if not path_str:
+        return None
+    path = Path(path_str)
+    if not path.exists():
+        return None
+    try:
+        return ensure_dict(json.loads(path.read_text(encoding="utf-8")))
+    except Exception:
+        return None
+
+
 def load_json_if_exists(path_str: str, label: str):
     if not path_str:
         return None
@@ -1135,6 +1147,63 @@ def find_nearest_abnormal_ancestor(lineage_chain):
     return next((item for item in lineage_chain[1:] if item.get("alerts")), None)
 
 
+def derive_effective_resume_strategy(lineage: dict, apply_result: dict | None, repair_result: dict | None, rollback_result: dict | None):
+    lineage = ensure_dict(lineage)
+    apply_result = ensure_dict(apply_result)
+    repair_result = ensure_dict(repair_result)
+    rollback_result = ensure_dict(rollback_result)
+    recovery = ensure_dict(apply_result.get("recovery"))
+    repair_execution = ensure_dict(repair_result.get("execution"))
+
+    def strategy_phase(strategy: str) -> int:
+        if strategy == "inspect-after-apply-attention":
+            return 1
+        if strategy in {"repair-review-first", "post-repair-verification"}:
+            return 2
+        if strategy == "post-rollback-inspection":
+            return 3
+        return 0
+
+    direct_strategy = ""
+    direct_reason = ""
+    if rollback_result.get("mode", "") == "execute" and rollback_result.get("final_status", "") == "ok":
+        direct_strategy = "post-rollback-inspection"
+        direct_reason = "source rollback already executed successfully"
+    elif repair_execution.get("nginx_test_rerun_status", "") == "passed":
+        direct_strategy = "post-repair-verification"
+        direct_reason = "source repair rerun nginx test already passed"
+    elif repair_result.get("final_status", "") in {"needs-attention", "blocked"}:
+        direct_strategy = "repair-review-first"
+        direct_reason = "source repair result still needs operator review"
+    elif apply_result and not jsonish_bool(recovery.get("resume_recommended", True)):
+        direct_strategy = "inspect-after-apply-attention"
+        direct_reason = "source apply recovery marked resume as not recommended"
+
+    lineage_strategy = lineage.get("resume_strategy", "") or ""
+    lineage_reason = lineage.get("resume_strategy_reason", "") or ""
+
+    if not direct_strategy:
+        return (lineage_strategy, lineage_reason)
+    if not lineage_strategy:
+        return (direct_strategy, direct_reason)
+
+    if strategy_phase(direct_strategy) >= strategy_phase(lineage_strategy):
+        return (direct_strategy, direct_reason)
+    return (lineage_strategy, lineage_reason)
+
+
+
+def with_effective_resume_strategy(lineage: dict, apply_result: dict | None, repair_result: dict | None, rollback_result: dict | None):
+    effective = dict(ensure_dict(lineage))
+    strategy, reason = derive_effective_resume_strategy(lineage, apply_result, repair_result, rollback_result)
+    if strategy:
+        effective["resume_strategy"] = strategy
+    if reason:
+        effective["resume_strategy_reason"] = reason
+    return effective
+
+
+
 def choose_resume_strategy_priority_artifact(state: dict, lineage: dict):
     state = ensure_dict(state)
     lineage = ensure_dict(lineage)
@@ -1145,6 +1214,11 @@ def choose_resume_strategy_priority_artifact(state: dict, lineage: dict):
         path = first_existing_artifact(artifacts, "apply_result_json", "apply_result", "repair_result_json", "repair_result")
         if path:
             return ("apply-result", path, "当前 run 已明确进入 inspect-after-apply-attention；应先看 apply result / recovery 字段，再决定后续动作。")
+
+    if resume_strategy == "repair-review-first":
+        path = first_existing_artifact(artifacts, "repair_result_json", "repair_result", "apply_result_json")
+        if path:
+            return ("repair-result", path, "当前 run 的 repair 结果仍需 operator review；应先看这一份，再决定 rollback 还是人工修复。")
 
     if resume_strategy == "post-repair-verification":
         path = first_existing_artifact(artifacts, "repair_result_json", "repair_result", "apply_result_json")
@@ -1266,7 +1340,9 @@ def print_resume_lineage_summary(state: dict, lineage: dict, lineage_chain):
         print(f"- 当前已解析到 {len(lineage_chain)} 段 lineage 链。")
 
     operator_hint = "先结合 state / result artifacts 做常规复核。"
-    if resume_strategy in {"repair-review-first", "post-repair-verification"}:
+    if resume_strategy == "repair-review-first":
+        operator_hint = "优先查看 repair 结果与诊断摘要，确认应该 rollback 还是继续人工修复。"
+    elif resume_strategy == "post-repair-verification":
         operator_hint = "优先查看 repair 结果与 nginx test 相关输出，确认是否还需要人工处理。"
     elif resume_strategy == "post-rollback-inspection":
         operator_hint = "优先核对 rollback 结果与当前落地文件状态，确认是否适合继续后续动作。"
@@ -1521,10 +1597,28 @@ print(f"- updated_at: {state.get('updated_at', '')}")
 print(f"- checkpoint: {state.get('checkpoint', '')}")
 print(f"- resumed_from: {state.get('resumed_from', '') or '无'}")
 runs_root = Path(state_path).resolve().parent.parent
+artifacts = ensure_dict(state.get("artifacts"))
+apply_result_json_path = artifacts.get("apply_result_json") or ""
+apply_result = load_json_if_exists(apply_result_json_path, "apply result json")
+
+repair_result_json_path, rollback_result_json_path = resolve_followup_result_json_paths(
+    artifacts,
+    apply_result_json_path,
+)
+
+repair_result = load_json_if_exists(repair_result_json_path, "repair result json")
+rollback_result = load_json_if_exists(rollback_result_json_path, "rollback result json")
+
+effective_lineage = with_effective_resume_strategy(
+    state.get("lineage"),
+    load_json_if_exists_quiet(apply_result_json_path),
+    load_json_if_exists_quiet(repair_result_json_path),
+    load_json_if_exists_quiet(rollback_result_json_path),
+)
+lineage = effective_lineage
 lineage_chain = build_lineage_chain(state, runs_root)
 current_run_status = ensure_dict(state.get("status"))
 current_run_alerts = collect_abnormal_status_alerts(current_run_status)
-lineage = ensure_dict(state.get("lineage"))
 current_run_priority = summarize_artifact_priority({
     "alerts": current_run_alerts,
     "artifacts": ensure_dict(state.get("artifacts")),
@@ -1570,19 +1664,7 @@ inputs = ensure_dict(state.get("inputs"))
 print_inputs_summary(inputs)
 status = ensure_dict(state.get("status"))
 print_status_summary(status)
-artifacts = ensure_dict(state.get("artifacts"))
 print_artifacts_summary(artifacts)
-
-apply_result_json_path = artifacts.get("apply_result_json") or ""
-apply_result = load_json_if_exists(apply_result_json_path, "apply result json")
-
-repair_result_json_path, rollback_result_json_path = resolve_followup_result_json_paths(
-    artifacts,
-    apply_result_json_path,
-)
-
-repair_result = load_json_if_exists(repair_result_json_path, "repair result json")
-rollback_result = load_json_if_exists(rollback_result_json_path, "rollback result json")
 
 if apply_result:
     print_apply_result_summary(apply_result, apply_result_json_path)
@@ -1598,7 +1680,6 @@ print_journal_summary(journal_entries, last_event)
 final_status = status.get("final", "")
 checkpoint = state.get("checkpoint", "")
 suggestion = None
-lineage = ensure_dict(state.get("lineage"))
 resume_strategy = lineage.get("resume_strategy", "") or ""
 suggestion_focus = choose_resume_strategy_suggestion_focus(lineage)
 repair_result_hint_path = first_existing_artifact(artifacts, "repair_result_json", "repair_result")

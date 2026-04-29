@@ -258,6 +258,13 @@
 
 当前 fixture / regression 已明确覆盖的 inspection-first 主线主要有：
 
+- `inspect-after-apply-attention`：apply recovery 明确要求先人工复核时，doctor / resume 应优先保住 apply 主语义，不让 repair/rollback companion 抢位
+- `repair-review-first`：repair result 仍是 `needs-attention` / `blocked` 时，doctor / resume 应优先保住 repair review 语义
+- `post-repair-verification`：repair 已完成且 `nginx -t` 重跑通过时，doctor / resume 应优先保住 repair verification 语义
+- `post-rollback-inspection`：rollback 已真实执行成功时，doctor / resume 应优先保住 rollback inspection 语义
+- 当 `state.json.lineage.resume_strategy` 缺失、陈旧或与当前 companion result 冲突时，`doctor` 也应像 planner 一样，优先根据当前可读的 apply/repair/rollback result 重新推导 effective strategy，而不是把旧 lineage 文本继续当 truth-source
+- 冲突优先级当前明确按 `rollback execute ok > repair rerun passed > repair needs-attention/blocked > apply recovery resume_recommended=false > stale lineage fallback` 收口
+
 - `repair-review-first`
 - `post-repair-verification`
 - `post-rollback-inspection`
