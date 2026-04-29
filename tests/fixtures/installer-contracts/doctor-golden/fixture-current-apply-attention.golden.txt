@@ -1,0 +1,58 @@
+[doctor] 运行摘要
+- run_id: fixture-current-apply-attention
+- checkpoint: completed
+- resumed_from: 无
+- current_run_alerts: apply_execute=needs-attention, final=needs-attention
+- current_run_priority_artifact: __FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/APPLY-RESULT.json [apply-result]
+- current_run_priority_note: 最近异常出在 apply 阶段，建议先看 apply 结果/计划文件。
+- lineage.mode: new
+- lineage.is_resumed_run: False
+- lineage.source_run_id: 无
+- lineage.source_checkpoint: 无
+- lineage.source_resumed_from: 无
+- lineage.resume_strategy: inspect-after-apply-attention
+- lineage.resume_strategy_reason: source apply recovery marked resume as not recommended
+[doctor] lineage 摘要
+- 这不是 resumed run；当前运行没有接续历史 run 的 lineage。
+[doctor] 当前 run 异常摘要
+- 当前 run 存在异常状态：apply_execute=needs-attention, final=needs-attention
+- 优先查看产物：__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/APPLY-RESULT.json [apply-result]
+- 说明：最近异常出在 apply 阶段，建议先看 apply 结果/计划文件。
+[doctor] 状态
+- apply_execute: needs-attention
+- repair:
+- rollback:
+- final: needs-attention
+[doctor] apply result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/APPLY-RESULT.json
+- mode: execute
+- final_status: needs-attention
+- nginx_test.requested: True
+- nginx_test.status: failed
+- recovery.installer_status: needs-attention
+- recovery.resume_strategy: manual-recovery-first
+- recovery.resume_recommended: False
+- recovery.operator_action: rollback-or-fix
+- next_step: 真实 apply 已落盘，但 nginx 测试失败；建议先运行 repair dry-run 做保守诊断，再决定 selective rollback 还是人工修复。
+[doctor] repair result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/REPAIR-RESULT.json
+- mode: dry-run
+- final_status: ok
+- source_recovery.installer_status: needs-attention
+- source_recovery.resume_recommended: False
+- source_recovery.operator_action: rollback-or-fix
+- execution.nginx_test_rerun_status: not-run
+- next_step: 当前仅保留中性 repair companion，用于覆盖结果契约集合；当前排障仍应优先查看 APPLY-RESULT 与 nginx test 输出。
+[doctor] rollback result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/ROLLBACK-RESULT.json
+- mode: dry-run
+- final_status: ok
+- flags.execute: False
+- next_step: 当前仅记录 rollback 占位结果；真正下一步仍应先查看 APPLY-RESULT。
+[doctor] journal
+- entries: 3
+- last_event: run.complete [needs-attention]
+- last_message: installer completed with attention required
+[doctor] 下一步建议
+- 真实 apply 已落盘，但 nginx 测试失败；建议先运行 ./repair-applied-package.sh --result-json __FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/APPLY-RESULT.json --dry-run 做保守诊断，再决定 selective rollback 还是人工修复。 当前不建议把 resume 当作默认下一步。
+- 输入快照可用于 resume：__FIXTURE_ROOT__/runs/fixture-current-apply-attention/inputs.env

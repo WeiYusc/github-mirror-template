@@ -1,0 +1,36 @@
+[doctor] 运行摘要
+- run_id: fixture-missing-source-state
+- checkpoint: completed
+- resumed_from: fixture-missing-source-parent
+- lineage.mode: resume
+- lineage.is_resumed_run: True
+- lineage.source_run_id: fixture-missing-source-parent
+- lineage.source_checkpoint: completed
+- lineage.source_resumed_from: 无
+- lineage.resume_strategy: repair-review-first
+- lineage.resume_strategy_reason: source should exist but state file is unavailable
+[doctor] lineage 摘要
+- 这是一轮 resumed run：当前运行继承自 fixture-missing-source-parent（source checkpoint: completed）。
+- 源运行本身不是已记录的 resumed run，当前链路到此为止。
+- 当前 resume 策略：repair-review-first。
+- 触发原因：source should exist but state file is unavailable。
+- 当前已解析到 2 段 lineage 链。
+- 操作建议：优先查看 repair 结果与诊断摘要，确认应该 rollback 还是继续人工修复。
+- 最近的异常祖先节点：fixture-missing-source-parent （state=missing）。
+- 说明：lineage 指向的 source run state.json 缺失或不可读；已停止继续向上解析。
+[doctor] lineage chain
+- depth: 2
+- 1. [current] fixture-missing-source-state (checkpoint=completed, final=success; strategy=repair-review-first; reason=source should exist but state file is unavailable)
+- 2. [ancestor-1] fixture-missing-source-parent (checkpoint=缺失, final=missing-state; alerts=state=missing)
+[doctor] 状态
+- apply_execute: skipped
+- repair:
+- rollback:
+- final: success
+[doctor] journal
+- entries: 1
+- last_event: run.complete [success]
+- last_message: fixture complete
+[doctor] 下一步建议
+- 当前处于 repair-review-first；建议先跑 ./install-interactive.sh --doctor fixture-missing-source-state 复核当前 run 与 companion result，再决定是否只做 dry-run、repair、rollback 或人工处理。
+- 输入快照可用于 resume：__FIXTURE_ROOT__/runs/fixture-missing-source-state/inputs.env

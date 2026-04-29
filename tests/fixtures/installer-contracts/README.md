@@ -264,6 +264,7 @@
 - `post-rollback-inspection`：rollback 已真实执行成功时，doctor / resume 应优先保住 rollback inspection 语义
 - 当 `state.json.lineage.resume_strategy` 缺失、陈旧或与当前 companion result 冲突时，`doctor` 也应像 planner 一样，优先根据当前可读的 apply/repair/rollback result 重新推导 effective strategy，而不是把旧 lineage 文本继续当 truth-source
 - 冲突优先级当前明确按 `rollback execute ok > repair rerun passed > repair needs-attention/blocked > apply recovery resume_recommended=false > stale lineage fallback` 收口
+- 另外新增 `tests/installer-doctor-golden.sh`：对代表性样本的 `doctor` 输出做**规范化 golden 回归**，只保留关键 section / 策略摘要 / 优先产物 / 结果 section / 下一步建议，避免把完整中文大段文案逐字锁死
 
 - `repair-review-first`
 - `post-repair-verification`

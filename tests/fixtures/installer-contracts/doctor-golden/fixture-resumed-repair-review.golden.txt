@@ -1,0 +1,72 @@
+[doctor] 运行摘要
+- run_id: fixture-resumed-repair-review
+- checkpoint: completed
+- resumed_from: fixture-legacy-fallback
+- current_run_alerts: repair=needs-attention
+- current_run_priority_artifact: __FIXTURE_ROOT__/artifacts/fixture-resumed-repair-review/REPAIR-RESULT.json [repair-result]
+- current_run_priority_note: 最近异常更偏向 repair 结论，建议先看这个结果文件。
+- lineage.mode: resume
+- lineage.is_resumed_run: True
+- lineage.source_run_id: fixture-legacy-fallback
+- lineage.source_checkpoint: completed
+- lineage.source_resumed_from: 无
+- lineage.resume_strategy: repair-review-first
+- lineage.resume_strategy_reason: source repair result still needs operator review
+[doctor] lineage 摘要
+- 这是一轮 resumed run：当前运行继承自 fixture-legacy-fallback（source checkpoint: completed）。
+- 源运行本身不是已记录的 resumed run，当前链路到此为止。
+- 当前 resume 策略：repair-review-first。
+- 触发原因：source repair result still needs operator review。
+- 当前已解析到 2 段 lineage 链。
+- 操作建议：优先查看 repair 结果与诊断摘要，确认应该 rollback 还是继续人工修复。
+- 当前策略优先产物：__FIXTURE_ROOT__/artifacts/fixture-resumed-repair-review/REPAIR-RESULT.json [repair-result]
+- 说明：当前 run 的 repair 结果仍需 operator review；应先看这一份，再决定 rollback 还是人工修复。
+- 最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。
+- 祖先参考产物：__FIXTURE_ROOT__/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]
+- 说明：最近异常更偏向 repair 结论，建议先看这个结果文件。
+[doctor] lineage chain
+- depth: 2
+- 1. [current] fixture-resumed-repair-review (checkpoint=completed, final=success; strategy=repair-review-first; reason=source repair result still needs operator review; alerts=repair=needs-attention)
+- 2. [ancestor-1] fixture-legacy-fallback (checkpoint=completed, final=success; strategy=fresh; reason=new-run; alerts=repair=needs-attention)
+[doctor] 当前 run 异常摘要
+- 当前 run 存在异常状态：repair=needs-attention
+- 优先查看产物：__FIXTURE_ROOT__/artifacts/fixture-resumed-repair-review/REPAIR-RESULT.json [repair-result]
+- 说明：最近异常更偏向 repair 结论，建议先看这个结果文件。
+[doctor] 状态
+- apply_execute: skipped
+- repair: needs-attention
+- rollback: ok
+- final: success
+[doctor] apply result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-resumed-repair-review/APPLY-RESULT.json
+- mode: dry-run
+- final_status: ok
+- nginx_test.requested: False
+- nginx_test.status: not-run
+- recovery.installer_status: success
+- recovery.resume_strategy: dry-run-ok
+- recovery.resume_recommended: True
+- recovery.operator_action: review-plan
+- next_step: 当前未进入真实执行。
+[doctor] repair result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-resumed-repair-review/REPAIR-RESULT.json
+- mode: dry-run
+- final_status: needs-attention
+- source_recovery.installer_status: needs-attention
+- source_recovery.resume_recommended: False
+- source_recovery.operator_action: rollback-or-fix
+- execution.nginx_test_rerun_status: not-run
+- next_step: 当前处于 needs-attention；建议先复核诊断项，再决定是 rollback 还是人工修复后重跑 nginx -t。
+[doctor] rollback result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-resumed-repair-review/ROLLBACK-RESULT.json
+- mode: dry-run
+- final_status: ok
+- flags.execute: False
+- next_step: 回滚计划可执行。执行后请手工运行 nginx -t 再决定是否 reload。
+[doctor] journal
+- entries: 2
+- last_event: run.complete [success]
+- last_message: installer completed
+[doctor] 下一步建议
+- 当前处于 needs-attention；建议先复核诊断项，再决定是 rollback 还是人工修复后重跑 nginx -t。
+- 输入快照可用于 resume：__FIXTURE_ROOT__/runs/fixture-resumed-repair-review/inputs.env

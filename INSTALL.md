@@ -270,6 +270,18 @@ bash tests/installer-summary-isolation.sh
 - 旧 run companion result 未登记时的同目录 fallback
 - inspection-first resume 语义（包括 `repair-review-first` / `post-rollback-inspection`）
 
+如果你改了 `state_doctor()` 的摘要结构、策略优先级、优先产物提示或下一步建议，建议再补一条：
+
+```bash
+bash tests/installer-doctor-golden.sh
+```
+
+这条 golden 回归会对代表性 doctor 输出做规范化对比：
+
+- 覆盖普通 / resumed / current run needs-attention / post-repair / post-rollback / ancestor 缺失来源样本
+- 自动把 fixture 临时根目录归一成占位符，避免路径噪音造成误报
+- 只钉关键诊断语义，不要求全部中文提示逐字不变
+
 它当前明确不会：
 
 - 不会自动改 DNS

@@ -1,0 +1,65 @@
+[doctor] 运行摘要
+- run_id: fixture-post-repair-verification
+- checkpoint: completed
+- resumed_from: fixture-legacy-fallback
+- lineage.mode: resume
+- lineage.is_resumed_run: True
+- lineage.source_run_id: fixture-legacy-fallback
+- lineage.source_checkpoint: completed
+- lineage.source_resumed_from: 无
+- lineage.resume_strategy: post-repair-verification
+- lineage.resume_strategy_reason: source repair rerun nginx test already passed
+[doctor] lineage 摘要
+- 这是一轮 resumed run：当前运行继承自 fixture-legacy-fallback（source checkpoint: completed）。
+- 源运行本身不是已记录的 resumed run，当前链路到此为止。
+- 当前 resume 策略：post-repair-verification。
+- 触发原因：source repair rerun nginx test already passed。
+- 当前已解析到 2 段 lineage 链。
+- 操作建议：优先查看 repair 结果与 nginx test 相关输出，确认是否还需要人工处理。
+- 当前策略优先产物：__FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json [repair-result]
+- 说明：当前 run 已产出 repair 复查结果；在 post-repair-verification 下应先看这一份。
+- 最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。
+- 祖先参考产物：__FIXTURE_ROOT__/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]
+- 说明：最近异常更偏向 repair 结论，建议先看这个结果文件。
+[doctor] lineage chain
+- depth: 2
+- 1. [current] fixture-post-repair-verification (checkpoint=completed, final=success; strategy=post-repair-verification; reason=source repair rerun nginx test passed)
+- 2. [ancestor-1] fixture-legacy-fallback (checkpoint=completed, final=success; strategy=fresh; reason=new-run; alerts=repair=needs-attention)
+[doctor] 状态
+- apply_execute: skipped
+- repair: ok
+- rollback:
+- final: success
+[doctor] apply result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/APPLY-RESULT.json
+- mode: execute
+- final_status: needs-attention
+- nginx_test.requested: True
+- nginx_test.status: failed
+- recovery.installer_status: needs-attention
+- recovery.resume_strategy: repair-review-first
+- recovery.resume_recommended: False
+- recovery.operator_action: rollback-or-fix
+- next_step: 真实 apply 已落盘，但 nginx 测试失败；建议先运行 repair helper 做保守诊断。
+[doctor] repair result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json
+- mode: execute
+- final_status: ok
+- source_recovery.installer_status: needs-attention
+- source_recovery.resume_recommended: False
+- source_recovery.operator_action: rollback-or-fix
+- execution.nginx_test_rerun_status: passed
+- next_step: 已完成 repair 复查且 nginx -t 通过；建议人工确认现场后，再决定是否继续后续操作。
+[doctor] rollback result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-post-repair-verification/ROLLBACK-RESULT.json
+- mode: dry-run
+- final_status: ok
+- flags.execute: False
+- next_step: 当前场景以 repair verification 为主；rollback companion 仅用于保持结果契约集合完整。
+[doctor] journal
+- entries: 3
+- last_event: run.complete [success]
+- last_message: installer completed
+[doctor] 下一步建议
+- 已完成 repair 复查且 nginx -t 通过；建议人工确认现场后，再决定是否继续后续操作。
+- 输入快照可用于 resume：__FIXTURE_ROOT__/runs/fixture-post-repair-verification/inputs.env

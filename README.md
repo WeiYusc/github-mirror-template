@@ -165,6 +165,18 @@ bash tests/installer-summary-isolation.sh
 - 旧 run companion result 未登记时的同目录 fallback
 - inspection-first resume 语义（`inspect-after-apply-attention` / `repair-review-first` / `post-repair-verification` / `post-rollback-inspection`）
 
+如果你动到了 `state_doctor()` 的摘要结构、策略优先级、下一步建议语义，建议再补跑：
+
+```bash
+bash tests/installer-doctor-golden.sh
+```
+
+它会对代表性 run 的 `doctor` 输出做**规范化 golden 回归**：
+
+- 覆盖普通 / resumed / current run needs-attention / post-repair / post-rollback / ancestor 缺失来源样本
+- 过滤临时目录路径噪音，仅保留关键摘要、优先产物、策略原因、结果 section 与下一步建议
+- 允许非关键文案重排保留弹性，但会在核心诊断语义漂移时直接失败
+
 其中 apply 阶段现在会同时产出：
 
 - `APPLY-RESULT.md`：给人读的摘要

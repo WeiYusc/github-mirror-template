@@ -1,0 +1,58 @@
+[doctor] 运行摘要
+- run_id: fixture-legacy-fallback
+- checkpoint: completed
+- resumed_from: 无
+- current_run_alerts: repair=needs-attention
+- current_run_priority_artifact: __FIXTURE_ROOT__/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]
+- current_run_priority_note: 最近异常更偏向 repair 结论，建议先看这个结果文件。
+- lineage.mode: new
+- lineage.is_resumed_run: False
+- lineage.source_run_id: 无
+- lineage.source_checkpoint: 无
+- lineage.source_resumed_from: 无
+- lineage.resume_strategy: repair-review-first
+- lineage.resume_strategy_reason: source repair result still needs operator review
+[doctor] lineage 摘要
+- 这不是 resumed run；当前运行没有接续历史 run 的 lineage。
+[doctor] 当前 run 异常摘要
+- 当前 run 存在异常状态：repair=needs-attention
+- 优先查看产物：__FIXTURE_ROOT__/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]
+- 说明：最近异常更偏向 repair 结论，建议先看这个结果文件。
+[doctor] 状态
+- apply_execute: success
+- repair: needs-attention
+- rollback: ok
+- final: success
+[doctor] apply result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-legacy-fallback/APPLY-RESULT.json
+- mode: execute
+- final_status: ok
+- nginx_test.requested: True
+- nginx_test.status: 0
+- recovery.installer_status: success
+- recovery.resume_strategy: post-apply-review
+- recovery.resume_recommended: True
+- recovery.operator_action: manual-review
+- next_step: 建议先人工复核，再决定是否继续后续操作。
+[doctor] repair result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json
+- mode: dry-run
+- final_status: needs-attention
+- source_recovery.installer_status: needs-attention
+- source_recovery.resume_recommended: False
+- source_recovery.operator_action: rollback-or-fix
+- execution.nginx_test_rerun_status: not-run
+- next_step: 当前处于 needs-attention；建议先复核诊断项，再决定是 rollback 还是人工修复后重跑 nginx -t。
+[doctor] rollback result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-legacy-fallback/ROLLBACK-RESULT.json
+- mode: dry-run
+- final_status: ok
+- flags.execute: False
+- next_step: 回滚计划可执行。执行后请手工运行 nginx -t 再决定是否 reload。
+[doctor] journal
+- entries: 3
+- last_event: run.complete [success]
+- last_message: installer completed
+[doctor] 下一步建议
+- 当前处于 needs-attention；建议先复核诊断项，再决定是 rollback 还是人工修复后重跑 nginx -t。
+- 输入快照可用于 resume：__FIXTURE_ROOT__/runs/fixture-legacy-fallback/inputs.env
