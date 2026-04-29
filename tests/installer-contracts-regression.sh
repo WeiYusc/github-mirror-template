@@ -357,6 +357,82 @@ check_per_run_artifact_snapshot_contract() {
   assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.summary_generated" "$artifact_root/INSTALLER-SUMMARY.generated.json" "$run_id summary summary_generated points to run-scoped snapshot"
 }
 
+assert_journal_event_path_equals_state_artifact() {
+  local run_id="$1"
+  local event_name="$2"
+  local artifact_key="$3"
+  local label="$4"
+  local run_root="$WORKDIR/runs/$run_id"
+
+  python3 - "$run_root/state.json" "$run_root/journal.jsonl" "$event_name" "$artifact_key" "$label" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+journal_path = Path(sys.argv[2])
+event_name = sys.argv[3]
+artifact_key = sys.argv[4]
+label = sys.argv[5]
+
+state = json.loads(state_path.read_text(encoding='utf-8'))
+expected = state.get('artifacts', {}).get(artifact_key, '')
+if not expected:
+    raise SystemExit(f"[FAIL] {label}: state artifacts missing {artifact_key}")
+
+entries = [json.loads(line) for line in journal_path.read_text(encoding='utf-8').splitlines() if line.strip()]
+for item in entries:
+    if item.get('event') == event_name:
+        actual = item.get('path', '')
+        if actual != expected:
+            raise SystemExit(
+                f"[FAIL] {label}: expected event {event_name} path {expected!r}, got {actual!r}"
+            )
+        raise SystemExit(0)
+
+raise SystemExit(f"[FAIL] {label}: event {event_name} not found in journal")
+PY
+}
+
+assert_journal_event_path_equals_literal() {
+  local run_id="$1"
+  local event_name="$2"
+  local expected_path="$3"
+  local label="$4"
+  local run_root="$WORKDIR/runs/$run_id"
+
+  python3 - "$run_root/journal.jsonl" "$event_name" "$expected_path" "$label" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+journal_path = Path(sys.argv[1])
+event_name = sys.argv[2]
+expected_path = sys.argv[3]
+label = sys.argv[4]
+
+entries = [json.loads(line) for line in journal_path.read_text(encoding='utf-8').splitlines() if line.strip()]
+for item in entries:
+    if item.get('event') == event_name:
+        actual = item.get('path', '')
+        if actual != expected_path:
+            raise SystemExit(
+                f"[FAIL] {label}: expected event {event_name} path {expected_path!r}, got {actual!r}"
+            )
+        raise SystemExit(0)
+
+raise SystemExit(f"[FAIL] {label}: event {event_name} not found in journal")
+PY
+}
+
+check_fixture_journal_path_contract() {
+  local run_id="$1"
+  local run_root="$WORKDIR/runs/$run_id"
+
+  assert_journal_event_path_equals_literal "$run_id" "run.initialized" "$run_root" "$run_id run.initialized path points to run root"
+  assert_journal_event_path_equals_state_artifact "$run_id" "run.complete" "summary_output" "$run_id run.complete path points to summary_output"
+}
+
 materialize_fixtures
 
 install_help_output="$(bash "$ROOT_DIR/install-interactive.sh" --help)"
@@ -414,6 +490,18 @@ check_per_run_artifact_snapshot_contract "fixture-current-apply-attention"
 check_per_run_artifact_snapshot_contract "fixture-inspect-after-apply-attention"
 check_per_run_artifact_snapshot_contract "fixture-post-rollback-inspection"
 check_per_run_artifact_snapshot_contract "fixture-post-repair-verification"
+
+check_fixture_journal_path_contract "fixture-legacy-fallback"
+check_fixture_journal_path_contract "fixture-resumed-repair-review"
+check_fixture_journal_path_contract "fixture-current-apply-attention"
+check_fixture_journal_path_contract "fixture-inspect-after-apply-attention"
+check_fixture_journal_path_contract "fixture-post-rollback-inspection"
+check_fixture_journal_path_contract "fixture-post-repair-verification"
+assert_journal_event_path_equals_state_artifact "fixture-legacy-fallback" "apply-execute.complete" "apply_result_json" "legacy fallback apply-execute.complete path points to apply_result_json"
+assert_journal_event_path_equals_state_artifact "fixture-current-apply-attention" "apply-execute.complete" "apply_result_json" "current apply attention apply-execute.complete path points to apply_result_json"
+assert_journal_event_path_equals_state_artifact "fixture-inspect-after-apply-attention" "repair.review" "repair_result_json" "inspect-after-apply attention repair.review path points to repair_result_json"
+assert_journal_event_path_equals_state_artifact "fixture-post-repair-verification" "repair.review" "repair_result_json" "post repair verification repair.review path points to repair_result_json"
+assert_journal_event_path_equals_literal "fixture-post-rollback-inspection" "rollback.review" "$WORKDIR/artifacts/fixture-post-rollback-inspection/ROLLBACK-RESULT.json" "post rollback inspection rollback.review path points to fallback rollback result json"
 
 state_load_resume_context "fixture-legacy-fallback"
 assert_equals "$RESUME_SOURCE_REPAIR_RESULT_OWNER_RUN_ID" "fixture-legacy-fallback" "legacy fallback repair owner run id"

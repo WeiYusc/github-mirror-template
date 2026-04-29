@@ -217,6 +217,21 @@
 - `state_load_inputs_env()` 采用**白名单变量 + 静态解析赋值**加载快照；对损坏/越界输入返回**可控错误**，而不是把当前 shell source 过程弄脏
 - `state_doctor()` 对坏 journal 行保持保守忽略：仍能统计行数、提取最后一条有效事件，并继续输出整体摘要
 
+### 13. `journal.jsonl` 的 anchor path contract
+
+这组固定 fixture 额外把 `journal.jsonl` 里最容易语义漂移、但又最值得尽早在静态层锁住的 path contract 明确钉住：
+
+- `run.initialized.path` 必须指向当前 run 的 `state_dir`
+- `run.complete.path` 必须指向当前 run 的 `INSTALLER-SUMMARY.json`
+- `apply-execute.complete.path` 必须指向当前 run 的 `APPLY-RESULT.json`
+- `repair.review.path` / `rollback.review.path` 必须分别指向当前 run 的 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`
+
+用于验证：
+
+- event 名称与 path 主锚点不会只在 smoke 里被动发现漂移，而能在 fixture regression 层更早失败
+- inspection-first fixture 的 review 事件仍明确回到 companion result，而不是漂到 generic summary 或祖先产物
+- `run.initialized → state_dir`、`run.complete → summary_output`、阶段 review/execute 事件 → 对应 result json 的关系，始终与 `docs/INSTALLER-STATE-MODEL-ZH.md` 保持一致
+
 ### 15. JSON 合法但路径/产物漂移（path drift / artifact drift）的保守降级
 
 这组场景里，JSON 结构、字段类型和值域都可能是合法的，但**artifact 路径本身漂了**，或只剩半套结果文件：
