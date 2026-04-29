@@ -355,7 +355,8 @@ scripts/generated/runs/<run_id>/
 
 - 这些字段默认由 companion helper 回写
 - 如果 `state.json` 已登记，`doctor` / `resume` 会优先按这里消费
-- 对旧 run，允许暂时为空，并通过 `apply_result_json` 同目录 fallback 发现
+- 对已产出本地 companion 的当前 / resumed run，推荐把这两个字段显式登记到当前 run 实际结果路径
+- 仅对旧 run，或专门用于验证 lineage / 兼容回退边界的样本，才允许暂时为空，并通过同目录 companion fallback 发现
 
 一句话总结：
 

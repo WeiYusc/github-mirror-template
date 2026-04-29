@@ -38,11 +38,12 @@
 
 ### 1. `fixture-legacy-fallback`
 
-模拟旧 run：
+模拟旧 run / 兼容探针：
 
 - `state.json.artifacts.repair_result_json` 为空
 - `state.json.artifacts.rollback_result_json` 为空
 - 但同目录存在 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`
+- 这个场景的重点不是鼓励新 run 继续省略登记，而是把“旧账本仍可被同目录 companion 自动发现”这条兼容 backstop 单独钉住
 
 用于验证：
 
@@ -56,7 +57,8 @@
 
 - `lineage.resume_strategy=repair-review-first`
 - `resumed_from=fixture-legacy-fallback`
-- 当前 run 与祖先 run 都可解析到 repair/rollback companion result
+- 当前 run 显式登记自己的 `repair_result_json` / `rollback_result_json`
+- 祖先 run 仍可通过 legacy fallback 解析到 companion result
 
 用于验证：
 
@@ -75,6 +77,7 @@
 - `APPLY-RESULT.json.recovery.resume_strategy=manual-recovery-first`
 - `APPLY-RESULT.json.recovery.operator_action=rollback-or-fix`
 - `APPLY-RESULT.json.nginx_test.status=failed`
+- 当前 run 显式登记自己的 repair / rollback companion 路径；这些 companion 只是补充观察面，不是让 state 继续依赖空值 fallback
 
 用于验证：
 
@@ -92,6 +95,7 @@
 - `REPAIR-RESULT.json.execution.nginx_test_rerun_status=passed`
 - 当前 run 语义是“先复核修复后现场状态”，而不是继续真实 apply
 - 为保持 6 类结果契约集合完整，fixture 仍保留一个中性的 rollback companion；但本场景断言聚焦 repair 主线
+- 当前 run 也显式登记 `repair_result_json` / `rollback_result_json`；这里要钉的是 inspection-first 当前 run 的正式账本形状，而不是继续复用 legacy 空值语义
 
 用于验证：
 
@@ -110,6 +114,7 @@
 - `ROLLBACK-RESULT.json.flags.execute=true`
 - 当前 run 语义是“先复查 rollback 后现场状态”，而不是立刻重新 apply
 - 为保持 6 类结果契约集合完整，fixture 仍保留一个中性的 apply companion；但本场景断言聚焦 rollback 主线
+- 当前 run 也显式登记 `repair_result_json` / `rollback_result_json`；doctor / resume 应优先消费这些已登记路径，而不是把 fallback 当主通路
 
 用于验证：
 
@@ -126,7 +131,7 @@
 - `APPLY-RESULT.json.recovery.resume_strategy=post-apply-review`
 - `APPLY-RESULT.json.recovery.resume_recommended=false`
 - `APPLY-RESULT.json.recovery.operator_action=manual-review`
-- 当前 run 仍保留中性的 repair / rollback companion result，用于验证它们不会抢走 apply recovery 主语义
+- 当前 run 仍保留中性的 repair / rollback companion result，并显式登记到 `state.artifacts`，用于验证它们不会抢走 apply recovery 主语义
 
 用于验证：
 
@@ -147,6 +152,7 @@
 用于验证：
 
 - `state_load_resume_context()` 在 **current 缺失** 时，优先取 **direct source**，而不是直接跳到更早 ancestor
+- 这里故意保持当前 run 自己的 `repair_result_json` / `rollback_result_json` 为空，用来钉住 lineage 向上回溯时的兼容优先级，而不是代表常规当前 run 契约
 - rollback / repair 两类 companion result 的 owner run id 与关键字段能跟着最近 source 保持一致
 
 ### 8. `fixture-ancestor-fallback-after-source-gap`
@@ -161,6 +167,7 @@
 用于验证：
 
 - `state_load_resume_context()` 在 **current 缺失 + direct source 缺失** 时，会继续走到最近可用 ancestor
+- 这里同样故意保留空值，用于 pin 祖先 fallback 边界；不是新 run / 已登记 companion run 的推荐账本形状
 - owner run id 可以明确指出最终取值来源，避免“看起来像当前 run，实际却来自更早祖先”的语义漂移
 
 > 说明：这两个 fixture 主要用于 resume 载入优先级回归，不进入 6 类 contract 全套 smoke/check 矩阵。
@@ -225,6 +232,7 @@
 - `run.complete.path` 必须指向当前 run 的 `INSTALLER-SUMMARY.json`
 - `apply-execute.complete.path` 必须指向当前 run 的 `APPLY-RESULT.json`
 - `repair.result.recorded.path` / `rollback.result.recorded.path` 必须分别指向当前 run 的 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json`
+- 对已经有本地 companion 文件的 current/resumed fixture，`state.artifacts.repair_result_json` / `rollback_result_json` 也应显式登记到当前 run 路径；空值语义只保留给 legacy / priority probe 这类兼容样本
 
 用于验证：
 

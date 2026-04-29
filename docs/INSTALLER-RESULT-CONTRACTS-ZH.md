@@ -250,7 +250,8 @@
 ### 5.4 兼容备注
 
 - 对旧 run，`repair_result_json` / `rollback_result_json` 允许为空
-- 当前消费方会从 `apply_result_json` 同目录回退发现 companion result
+- 对已经产出本地 companion result 的当前 / resumed run，`state.artifacts.repair_result_json` / `rollback_result_json` 应优先视为正式账本字段，而不是继续依赖空值回退
+- 当前消费方会在旧 run 或兼容探针样本上，从 `apply_result_json` 同目录回退发现 companion result
 
 ---
 

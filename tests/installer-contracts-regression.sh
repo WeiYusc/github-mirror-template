@@ -425,6 +425,56 @@ raise SystemExit(f"[FAIL] {label}: event {event_name} not found in journal")
 PY
 }
 
+assert_state_artifact_equals_literal() {
+  local run_id="$1"
+  local artifact_key="$2"
+  local expected_path="$3"
+  local label="$4"
+  local run_root="$WORKDIR/runs/$run_id"
+
+  python3 - "$run_root/state.json" "$artifact_key" "$expected_path" "$label" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+artifact_key = sys.argv[2]
+expected_path = sys.argv[3]
+label = sys.argv[4]
+
+state = json.loads(state_path.read_text(encoding='utf-8'))
+actual = (state.get('artifacts') or {}).get(artifact_key, '')
+if actual != expected_path:
+    raise SystemExit(
+        f"[FAIL] {label}: expected state artifacts[{artifact_key!r}] == {expected_path!r}, got {actual!r}"
+    )
+PY
+}
+
+assert_state_artifact_empty() {
+  local run_id="$1"
+  local artifact_key="$2"
+  local label="$3"
+  local run_root="$WORKDIR/runs/$run_id"
+
+  python3 - "$run_root/state.json" "$artifact_key" "$label" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+artifact_key = sys.argv[2]
+label = sys.argv[3]
+
+state = json.loads(state_path.read_text(encoding='utf-8'))
+actual = (state.get('artifacts') or {}).get(artifact_key, '')
+if actual:
+    raise SystemExit(
+        f"[FAIL] {label}: expected state artifacts[{artifact_key!r}] to stay empty for compatibility probe, got {actual!r}"
+    )
+PY
+}
+
 check_fixture_journal_path_contract() {
   local run_id="$1"
   local run_root="$WORKDIR/runs/$run_id"
@@ -497,6 +547,18 @@ check_fixture_journal_path_contract "fixture-current-apply-attention"
 check_fixture_journal_path_contract "fixture-inspect-after-apply-attention"
 check_fixture_journal_path_contract "fixture-post-rollback-inspection"
 check_fixture_journal_path_contract "fixture-post-repair-verification"
+assert_state_artifact_empty "fixture-legacy-fallback" "repair_result_json" "legacy fallback keeps repair_result_json empty to pin old-run compatibility boundary"
+assert_state_artifact_empty "fixture-legacy-fallback" "rollback_result_json" "legacy fallback keeps rollback_result_json empty to pin old-run compatibility boundary"
+assert_state_artifact_equals_literal "fixture-resumed-repair-review" "repair_result_json" "$WORKDIR/artifacts/fixture-resumed-repair-review/REPAIR-RESULT.json" "resumed repair review records current repair_result_json explicitly"
+assert_state_artifact_equals_literal "fixture-resumed-repair-review" "rollback_result_json" "$WORKDIR/artifacts/fixture-resumed-repair-review/ROLLBACK-RESULT.json" "resumed repair review records current rollback_result_json explicitly"
+assert_state_artifact_equals_literal "fixture-current-apply-attention" "repair_result_json" "$WORKDIR/artifacts/fixture-current-apply-attention/REPAIR-RESULT.json" "current apply attention records current repair_result_json explicitly"
+assert_state_artifact_equals_literal "fixture-current-apply-attention" "rollback_result_json" "$WORKDIR/artifacts/fixture-current-apply-attention/ROLLBACK-RESULT.json" "current apply attention records current rollback_result_json explicitly"
+assert_state_artifact_equals_literal "fixture-inspect-after-apply-attention" "repair_result_json" "$WORKDIR/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json" "inspect-after-apply attention records current repair_result_json explicitly"
+assert_state_artifact_equals_literal "fixture-inspect-after-apply-attention" "rollback_result_json" "$WORKDIR/artifacts/fixture-inspect-after-apply-attention/ROLLBACK-RESULT.json" "inspect-after-apply attention records current rollback_result_json explicitly"
+assert_state_artifact_equals_literal "fixture-post-rollback-inspection" "repair_result_json" "$WORKDIR/artifacts/fixture-post-rollback-inspection/REPAIR-RESULT.json" "post rollback inspection records current repair_result_json explicitly"
+assert_state_artifact_equals_literal "fixture-post-rollback-inspection" "rollback_result_json" "$WORKDIR/artifacts/fixture-post-rollback-inspection/ROLLBACK-RESULT.json" "post rollback inspection records current rollback_result_json explicitly"
+assert_state_artifact_equals_literal "fixture-post-repair-verification" "repair_result_json" "$WORKDIR/artifacts/fixture-post-repair-verification/REPAIR-RESULT.json" "post repair verification records current repair_result_json explicitly"
+assert_state_artifact_equals_literal "fixture-post-repair-verification" "rollback_result_json" "$WORKDIR/artifacts/fixture-post-repair-verification/ROLLBACK-RESULT.json" "post repair verification records current rollback_result_json explicitly"
 assert_journal_event_path_equals_state_artifact "fixture-legacy-fallback" "apply-execute.complete" "apply_result_json" "legacy fallback apply-execute.complete path points to apply_result_json"
 assert_journal_event_path_equals_state_artifact "fixture-current-apply-attention" "apply-execute.complete" "apply_result_json" "current apply attention apply-execute.complete path points to apply_result_json"
 assert_journal_event_path_equals_state_artifact "fixture-inspect-after-apply-attention" "repair.result.recorded" "repair_result_json" "inspect-after-apply attention repair.result.recorded path points to repair_result_json"
