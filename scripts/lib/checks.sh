@@ -165,6 +165,55 @@ check_warn_if_tls_paths_look_swapped() {
   fi
 }
 
+check_warn_if_tls_mode_unknown() {
+  case "${TLS_MODE:-existing}" in
+    existing|acme-http01|acme-dns-cloudflare) ;;
+    *) check_add_blocker "tls.mode 仅支持 existing / acme-http01 / acme-dns-cloudflare" ;;
+  esac
+}
+
+check_warn_if_existing_tls_paths_missing() {
+  [[ -n "${TLS_CERT:-}" ]] || check_add_blocker "tls.cert 不能为空（tls.mode=existing）"
+  [[ -n "${TLS_KEY:-}" ]] || check_add_blocker "tls.key 不能为空（tls.mode=existing）"
+
+  [[ -f "${TLS_CERT:-}" ]] || check_add_warning "证书文件当前不存在：${TLS_CERT:-}"
+  [[ -f "${TLS_KEY:-}" ]] || check_add_warning "私钥文件当前不存在：${TLS_KEY:-}"
+
+  check_warn_if_suspicious_path_value "tls.cert" "${TLS_CERT:-}"
+  check_warn_if_suspicious_path_value "tls.key" "${TLS_KEY:-}"
+  check_warn_if_tls_paths_look_swapped
+}
+
+check_warn_if_acme_dns_cloudflare_scaffold_only() {
+  check_add_warning "tls.mode=acme-dns-cloudflare 当前仍是 Phase 1 scaffolding：只生成 TLS plan / preflight 结论，不会调用 Cloudflare API 或申请证书"
+}
+
+check_warn_if_acme_http01_scaffold_only() {
+  check_add_warning "tls.mode=acme-http01 当前仍是 Phase 1 scaffolding：只生成 TLS plan / preflight 结论，不会执行 ACME issue"
+}
+
+check_require_acme_http01_prerequisites() {
+  check_warn_if_acme_http01_scaffold_only
+}
+
+check_require_acme_dns_cloudflare_prerequisites() {
+  check_warn_if_acme_dns_cloudflare_scaffold_only
+}
+
+check_warn_if_tls_paths_look_swapped() {
+  local cert_path="${TLS_CERT:-}"
+  local key_path="${TLS_KEY:-}"
+  local cert_base="$(basename "$cert_path" 2>/dev/null || printf '%s' "$cert_path")"
+  local key_base="$(basename "$key_path" 2>/dev/null || printf '%s' "$key_path")"
+
+  if [[ "$cert_base" =~ (privkey|private|\.key$) ]]; then
+    check_add_warning "tls.cert 看起来更像私钥路径：$cert_path；请确认 cert / key 是否填反"
+  fi
+  if [[ "$key_base" =~ (fullchain|chain|cert|certificate|\.crt$|\.pem$) ]] && [[ ! "$key_base" =~ (privkey|private|\.key$) ]]; then
+    check_add_warning "tls.key 看起来更像证书路径：$key_path；请确认 cert / key 是否填反"
+  fi
+}
+
 check_block_if_output_dir_hits_live_targets() {
   local output_dir="${OUTPUT_DIR:-}"
   local snippets_target="${NGINX_SNIPPETS_TARGET_HINT:-}"
@@ -222,6 +271,9 @@ check_domain_matches_pattern() {
 }
 
 check_warn_if_cert_does_not_cover_domains() {
+  if ! tls_mode_is_existing; then
+    return 0
+  fi
   if ! command -v openssl >/dev/null 2>&1; then
     return 0
   fi
@@ -252,6 +304,9 @@ check_warn_if_cert_does_not_cover_domains() {
 }
 
 check_tls_integrity() {
+  if ! tls_mode_is_existing; then
+    return 0
+  fi
   if ! command -v openssl >/dev/null 2>&1; then
     check_add_warning "当前环境缺少 openssl，无法判断证书内容、到期时间和 cert/key 是否匹配"
     return 0
@@ -336,27 +391,33 @@ PY
 
   [[ -n "${DEPLOYMENT_NAME:-}" ]] || check_add_blocker "deployment_name 不能为空"
   [[ -n "${BASE_DOMAIN:-}" ]] || check_add_blocker "domain.base_domain 不能为空"
-  [[ -n "${TLS_CERT:-}" ]] || check_add_blocker "tls.cert 不能为空"
-  [[ -n "${TLS_KEY:-}" ]] || check_add_blocker "tls.key 不能为空"
   [[ -n "${ERROR_ROOT:-}" ]] || check_add_blocker "paths.error_root 不能为空"
   [[ -n "${OUTPUT_DIR:-}" ]] || check_add_blocker "paths.output_dir 不能为空"
 
-  [[ -f "${TLS_CERT:-}" ]] || check_add_warning "证书文件当前不存在：${TLS_CERT:-}"
-  [[ -f "${TLS_KEY:-}" ]] || check_add_warning "私钥文件当前不存在：${TLS_KEY:-}"
+  check_warn_if_tls_mode_unknown
 
-  check_warn_if_suspicious_path_value "tls.cert" "${TLS_CERT:-}"
-  check_warn_if_suspicious_path_value "tls.key" "${TLS_KEY:-}"
   check_warn_if_suspicious_path_value "paths.error_root" "${ERROR_ROOT:-}"
   check_warn_if_suspicious_path_value "paths.log_dir" "${LOG_DIR:-}"
   check_warn_if_suspicious_path_value "paths.output_dir" "${OUTPUT_DIR:-}"
   check_warn_if_suspicious_path_value "nginx.snippets_target_hint" "${NGINX_SNIPPETS_TARGET_HINT:-}"
   check_warn_if_suspicious_path_value "nginx.vhost_target_hint" "${NGINX_VHOST_TARGET_HINT:-}"
-  check_warn_if_tls_paths_look_swapped
   check_block_if_output_dir_hits_live_targets
   check_warn_if_dns_tools_missing
   check_warn_if_derived_domains_unresolved
-  check_tls_integrity
-  check_warn_if_cert_does_not_cover_domains
+
+  case "${TLS_MODE:-existing}" in
+    existing)
+      check_warn_if_existing_tls_paths_missing
+      check_tls_integrity
+      check_warn_if_cert_does_not_cover_domains
+      ;;
+    acme-http01)
+      check_require_acme_http01_prerequisites
+      ;;
+    acme-dns-cloudflare)
+      check_require_acme_dns_cloudflare_prerequisites
+      ;;
+  esac
 
   case "${PLATFORM:-}" in
     plain-nginx|bt-panel-nginx) ;;

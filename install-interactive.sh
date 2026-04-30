@@ -17,6 +17,8 @@ source "$ROOT_DIR/scripts/lib/dns.sh"
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/tls.sh"
 # shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib/tls-acme.sh"
+# shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/backup.sh"
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/status-contracts.sh"
@@ -46,6 +48,7 @@ Options:
   --base-domain <domain>
   --domain-mode <flat-siblings|nested>
   --platform <bt-panel-nginx|plain-nginx>
+  --tls-mode <existing|acme-http01|acme-dns-cloudflare>
   --tls-cert <path>
   --tls-key <path>
   --input-mode <basic|advanced>
@@ -70,6 +73,7 @@ Examples:
     --base-domain github.example.com \
     --domain-mode flat-siblings \
     --platform bt-panel-nginx \
+    --tls-mode existing \
     --tls-cert /etc/ssl/example/fullchain.pem \
     --tls-key /etc/ssl/example/privkey.pem \
     --input-mode basic \
@@ -81,6 +85,7 @@ Examples:
     --base-domain github.example.com \
     --domain-mode flat-siblings \
     --platform plain-nginx \
+    --tls-mode existing \
     --tls-cert /etc/ssl/example/fullchain.pem \
     --tls-key /etc/ssl/example/privkey.pem \
     --input-mode advanced \
@@ -169,8 +174,10 @@ validate_noninteractive_requirements() {
     require_nonempty_arg "${BASE_DOMAIN:-}" "--base-domain"
     require_nonempty_arg "${DOMAIN_MODE:-}" "--domain-mode"
     require_nonempty_arg "${PLATFORM:-}" "--platform"
-    require_nonempty_arg "${TLS_CERT:-}" "--tls-cert"
-    require_nonempty_arg "${TLS_KEY:-}" "--tls-key"
+    if [[ "${TLS_MODE:-existing}" == "existing" ]]; then
+      require_nonempty_arg "${TLS_CERT:-}" "--tls-cert"
+      require_nonempty_arg "${TLS_KEY:-}" "--tls-key"
+    fi
     require_nonempty_arg "${INPUT_MODE:-}" "--input-mode"
   fi
 }
@@ -389,11 +396,26 @@ installer_run_or_reuse_preflight() {
   if [[ -n "${PREFLIGHT_REPORT_JSON_RUN_COPY:-}" ]]; then
     write_preflight_report_json "$PREFLIGHT_REPORT_JSON_RUN_COPY"
   fi
+
+  if ! tls_mode_is_existing; then
+    TLS_PLAN_MD="$GENERATED_DIR/TLS-PLAN.generated.md"
+    TLS_PLAN_JSON="$GENERATED_DIR/TLS-PLAN.generated.json"
+    TLS_PLAN_MD_RUN_COPY="$STATE_DIR/TLS-PLAN.generated.md"
+    TLS_PLAN_JSON_RUN_COPY="$STATE_DIR/TLS-PLAN.generated.json"
+    tls_plan_generate_artifacts "$INSTALLER_PREFLIGHT_STATUS" "$TLS_PLAN_MD" "$TLS_PLAN_JSON"
+    cp "$TLS_PLAN_MD" "$TLS_PLAN_MD_RUN_COPY"
+    cp "$TLS_PLAN_JSON" "$TLS_PLAN_JSON_RUN_COPY"
+  fi
+
   state_append_journal "preflight.complete" "$INSTALLER_PREFLIGHT_STATUS" "preflight finished" "${PREFLIGHT_REPORT_JSON_RUN_COPY:-$PREFLIGHT_REPORT_JSON}"
 
   ui_section "已写出 preflight 报告"
   ui_info "$PREFLIGHT_REPORT_MD"
   ui_info "$PREFLIGHT_REPORT_JSON"
+  if [[ -n "${TLS_PLAN_MD:-}" && -f "${TLS_PLAN_MD:-}" ]]; then
+    ui_info "$TLS_PLAN_MD"
+    ui_info "$TLS_PLAN_JSON"
+  fi
   ui_info "$SUMMARY_JSON_PRIMARY"
 }
 
@@ -472,6 +494,7 @@ DEPLOYMENT_NAME=""
 BASE_DOMAIN=""
 DOMAIN_MODE=""
 PLATFORM=""
+TLS_MODE="existing"
 TLS_CERT=""
 TLS_KEY=""
 INPUT_MODE=""
@@ -557,6 +580,10 @@ STATE_JOURNAL_PATH=""
 STATE_INPUTS_PATH=""
 PREFLIGHT_REPORT_MD="$GENERATED_DIR/preflight.generated.md"
 PREFLIGHT_REPORT_JSON="$GENERATED_DIR/preflight.generated.json"
+TLS_PLAN_MD=""
+TLS_PLAN_JSON=""
+TLS_PLAN_MD_RUN_COPY=""
+TLS_PLAN_JSON_RUN_COPY=""
 PREFLIGHT_REPORT_MD_RUN_COPY=""
 PREFLIGHT_REPORT_JSON_RUN_COPY=""
 SUMMARY_JSON_PRIMARY="$GENERATED_DIR/INSTALLER-SUMMARY.generated.json"
@@ -585,6 +612,8 @@ while [[ $# -gt 0 ]]; do
       DOMAIN_MODE="$2"; SCRIPT_FLAGS_USED="1"; shift 2 ;;
     --platform)
       PLATFORM="$2"; SCRIPT_FLAGS_USED="1"; shift 2 ;;
+    --tls-mode)
+      TLS_MODE="$2"; SCRIPT_FLAGS_USED="1"; shift 2 ;;
     --tls-cert)
       TLS_CERT="$2"; SCRIPT_FLAGS_USED="1"; shift 2 ;;
     --tls-key)
@@ -748,8 +777,17 @@ else
   prompt_or_keep BASE_DOMAIN "请输入基础域名 base_domain" "github.example.com"
   choose_or_keep DOMAIN_MODE "请选择域名模型" "flat-siblings" "nested"
   choose_or_keep PLATFORM "请选择部署平台" "bt-panel-nginx" "plain-nginx"
-  prompt_path_or_keep TLS_CERT "请输入 TLS 证书路径 tls.cert" "/etc/ssl/example/fullchain.pem"
-  prompt_path_or_keep TLS_KEY "请输入 TLS 私钥路径 tls.key" "/etc/ssl/example/privkey.pem"
+  choose_or_keep TLS_MODE "请选择 TLS 模式" "existing" "acme-http01" "acme-dns-cloudflare"
+  if [[ "${TLS_MODE:-existing}" == "existing" ]]; then
+    prompt_path_or_keep TLS_CERT "请输入 TLS 证书路径 tls.cert" "/etc/ssl/example/fullchain.pem"
+    prompt_path_or_keep TLS_KEY "请输入 TLS 私钥路径 tls.key" "/etc/ssl/example/privkey.pem"
+  else
+    if [[ -n "${TLS_CERT:-}" || -n "${TLS_KEY:-}" ]]; then
+      ui_warn "当前 tls.mode=$TLS_MODE；Phase 1 仅做 review-first scaffolding，暂不会使用 tls.cert / tls.key。"
+    else
+      ui_info "当前 tls.mode=$TLS_MODE；Phase 1 暂不要求填写 tls.cert / tls.key。"
+    fi
+  fi
 
   set_platform_defaults "$PLATFORM"
 
@@ -829,7 +867,7 @@ else
   dns_print_summary "$BASE_DOMAIN" "$DOMAIN_MODE"
 
   ui_section "TLS 摘要"
-  tls_print_summary "$TLS_CERT" "$TLS_KEY"
+  tls_print_summary "${TLS_MODE:-existing}" "$TLS_CERT" "$TLS_KEY"
 
   if [[ "$ASSUME_YES" == "1" ]]; then
     ui_info "已使用 --yes，自动确认配置摘要并继续。"

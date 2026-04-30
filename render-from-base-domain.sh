@@ -15,6 +15,7 @@ Usage:
     --ssl-cert <path> \
     --ssl-key <path> \
     --error-root <path> \
+    [--tls-mode <existing|acme-http01|acme-dns-cloudflare>] \
     [--domain-mode <nested|flat-siblings>] \
     [--log-dir <path>] \
     [--template-dir <path>] \
@@ -50,6 +51,7 @@ SSL_CERT=""
 SSL_KEY=""
 ERROR_ROOT=""
 DOMAIN_MODE="nested"
+TLS_MODE="existing"
 LOG_DIR="/www/wwwlogs"
 TEMPLATE_DIR=""
 OUTPUT_DIR=""
@@ -68,6 +70,8 @@ while [[ $# -gt 0 ]]; do
       TEMPLATE_DIR="$2"; shift 2 ;;
     --domain-mode)
       DOMAIN_MODE="$2"; shift 2 ;;
+    --tls-mode)
+      TLS_MODE="$2"; shift 2 ;;
     --log-dir)
       LOG_DIR="$2"; shift 2 ;;
     --output-dir)
@@ -89,6 +93,11 @@ fi
 
 if [[ "$DOMAIN_MODE" != "nested" && "$DOMAIN_MODE" != "flat-siblings" ]]; then
   echo "Error: --domain-mode must be one of: nested, flat-siblings" >&2
+  exit 1
+fi
+
+if [[ "$TLS_MODE" != "existing" && "$TLS_MODE" != "acme-http01" && "$TLS_MODE" != "acme-dns-cloudflare" ]]; then
+  echo "Error: --tls-mode must be one of: existing, acme-http01, acme-dns-cloudflare" >&2
   exit 1
 fi
 
@@ -174,6 +183,7 @@ done < <(find "$TEMPLATE_DIR" -type f -print0)
 cat > "$OUTPUT_DIR/RENDERED-VALUES.env" <<EOF
 BASE_DOMAIN=$(printf '%q' "$BASE_DOMAIN")
 DOMAIN_MODE=$(printf '%q' "$DOMAIN_MODE")
+TLS_MODE=$(printf '%q' "$TLS_MODE")
 LOG_DIR=$(printf '%q' "$LOG_DIR")
 HUB_DOMAIN=$(printf '%q' "$HUB_DOMAIN")
 RAW_DOMAIN=$(printf '%q' "$RAW_DOMAIN")

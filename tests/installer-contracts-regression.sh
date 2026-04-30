@@ -1085,10 +1085,11 @@ assert_contains "$doctor_bad_repair_output" "[doctor] 下一步建议" "bad repa
 python3 - "$WORKDIR/runs/fixture-legacy-fallback/inputs.env" <<'PY'
 import sys
 from pathlib import Path
-Path(sys.argv[1]).write_text("DEPLOYMENT_NAME=fixture-legacy-fallback\nBASE_DOMAIN=github.example.com\nDOMAIN_MODE=flat-siblings\nPLATFORM=plain-nginx\nTLS_CERT=/tmp/cert.pem\nTLS_KEY=/tmp/key.pem\nINPUT_MODE=advanced\nINSTALL_INPUT_MODE=advanced\nERROR_ROOT=/tmp/errors\nLOG_DIR=/tmp/logs\nOUTPUT_DIR=./dist/fixture-legacy-fallback\nNGINX_SNIPPETS_TARGET_HINT=/tmp/snippets\nNGINX_VHOST_TARGET_HINT=/tmp/conf.d\nRUN_APPLY_DRY_RUN=0\nEXECUTE_APPLY=0\nBACKUP_DIR=''\nRUN_NGINX_TEST_AFTER_EXECUTE=0\nNGINX_TEST_CMD=nginx\\ -t\nASSUME_YES=0\nDEFAULT_ERROR_ROOT=/tmp/errors\nDEFAULT_LOG_DIR=/tmp/logs\nDEFAULT_OUTPUT_DIR=./dist/fixture-legacy-fallback\nDEFAULT_NGINX_SNIPPETS_TARGET_HINT=/tmp/snippets\nDEFAULT_NGINX_VHOST_TARGET_HINT=/tmp/conf.d\n", encoding='utf-8')
+Path(sys.argv[1]).write_text("DEPLOYMENT_NAME=fixture-legacy-fallback\nBASE_DOMAIN=github.example.com\nDOMAIN_MODE=flat-siblings\nPLATFORM=plain-nginx\nTLS_MODE=existing\nTLS_CERT=/tmp/cert.pem\nTLS_KEY=/tmp/key.pem\nINPUT_MODE=advanced\nINSTALL_INPUT_MODE=advanced\nERROR_ROOT=/tmp/errors\nLOG_DIR=/tmp/logs\nOUTPUT_DIR=./dist/fixture-legacy-fallback\nNGINX_SNIPPETS_TARGET_HINT=/tmp/snippets\nNGINX_VHOST_TARGET_HINT=/tmp/conf.d\nRUN_APPLY_DRY_RUN=0\nEXECUTE_APPLY=0\nBACKUP_DIR=''\nRUN_NGINX_TEST_AFTER_EXECUTE=0\nNGINX_TEST_CMD=nginx\\ -t\nASSUME_YES=0\nDEFAULT_ERROR_ROOT=/tmp/errors\nDEFAULT_LOG_DIR=/tmp/logs\nDEFAULT_OUTPUT_DIR=./dist/fixture-legacy-fallback\nDEFAULT_NGINX_SNIPPETS_TARGET_HINT=/tmp/snippets\nDEFAULT_NGINX_VHOST_TARGET_HINT=/tmp/conf.d\n", encoding='utf-8')
 PY
 state_load_inputs_env "fixture-legacy-fallback"
 assert_equals "$DEPLOYMENT_NAME" "fixture-legacy-fallback" "valid inputs env still loads deployment name"
+assert_equals "$TLS_MODE" "existing" "valid inputs env still loads tls mode"
 assert_equals "$NGINX_TEST_CMD" "nginx -t" "valid inputs env still decodes escaped command string"
 
 python3 - "$WORKDIR/runs/fixture-legacy-fallback/inputs.env" "$WORKDIR/inputs-loader-marker" <<'PY'

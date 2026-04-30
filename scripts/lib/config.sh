@@ -30,6 +30,7 @@ payload = {
         "mode": env("DOMAIN_MODE"),
     },
     "tls": {
+        "mode": env("TLS_MODE", "existing"),
         "cert": env("TLS_CERT"),
         "key": env("TLS_KEY"),
     },
@@ -132,6 +133,7 @@ print_config_summary() {
 - deployment_name: ${DEPLOYMENT_NAME}
 - base_domain: ${BASE_DOMAIN}
 - domain.mode: ${DOMAIN_MODE}
+- tls.mode: ${TLS_MODE:-existing}
 - tls.cert: ${TLS_CERT}
 - tls.key: ${TLS_KEY}
 - paths.error_root: ${ERROR_ROOT}

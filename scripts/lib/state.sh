@@ -80,6 +80,7 @@ DEPLOYMENT_NAME=$(printf '%q' "${DEPLOYMENT_NAME:-}")
 BASE_DOMAIN=$(printf '%q' "${BASE_DOMAIN:-}")
 DOMAIN_MODE=$(printf '%q' "${DOMAIN_MODE:-}")
 PLATFORM=$(printf '%q' "${PLATFORM:-}")
+TLS_MODE=$(printf '%q' "${TLS_MODE:-existing}")
 TLS_CERT=$(printf '%q' "${TLS_CERT:-}")
 TLS_KEY=$(printf '%q' "${TLS_KEY:-}")
 INPUT_MODE=$(printf '%q' "${INPUT_MODE:-}")
@@ -130,6 +131,7 @@ allowed = {
     "BASE_DOMAIN",
     "DOMAIN_MODE",
     "PLATFORM",
+    "TLS_MODE",
     "TLS_CERT",
     "TLS_KEY",
     "INPUT_MODE",
@@ -583,6 +585,7 @@ payload = {
     "base_domain": env("BASE_DOMAIN"),
     "domain_mode": env("DOMAIN_MODE"),
     "platform": env("PLATFORM"),
+    "tls_mode": env("TLS_MODE", "existing"),
     "input_mode": env("INSTALL_INPUT_MODE") or env("INPUT_MODE"),
     "flags": {
         "assume_yes": env("ASSUME_YES", "0") == "1",
@@ -803,6 +806,7 @@ payload = {
         "domain_mode": env("DOMAIN_MODE"),
         "platform": env("PLATFORM"),
         "input_mode": env("INSTALL_INPUT_MODE") or env("INPUT_MODE"),
+        "tls_mode": env("TLS_MODE", "existing"),
         "tls_cert": env("TLS_CERT"),
         "tls_key": env("TLS_KEY"),
         "error_root": env("ERROR_ROOT"),
@@ -893,7 +897,7 @@ state_mark_checkpoint() {
 
   export RUNS_ROOT_DIR RUN_ID STATE_DIR STATE_JSON_PATH STATE_JOURNAL_PATH STATE_INPUTS_PATH
   export RESUME_RUN_ID RESUME_SOURCE_RUN_ID RESUME_SOURCE_CHECKPOINT RESUME_SOURCE_RESUMED_FROM INSTALLER_CHECKPOINT INSTALLER_MODE RESUME_STRATEGY RESUME_STRATEGY_REASON
-  export DEPLOYMENT_NAME BASE_DOMAIN DOMAIN_MODE PLATFORM TLS_CERT TLS_KEY INPUT_MODE INSTALL_INPUT_MODE
+  export DEPLOYMENT_NAME BASE_DOMAIN DOMAIN_MODE PLATFORM TLS_MODE TLS_CERT TLS_KEY INPUT_MODE INSTALL_INPUT_MODE
   export ERROR_ROOT LOG_DIR OUTPUT_DIR NGINX_SNIPPETS_TARGET_HINT NGINX_VHOST_TARGET_HINT
   export RUN_APPLY_DRY_RUN EXECUTE_APPLY BACKUP_DIR RUN_NGINX_TEST_AFTER_EXECUTE NGINX_TEST_CMD ASSUME_YES
   export DEFAULT_ERROR_ROOT DEFAULT_LOG_DIR DEFAULT_OUTPUT_DIR DEFAULT_NGINX_SNIPPETS_TARGET_HINT DEFAULT_NGINX_VHOST_TARGET_HINT
@@ -1400,6 +1404,7 @@ def print_inputs_summary(inputs: dict):
         "domain_mode",
         "platform",
         "input_mode",
+        "tls_mode",
         "tls_cert",
         "tls_key",
         "error_root",

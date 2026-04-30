@@ -351,6 +351,7 @@ cp deploy.example.yaml deploy.yaml
 - `DNS-CHECKLIST.md`
 - `RISK-NOTES.md`
 - `SUMMARY.md`
+- 当 `tls.mode != existing` 时，还会额外生成 `TLS-PLAN.md` / `TLS-PLAN.json`
 
 ## 6.2 这一入口的边界
 
@@ -360,6 +361,7 @@ cp deploy.example.yaml deploy.yaml
 - 调用底层渲染器
 - 调用底层静态校验器
 - 生成中文部署说明文档
+- 在 `tls.mode != existing` 时补充 Phase 1 TLS plan 工件，帮助 operator 先 review 再决定后续动作
 
 建议搭配阅读：
 
@@ -372,6 +374,7 @@ cp deploy.example.yaml deploy.yaml
 - 自动 reload
 - 自动改 DNS
 - 自动上线
+- 在 `acme-http01` / `acme-dns-cloudflare` 下直接自动签发证书（当前仍是 review-first scaffolding）
 
 ---
 

@@ -31,6 +31,14 @@ DRY_RUN="0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RENDER_SCRIPT="$SCRIPT_DIR/render-from-base-domain.sh"
 VALIDATE_SCRIPT="$SCRIPT_DIR/validate-rendered-config.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/scripts/lib/dns.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/scripts/lib/tls.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/scripts/lib/checks.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/scripts/lib/tls-acme.sh"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -114,6 +122,7 @@ values = {
     'DEPLOYMENT_NAME': get('deployment_name', ''),
     'BASE_DOMAIN': get('domain.base_domain', ''),
     'DOMAIN_MODE': get('domain.mode', 'nested'),
+    'TLS_MODE': get('tls.mode', 'existing'),
     'SSL_CERT': get('tls.cert', ''),
     'SSL_KEY': get('tls.key', ''),
     'ERROR_ROOT': get('paths.error_root', ''),
@@ -125,12 +134,20 @@ values = {
     'DOC_LANGUAGE': get('docs.language', 'zh-CN'),
 }
 
-for field in ['DEPLOYMENT_NAME', 'BASE_DOMAIN', 'SSL_CERT', 'SSL_KEY', 'ERROR_ROOT', 'OUTPUT_DIR']:
+for field in ['DEPLOYMENT_NAME', 'BASE_DOMAIN', 'ERROR_ROOT', 'OUTPUT_DIR']:
     if not values[field]:
         errors.append(f"Missing required field: {field}")
 
+if values['TLS_MODE'] == 'existing':
+    for field in ['SSL_CERT', 'SSL_KEY']:
+        if not values[field]:
+            errors.append(f"Missing required field: {field} (tls.mode=existing)")
+
 if values['DOMAIN_MODE'] not in ('nested', 'flat-siblings'):
     errors.append("domain.mode must be one of: nested, flat-siblings")
+
+if values['TLS_MODE'] not in ('existing', 'acme-http01', 'acme-dns-cloudflare'):
+    errors.append("tls.mode must be one of: existing, acme-http01, acme-dns-cloudflare")
 
 if values['PLATFORM'] not in ('bt-panel-nginx', 'plain-nginx'):
     errors.append("deployment.platform must be one of: bt-panel-nginx, plain-nginx")
@@ -149,6 +166,34 @@ PY
 
 # shellcheck disable=SC1090
 source "$TMP_ENV"
+
+export DEPLOYMENT_NAME BASE_DOMAIN DOMAIN_MODE TLS_MODE SSL_CERT SSL_KEY ERROR_ROOT LOG_DIR OUTPUT_DIR NGINX_SNIPPETS_TARGET_HINT NGINX_VHOST_TARGET_HINT PLATFORM DOC_LANGUAGE
+TLS_MODE="${TLS_MODE:-existing}"
+RENDER_SSL_CERT="$SSL_CERT"
+RENDER_SSL_KEY="$SSL_KEY"
+TLS_RENDERER_USES_PLACEHOLDER="0"
+
+if [[ "$TLS_MODE" != "existing" ]]; then
+  if [[ -z "$RENDER_SSL_CERT" ]]; then
+    RENDER_SSL_CERT="/tmp/github-mirror-template-phase1/${TLS_MODE}/fullchain.pending.pem"
+    TLS_RENDERER_USES_PLACEHOLDER="1"
+  fi
+  if [[ -z "$RENDER_SSL_KEY" ]]; then
+    RENDER_SSL_KEY="/tmp/github-mirror-template-phase1/${TLS_MODE}/privkey.pending.pem"
+    TLS_RENDERER_USES_PLACEHOLDER="1"
+  fi
+fi
+
+if [[ "$TLS_MODE" == "existing" ]]; then
+  TLS_OUTPUT_CERT_LINES=$'- tls.cert: '\"$SSL_CERT\"$'\n- tls.key: '\"$SSL_KEY\"
+  TLS_PHASE1_SUMMARY='- 当前使用现有证书文件；仍需保持人工 review-first 审查边界。'
+else
+  TLS_OUTPUT_CERT_LINES=$'- tls.cert(config): '\"${SSL_CERT:-<not-set>}\"$'\n- tls.key(config): '\"${SSL_KEY:-<not-set>}\"$'\n- tls.render_contract_cert: '\"$RENDER_SSL_CERT\"$'\n- tls.render_contract_key: '\"$RENDER_SSL_KEY\"
+  TLS_PHASE1_SUMMARY="- 当前 tls.mode=$TLS_MODE 仍是 Phase 1 review-first scaffolding；不会自动申请证书。"
+  if [[ "$TLS_RENDERER_USES_PLACEHOLDER" == "1" ]]; then
+    TLS_PHASE1_SUMMARY+=$'\n- 由于尚未签发证书，渲染结果中的 tls-common.conf 当前写入的是 review-only 占位路径；不要直接 apply 到生产。'
+  fi
+fi
 
 if [[ -n "$OUTPUT_DIR_OVERRIDE" ]]; then
   OUTPUT_DIR="$OUTPUT_DIR_OVERRIDE"
@@ -229,37 +274,52 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
     WARNINGS+=("base_domain contains a label starting or ending with '-': $BASE_DOMAIN")
   fi
 
-  SSL_CERT_BASENAME="$(basename "$SSL_CERT")"
-  SSL_KEY_BASENAME="$(basename "$SSL_KEY")"
-  SSL_CERT_EXT="${SSL_CERT_BASENAME##*.}"
-  SSL_KEY_EXT="${SSL_KEY_BASENAME##*.}"
-  SSL_CERT_LOWER="${SSL_CERT,,}"
-  SSL_KEY_LOWER="${SSL_KEY,,}"
+  if [[ "$TLS_MODE" == "existing" || -n "$SSL_CERT" || -n "$SSL_KEY" ]]; then
+    SSL_CERT_BASENAME="$(basename "$SSL_CERT")"
+    SSL_KEY_BASENAME="$(basename "$SSL_KEY")"
+    SSL_CERT_EXT="${SSL_CERT_BASENAME##*.}"
+    SSL_KEY_EXT="${SSL_KEY_BASENAME##*.}"
+    SSL_CERT_LOWER="${SSL_CERT,,}"
+    SSL_KEY_LOWER="${SSL_KEY,,}"
 
-  if [[ "$SSL_CERT" != /* ]]; then
-    WARNINGS+=("SSL_CERT is not an absolute path: $SSL_CERT")
+    if [[ -n "$SSL_CERT" && "$SSL_CERT" != /* ]]; then
+      WARNINGS+=("SSL_CERT is not an absolute path: $SSL_CERT")
+    fi
+
+    if [[ -n "$SSL_KEY" && "$SSL_KEY" != /* ]]; then
+      WARNINGS+=("SSL_KEY is not an absolute path: $SSL_KEY")
+    fi
+
+    if [[ -n "$SSL_CERT" ]]; then
+      case "$SSL_CERT_LOWER" in
+        *.pem|*.crt|*.cer) ;;
+        *) WARNINGS+=("SSL_CERT does not look like a typical certificate file path (.pem/.crt/.cer): $SSL_CERT") ;;
+      esac
+    fi
+
+    if [[ -n "$SSL_KEY" ]]; then
+      case "$SSL_KEY_LOWER" in
+        *.pem|*.key) ;;
+        *) WARNINGS+=("SSL_KEY does not look like a typical private key file path (.pem/.key): $SSL_KEY") ;;
+      esac
+    fi
+
+    if [[ "$SSL_CERT_LOWER" == *key* ]]; then
+      WARNINGS+=("SSL_CERT path contains 'key'; review whether cert/key paths may be swapped: $SSL_CERT")
+    fi
+
+    if [[ "$SSL_KEY_LOWER" == *cert* || "$SSL_KEY_LOWER" == *chain* || "$SSL_KEY_LOWER" == *fullchain* ]]; then
+      WARNINGS+=("SSL_KEY path looks certificate-like; review whether cert/key paths may be swapped: $SSL_KEY")
+    fi
   fi
 
-  if [[ "$SSL_KEY" != /* ]]; then
-    WARNINGS+=("SSL_KEY is not an absolute path: $SSL_KEY")
-  fi
-
-  case "$SSL_CERT_LOWER" in
-    *.pem|*.crt|*.cer) ;;
-    *) WARNINGS+=("SSL_CERT does not look like a typical certificate file path (.pem/.crt/.cer): $SSL_CERT") ;;
-  esac
-
-  case "$SSL_KEY_LOWER" in
-    *.pem|*.key) ;;
-    *) WARNINGS+=("SSL_KEY does not look like a typical private key file path (.pem/.key): $SSL_KEY") ;;
-  esac
-
-  if [[ "$SSL_CERT_LOWER" == *key* ]]; then
-    WARNINGS+=("SSL_CERT path contains 'key'; review whether cert/key paths may be swapped: $SSL_CERT")
-  fi
-
-  if [[ "$SSL_KEY_LOWER" == *cert* || "$SSL_KEY_LOWER" == *chain* || "$SSL_KEY_LOWER" == *fullchain* ]]; then
-    WARNINGS+=("SSL_KEY path looks certificate-like; review whether cert/key paths may be swapped: $SSL_KEY")
+  if [[ "$TLS_MODE" == "existing" ]]; then
+    NOTES+=("TLS hint: tls.mode=existing requires real tls.cert / tls.key and keeps the renderer contract aligned with live certificate paths.")
+  else
+    NOTES+=("TLS hint: tls.mode=$TLS_MODE is still Phase 1 review-first scaffolding.")
+    if [[ "$TLS_RENDERER_USES_PLACEHOLDER" == "1" ]]; then
+      WARNINGS+=("tls.mode=$TLS_MODE currently renders review-only placeholder TLS paths to satisfy the renderer contract; do not apply generated nginx config to production until explicit certificate issue wiring lands.")
+    fi
   fi
 
   if [[ "$ERROR_ROOT" != /* ]]; then
@@ -391,6 +451,7 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
 - source_config: $CONFIG_ABS
 - platform: $PLATFORM
 - domain_mode: $DOMAIN_MODE
+- tls.mode: $TLS_MODE
 - output_dir: $OUTPUT_DIR_DISPLAY
 
 域名：
@@ -401,9 +462,8 @@ if [[ "$PRINT_DERIVED" == "1" || "$DRY_RUN" == "1" ]]; then
 - ARCHIVE_DOMAIN=$ARCHIVE_DOMAIN
 - DOWNLOAD_DOMAIN=$DOWNLOAD_DOMAIN
 
-路径：
-- SSL_CERT=$SSL_CERT
-- SSL_KEY=$SSL_KEY
+TLS / 路径：
+$TLS_OUTPUT_CERT_LINES
 - ERROR_ROOT=$ERROR_ROOT
 - LOG_DIR=$LOG_DIR
 EOF
@@ -417,6 +477,7 @@ Dry run complete. No files were written.
 - source_config: $CONFIG_ABS
 - platform: $PLATFORM
 - domain_mode: $DOMAIN_MODE
+- tls.mode: $TLS_MODE
 - output_dir: $OUTPUT_DIR_DISPLAY
 - effective_output_path: $OUTPUT_DIR
 
@@ -428,11 +489,13 @@ Derived domains:
 - ARCHIVE_DOMAIN=$ARCHIVE_DOMAIN
 - DOWNLOAD_DOMAIN=$DOWNLOAD_DOMAIN
 
-Input paths:
-- SSL_CERT=$SSL_CERT
-- SSL_KEY=$SSL_KEY
+TLS / input paths:
+$TLS_OUTPUT_CERT_LINES
 - ERROR_ROOT=$ERROR_ROOT
 - LOG_DIR=$LOG_DIR
+
+Phase boundary reminder:
+$TLS_PHASE1_SUMMARY
 
 Planned generation steps:
 1. Create output directory structure under $OUTPUT_DIR_DISPLAY
@@ -445,6 +508,8 @@ Checks passed for dry-run entry:
 - config parsed successfully
 - required fields are present
 - domain.mode is valid
+- tls.mode is valid
+- tls.cert / tls.key are required only when tls.mode=existing
 - deployment.platform is valid
 - derived domains computed successfully
 EOF
@@ -485,11 +550,28 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
+TLS_PLAN_MD="$OUTPUT_DIR/TLS-PLAN.md"
+TLS_PLAN_JSON="$OUTPUT_DIR/TLS-PLAN.json"
+if [[ "$TLS_MODE" != "existing" ]]; then
+  CHECK_WARNINGS=()
+  CHECK_BLOCKERS=()
+  run_basic_checks
+  TLS_PLAN_STATUS="$(check_preflight_status)"
+  tls_plan_generate_artifacts "$TLS_PLAN_STATUS" "$TLS_PLAN_MD" "$TLS_PLAN_JSON"
+  if [[ "$TLS_PLAN_STATUS" == "blocked" ]]; then
+    err "TLS preflight blocked for tls.mode=$TLS_MODE"
+    err "Review generated plan first: $TLS_PLAN_MD"
+    err "Machine-readable details: $TLS_PLAN_JSON"
+    exit 4
+  fi
+fi
+
 "$RENDER_SCRIPT" \
   --base-domain "$BASE_DOMAIN" \
   --domain-mode "$DOMAIN_MODE" \
-  --ssl-cert "$SSL_CERT" \
-  --ssl-key "$SSL_KEY" \
+  --tls-mode "$TLS_MODE" \
+  --ssl-cert "$RENDER_SSL_CERT" \
+  --ssl-key "$RENDER_SSL_KEY" \
   --error-root "$ERROR_ROOT" \
   --log-dir "$LOG_DIR" \
   --output-dir "$OUTPUT_DIR"
@@ -501,8 +583,12 @@ python3 - "$OUTPUT_DIR/deploy.resolved.yaml" \
   "$DEPLOYMENT_NAME" \
   "$BASE_DOMAIN" \
   "$DOMAIN_MODE" \
+  "$TLS_MODE" \
   "$SSL_CERT" \
   "$SSL_KEY" \
+  "$RENDER_SSL_CERT" \
+  "$RENDER_SSL_KEY" \
+  "$TLS_RENDERER_USES_PLACEHOLDER" \
   "$ERROR_ROOT" \
   "$LOG_DIR" \
   "$OUTPUT_DIR_DISPLAY" \
@@ -527,19 +613,23 @@ payload = {
         "mode": sys.argv[5],
     },
     "tls": {
-        "cert": sys.argv[6],
-        "key": sys.argv[7],
+        "mode": sys.argv[6],
+        "cert": sys.argv[7],
+        "key": sys.argv[8],
+        "render_contract_cert": sys.argv[9],
+        "render_contract_key": sys.argv[10],
+        "render_contract_uses_placeholder": sys.argv[11] == "1",
     },
     "paths": {
-        "error_root": sys.argv[8],
-        "log_dir": sys.argv[9],
-        "output_dir": sys.argv[10],
+        "error_root": sys.argv[12],
+        "log_dir": sys.argv[13],
+        "output_dir": sys.argv[14],
     },
     "deployment": {
-        "platform": sys.argv[11],
+        "platform": sys.argv[15],
     },
     "docs": {
-        "language": sys.argv[12],
+        "language": sys.argv[16],
     },
 }
 with target_path.open('w', encoding='utf-8') as f:
@@ -554,6 +644,7 @@ cat > "$OUTPUT_DIR/DEPLOY-STEPS.md" <<EOF
 - 部署名称：$DEPLOYMENT_NAME
 - 基础域名：$BASE_DOMAIN
 - 域名模式：$DOMAIN_MODE
+- TLS 模式：$TLS_MODE
 - 平台：$PLATFORM
 - 输出目录：$OUTPUT_DIR_DISPLAY
 
@@ -582,6 +673,7 @@ $PLATFORM_STEP_6
 - 不会自动修改线上 Nginx
 - 不会自动 reload
 - 不会自动改 DNS
+$TLS_PHASE1_SUMMARY
 EOF
 
 cat > "$OUTPUT_DIR/DNS-CHECKLIST.md" <<EOF
@@ -619,6 +711,7 @@ cat > "$OUTPUT_DIR/RISK-NOTES.md" <<EOF
 - 仍需人工执行 nginx -t
 - 仍需人工决定是否 reload
 - 不应把生成结果直接视为“已上线”
+$TLS_PHASE1_SUMMARY
 EOF
 
 cat > "$OUTPUT_DIR/SUMMARY.md" <<EOF
@@ -627,6 +720,7 @@ cat > "$OUTPUT_DIR/SUMMARY.md" <<EOF
 - 部署名称：$DEPLOYMENT_NAME
 - 基础域名：$BASE_DOMAIN
 - 域名模式：$DOMAIN_MODE
+- TLS 模式：$TLS_MODE
 - 平台：$PLATFORM
 - 输出目录：$OUTPUT_DIR_DISPLAY
 
@@ -650,17 +744,19 @@ cat > "$OUTPUT_DIR/SUMMARY.md" <<EOF
 - DNS-CHECKLIST.md
 - RISK-NOTES.md
 - SUMMARY.md
+$( [[ "$TLS_MODE" != "existing" ]] && printf '%s\n%s\n' '- TLS-PLAN.md' '- TLS-PLAN.json' )
 EOF
 
 cat <<EOF
 生成完成。
 
 部署名称：$DEPLOYMENT_NAME
+TLS 模式：$TLS_MODE
 输出目录（配置值）：$OUTPUT_DIR_DISPLAY
 输出目录（实际路径）：$OUTPUT_DIR
 
 下一步建议：
 1. 先检查 $OUTPUT_DIR_DISPLAY/RENDERED-VALUES.env
 2. 再检查 $OUTPUT_DIR_DISPLAY/DEPLOY-STEPS.md
-3. 完成人工审查后再决定是否用于真实环境
+3. $( [[ "$TLS_MODE" != "existing" ]] && printf '优先审查 TLS-PLAN.md / TLS-PLAN.json，并确认仍处于 Phase 1 review-first 边界' || printf '完成人工审查后再决定是否用于真实环境' )
 EOF

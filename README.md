@@ -249,7 +249,7 @@ bash tests/installer-doctor-golden.sh
 
 如果你暂时还想直接使用底层渲染器，也可以继续走原来的 5 步：
 
-1. 选定 `BASE_DOMAIN` 与 `DOMAIN_MODE`
+1. 选定 `BASE_DOMAIN`、`DOMAIN_MODE` 与 `tls.mode`
 2. 运行 `render-from-base-domain.sh` 渲染实际配置副本
 3. 运行 `validate-rendered-config.sh` 做静态自检
 4. 按 `INSTALL.md` / `BT-PANEL-DEPLOYMENT-v1.md` 落地到宝塔/Nginx
@@ -261,6 +261,7 @@ bash tests/installer-doctor-golden.sh
 ./render-from-base-domain.sh \
   --base-domain github.example.com \
   --domain-mode flat-siblings \
+  --tls-mode existing \
   --ssl-cert /path/to/fullchain.pem \
   --ssl-key /path/to/privkey.pem \
   --error-root /www/wwwroot/github-mirror-errors \
@@ -270,6 +271,9 @@ bash tests/installer-doctor-golden.sh
 ./validate-rendered-config.sh \
   --rendered-dir ./rendered/github.example.com
 ```
+
+> 说明：`render-from-base-domain.sh` 现在也接受 `--tls-mode <existing|acme-http01|acme-dns-cloudflare>`。
+> 其中 `acme-http01` / `acme-dns-cloudflare` 当前仍属于 Phase 1 review-first scaffolding，主要用于对齐 renderer/generator/installer 的输入与产物契约，不代表已经自动签发证书。
 
 详细步骤看：
 
@@ -513,12 +517,15 @@ github-mirror-template/
 ./render-from-base-domain.sh \
   --base-domain github.example.com \
   --domain-mode flat-siblings \
+  --tls-mode existing \
   --ssl-cert /path/to/fullchain.pem \
   --ssl-key /path/to/privkey.pem \
   --error-root /www/wwwroot/github-mirror-errors \
   --log-dir /www/wwwlogs \
   --output-dir ./rendered/github.example.com
 ```
+
+> 若改成 `--tls-mode acme-http01` 或 `--tls-mode acme-dns-cloudflare`，当前仍是 Phase 1 review-first scaffolding：可以生成对齐后的部署包与说明，但不代表会自动申请证书。
 
 ## 8.2 运行静态自检
 
