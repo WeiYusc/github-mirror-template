@@ -5,8 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GENERATED_DIR="$ROOT_DIR/scripts/generated"
 RUNS_ROOT_DIR="$GENERATED_DIR/runs"
 SUMMARY_PRIMARY="$GENERATED_DIR/INSTALLER-SUMMARY.generated.json"
+CONTRACT_TEMPLATE_DIR="$ROOT_DIR/tests/fixtures/installer-contracts/template"
 TMP_DIR="$(mktemp -d)"
 NEW_RUN_DIRS=()
+FIXTURE_WORKDIR=""
+FIXTURE_RUNS_ACTIVE=0
+FIXTURE_RUNS_BACKUP="$TMP_DIR/runs.real-backup"
 
 backup_file() {
   local src="$1"
@@ -37,8 +41,58 @@ register_new_run_dir() {
   fi
 }
 
+materialize_contract_fixtures() {
+  if [[ -n "$FIXTURE_WORKDIR" && -d "$FIXTURE_WORKDIR" ]]; then
+    return 0
+  fi
+
+  FIXTURE_WORKDIR="$TMP_DIR/contract-fixtures"
+  python3 - "$CONTRACT_TEMPLATE_DIR" "$FIXTURE_WORKDIR" <<'PY'
+import sys
+from pathlib import Path
+
+template_dir = Path(sys.argv[1])
+workdir = Path(sys.argv[2])
+placeholder = "__FIXTURE_ROOT__"
+
+for src in template_dir.rglob("*"):
+    rel = src.relative_to(template_dir)
+    dest = workdir / rel
+    if src.is_dir():
+        dest.mkdir(parents=True, exist_ok=True)
+        continue
+    text = src.read_text(encoding="utf-8")
+    text = text.replace(placeholder, str(workdir))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(text, encoding="utf-8")
+PY
+}
+
+activate_contract_fixture_runs() {
+  if [[ "$FIXTURE_RUNS_ACTIVE" == "1" ]]; then
+    return 0
+  fi
+
+  materialize_contract_fixtures
+  rm -rf "$FIXTURE_RUNS_BACKUP"
+  mv "$RUNS_ROOT_DIR" "$FIXTURE_RUNS_BACKUP"
+  cp -a "$FIXTURE_WORKDIR/runs" "$RUNS_ROOT_DIR"
+  FIXTURE_RUNS_ACTIVE=1
+}
+
+deactivate_contract_fixture_runs() {
+  if [[ "$FIXTURE_RUNS_ACTIVE" != "1" ]]; then
+    return 0
+  fi
+
+  rm -rf "$RUNS_ROOT_DIR"
+  mv "$FIXTURE_RUNS_BACKUP" "$RUNS_ROOT_DIR"
+  FIXTURE_RUNS_ACTIVE=0
+}
+
 cleanup() {
   local dir
+  deactivate_contract_fixture_runs || true
   for dir in "${NEW_RUN_DIRS[@]}"; do
     if [[ -d "$dir" ]]; then
       rm -rf "$dir"
@@ -646,6 +700,251 @@ assert "inspection-first 续接" in stdout_text, stdout_text
 assert "inspect-after-apply-attention / review-first 续接" in stderr_text, stderr_text
 assert "默认不会继承上次的真实 apply / nginx test 执行意图" in stderr_text, stderr_text
 PY
+
+activate_contract_fixture_runs
+
+before_runs_post_repair_refusal="$TMP_DIR/before-runs-post-repair-refusal.txt"
+after_runs_post_repair_refusal="$TMP_DIR/after-runs-post-repair-refusal.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_post_repair_refusal"
+
+if "$ROOT_DIR/install-interactive.sh" \
+  --resume fixture-post-repair-verification \
+  --execute-apply \
+  --yes \
+  >/dev/null 2>"$TMP_DIR/post-repair-refusal.stderr"; then
+  echo "[FAIL] post-repair-verification execute refusal unexpectedly succeeded" >&2
+  exit 1
+fi
+
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_runs_post_repair_refusal"
+if [[ -n "$(comm -13 "$before_runs_post_repair_refusal" "$after_runs_post_repair_refusal")" ]]; then
+  echo "[FAIL] post-repair-verification execute refusal unexpectedly created a new run directory" >&2
+  exit 1
+fi
+if ! grep -q '当前 resume 策略 post-repair-verification 不允许直接执行真实 apply' "$TMP_DIR/post-repair-refusal.stderr"; then
+  echo "[FAIL] post-repair-verification execute refusal message not found" >&2
+  cat "$TMP_DIR/post-repair-refusal.stderr" >&2
+  exit 1
+fi
+if grep -q -- '--deployment-name' "$TMP_DIR/post-repair-refusal.stderr"; then
+  echo "[FAIL] post-repair-verification execute refusal regressed to new-run validation error" >&2
+  cat "$TMP_DIR/post-repair-refusal.stderr" >&2
+  exit 1
+fi
+
+before_runs_post_repair_resume="$TMP_DIR/before-runs-post-repair-resume.txt"
+after_runs_post_repair_resume="$TMP_DIR/after-runs-post-repair-resume.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_post_repair_resume"
+
+set +e
+"$ROOT_DIR/install-interactive.sh" \
+  --resume fixture-post-repair-verification \
+  --run-apply-dry-run \
+  --yes \
+  >"$TMP_DIR/post-repair-resume.stdout" 2>"$TMP_DIR/post-repair-resume.stderr"
+post_repair_resume_rc=$?
+set -e
+if [[ "$post_repair_resume_rc" == "0" ]]; then
+  echo "[FAIL] post-repair-verification positive resume unexpectedly succeeded" >&2
+  exit 1
+fi
+
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_runs_post_repair_resume"
+POST_REPAIR_RESUME_RUN_DIR="$(comm -13 "$before_runs_post_repair_resume" "$after_runs_post_repair_resume" | tail -n 1)"
+if [[ -z "$POST_REPAIR_RESUME_RUN_DIR" || ! -d "$POST_REPAIR_RESUME_RUN_DIR" ]]; then
+  echo "[FAIL] post-repair-verification positive resume smoke run did not create a new run directory" >&2
+  exit 1
+fi
+if grep -q -- '--deployment-name' "$TMP_DIR/post-repair-resume.stderr"; then
+  echo "[FAIL] post-repair-verification positive resume regressed to new-run validation error" >&2
+  cat "$TMP_DIR/post-repair-resume.stderr" >&2
+  exit 1
+fi
+
+post_repair_resume_state_json="$POST_REPAIR_RESUME_RUN_DIR/state.json"
+python3 - "$post_repair_resume_state_json" "$FIXTURE_WORKDIR/runs/fixture-post-repair-verification/state.json" "$SUMMARY_PRIMARY" "$TMP_DIR/post-repair-resume.stdout" "$TMP_DIR/post-repair-resume.stderr" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+source_state_path = Path(sys.argv[2])
+summary_primary_path = Path(sys.argv[3])
+stdout_path = Path(sys.argv[4])
+stderr_path = Path(sys.argv[5])
+
+state = json.loads(state_path.read_text(encoding="utf-8"))
+source_state = json.loads(source_state_path.read_text(encoding="utf-8"))
+summary_primary = json.loads(summary_primary_path.read_text(encoding="utf-8"))
+summary_output = json.loads(Path(state["artifacts"]["summary_output"]).read_text(encoding="utf-8"))
+apply_result = json.loads(Path(state["artifacts"]["apply_result_json"]).read_text(encoding="utf-8"))
+stdout_text = stdout_path.read_text(encoding="utf-8")
+stderr_text = stderr_path.read_text(encoding="utf-8")
+journal = [json.loads(line) for line in (state_path.parent / "journal.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+events = [item["event"] for item in journal]
+
+run_dir = state_path.parent
+expected_config = run_dir / "deploy.generated.yaml"
+expected_preflight_md = run_dir / "preflight.generated.md"
+expected_preflight_json = run_dir / "preflight.generated.json"
+expected_summary_generated = run_dir / "INSTALLER-SUMMARY.generated.json"
+
+assert state["lineage"]["mode"] == "resume", state
+assert state["lineage"]["resume_strategy"] == "post-repair-verification", state
+assert "repair" in state["lineage"]["resume_strategy_reason"], state
+assert "passed" in state["lineage"]["resume_strategy_reason"], state
+assert state["status"]["apply_execute"] != "success", state
+assert state["status"]["apply_dry_run"] == "failed", state
+assert state["status"]["final"] == "failed", state
+assert state["status"]["final"] == summary_primary["status"]["final"], (state, summary_primary)
+assert state["status"]["final"] == summary_output["status"]["final"], (state, summary_output)
+assert Path(state["artifacts"]["config"]) == expected_config, state
+assert Path(state["artifacts"]["preflight_markdown"]) == expected_preflight_md, state
+assert Path(state["artifacts"]["preflight_json"]) == expected_preflight_json, state
+assert Path(state["artifacts"]["summary_generated"]) == expected_summary_generated, state
+assert expected_config.exists(), expected_config
+assert expected_preflight_md.exists(), expected_preflight_md
+assert expected_preflight_json.exists(), expected_preflight_json
+assert expected_summary_generated.exists(), expected_summary_generated
+assert state["artifacts"]["config"] != source_state["artifacts"]["config"], (state, source_state)
+assert state["artifacts"]["preflight_markdown"] != source_state["artifacts"]["preflight_markdown"], (state, source_state)
+assert state["artifacts"]["preflight_json"] != source_state["artifacts"]["preflight_json"], (state, source_state)
+assert state["artifacts"]["summary_generated"] != source_state["artifacts"]["summary_generated"], (state, source_state)
+assert apply_result["mode"] == "dry-run", apply_result
+assert "inputs.reused" in events, journal
+assert "preflight.reused" in events, journal
+assert "generator.reused" in events, journal
+assert "apply-plan.reused" in events, journal
+assert "apply-dry-run.start" in events, journal
+assert Path(journal[-1]["path"]) == state_path, journal[-1]
+assert journal[-1]["event"] == "run.exit", journal
+assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
+assert "本次 resume 策略：post-repair-verification" in stdout_text, stdout_text
+assert "inspection-first 续接" in stdout_text, stdout_text
+assert "源运行已存在 repair 结果，且 nginx -t 重跑通过；当前默认先复查，不直接重放 apply。" in stderr_text, stderr_text
+PY
+
+before_runs_post_rollback_refusal="$TMP_DIR/before-runs-post-rollback-refusal.txt"
+after_runs_post_rollback_refusal="$TMP_DIR/after-runs-post-rollback-refusal.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_post_rollback_refusal"
+
+if "$ROOT_DIR/install-interactive.sh" \
+  --resume fixture-post-rollback-inspection \
+  --execute-apply \
+  --yes \
+  >/dev/null 2>"$TMP_DIR/post-rollback-refusal.stderr"; then
+  echo "[FAIL] post-rollback-inspection execute refusal unexpectedly succeeded" >&2
+  exit 1
+fi
+
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_runs_post_rollback_refusal"
+if [[ -n "$(comm -13 "$before_runs_post_rollback_refusal" "$after_runs_post_rollback_refusal")" ]]; then
+  echo "[FAIL] post-rollback-inspection execute refusal unexpectedly created a new run directory" >&2
+  exit 1
+fi
+if ! grep -q '当前 resume 策略 post-rollback-inspection 不允许直接执行真实 apply' "$TMP_DIR/post-rollback-refusal.stderr"; then
+  echo "[FAIL] post-rollback-inspection execute refusal message not found" >&2
+  cat "$TMP_DIR/post-rollback-refusal.stderr" >&2
+  exit 1
+fi
+if grep -q -- '--deployment-name' "$TMP_DIR/post-rollback-refusal.stderr"; then
+  echo "[FAIL] post-rollback-inspection execute refusal regressed to new-run validation error" >&2
+  cat "$TMP_DIR/post-rollback-refusal.stderr" >&2
+  exit 1
+fi
+
+before_runs_post_rollback_resume="$TMP_DIR/before-runs-post-rollback-resume.txt"
+after_runs_post_rollback_resume="$TMP_DIR/after-runs-post-rollback-resume.txt"
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$before_runs_post_rollback_resume"
+
+set +e
+"$ROOT_DIR/install-interactive.sh" \
+  --resume fixture-post-rollback-inspection \
+  --run-apply-dry-run \
+  --yes \
+  >"$TMP_DIR/post-rollback-resume.stdout" 2>"$TMP_DIR/post-rollback-resume.stderr"
+post_rollback_resume_rc=$?
+set -e
+if [[ "$post_rollback_resume_rc" == "0" ]]; then
+  echo "[FAIL] post-rollback-inspection positive resume unexpectedly succeeded" >&2
+  exit 1
+fi
+
+find "$RUNS_ROOT_DIR" -mindepth 1 -maxdepth 1 -type d | sort > "$after_runs_post_rollback_resume"
+POST_ROLLBACK_RESUME_RUN_DIR="$(comm -13 "$before_runs_post_rollback_resume" "$after_runs_post_rollback_resume" | tail -n 1)"
+if [[ -z "$POST_ROLLBACK_RESUME_RUN_DIR" || ! -d "$POST_ROLLBACK_RESUME_RUN_DIR" ]]; then
+  echo "[FAIL] post-rollback-inspection positive resume smoke run did not create a new run directory" >&2
+  exit 1
+fi
+if grep -q -- '--deployment-name' "$TMP_DIR/post-rollback-resume.stderr"; then
+  echo "[FAIL] post-rollback-inspection positive resume regressed to new-run validation error" >&2
+  cat "$TMP_DIR/post-rollback-resume.stderr" >&2
+  exit 1
+fi
+
+post_rollback_resume_state_json="$POST_ROLLBACK_RESUME_RUN_DIR/state.json"
+python3 - "$post_rollback_resume_state_json" "$FIXTURE_WORKDIR/runs/fixture-post-rollback-inspection/state.json" "$SUMMARY_PRIMARY" "$TMP_DIR/post-rollback-resume.stdout" "$TMP_DIR/post-rollback-resume.stderr" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+source_state_path = Path(sys.argv[2])
+summary_primary_path = Path(sys.argv[3])
+stdout_path = Path(sys.argv[4])
+stderr_path = Path(sys.argv[5])
+
+state = json.loads(state_path.read_text(encoding="utf-8"))
+source_state = json.loads(source_state_path.read_text(encoding="utf-8"))
+summary_primary = json.loads(summary_primary_path.read_text(encoding="utf-8"))
+summary_output = json.loads(Path(state["artifacts"]["summary_output"]).read_text(encoding="utf-8"))
+apply_result = json.loads(Path(state["artifacts"]["apply_result_json"]).read_text(encoding="utf-8"))
+stdout_text = stdout_path.read_text(encoding="utf-8")
+stderr_text = stderr_path.read_text(encoding="utf-8")
+journal = [json.loads(line) for line in (state_path.parent / "journal.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+events = [item["event"] for item in journal]
+
+run_dir = state_path.parent
+expected_config = run_dir / "deploy.generated.yaml"
+expected_preflight_md = run_dir / "preflight.generated.md"
+expected_preflight_json = run_dir / "preflight.generated.json"
+expected_summary_generated = run_dir / "INSTALLER-SUMMARY.generated.json"
+
+assert state["lineage"]["mode"] == "resume", state
+assert state["lineage"]["resume_strategy"] == "post-rollback-inspection", state
+assert "rollback" in state["lineage"]["resume_strategy_reason"], state
+assert state["status"]["apply_execute"] != "success", state
+assert state["status"]["apply_dry_run"] == "failed", state
+assert state["status"]["final"] == "failed", state
+assert state["status"]["final"] == summary_primary["status"]["final"], (state, summary_primary)
+assert state["status"]["final"] == summary_output["status"]["final"], (state, summary_output)
+assert Path(state["artifacts"]["config"]) == expected_config, state
+assert Path(state["artifacts"]["preflight_markdown"]) == expected_preflight_md, state
+assert Path(state["artifacts"]["preflight_json"]) == expected_preflight_json, state
+assert Path(state["artifacts"]["summary_generated"]) == expected_summary_generated, state
+assert expected_config.exists(), expected_config
+assert expected_preflight_md.exists(), expected_preflight_md
+assert expected_preflight_json.exists(), expected_preflight_json
+assert expected_summary_generated.exists(), expected_summary_generated
+assert state["artifacts"]["config"] != source_state["artifacts"]["config"], (state, source_state)
+assert state["artifacts"]["preflight_markdown"] != source_state["artifacts"]["preflight_markdown"], (state, source_state)
+assert state["artifacts"]["preflight_json"] != source_state["artifacts"]["preflight_json"], (state, source_state)
+assert state["artifacts"]["summary_generated"] != source_state["artifacts"]["summary_generated"], (state, source_state)
+assert apply_result["mode"] == "dry-run", apply_result
+assert "inputs.reused" in events, journal
+assert "preflight.reused" in events, journal
+assert "generator.reused" in events, journal
+assert "apply-plan.reused" in events, journal
+assert "apply-dry-run.start" in events, journal
+assert Path(journal[-1]["path"]) == state_path, journal[-1]
+assert journal[-1]["event"] == "run.exit", journal
+assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
+assert "本次 resume 策略：post-rollback-inspection" in stdout_text, stdout_text
+assert "inspection-first 续接" in stdout_text, stdout_text
+assert "源运行已执行 selective rollback；当前默认只做复查/续接，不会继承真实 apply 意图。" in stderr_text, stderr_text
+PY
+
+deactivate_contract_fixture_runs
 
 before_runs_doctor="$TMP_DIR/before-runs-doctor.txt"
 after_runs_doctor="$TMP_DIR/after-runs-doctor.txt"

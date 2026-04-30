@@ -33,3 +33,6 @@ jobs:
 
       - name: Run installer contract regression
         run: bash tests/installer-contracts-regression.sh
+
+      - name: Run installer doctor golden regression
+        run: bash tests/installer-doctor-golden.sh
