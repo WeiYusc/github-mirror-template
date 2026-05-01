@@ -172,9 +172,14 @@ for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(),
         tokens = shlex.split(encoded, posix=True)
     except ValueError as exc:
         raise SystemExit(f"line {lineno}: {exc}")
-    if len(tokens) != 1:
+    if len(tokens) == 0:
+        if encoded.strip() != "":
+            raise SystemExit(f"line {lineno}: assignment must decode to exactly one token")
+        value = ""
+    elif len(tokens) == 1:
+        value = tokens[0]
+    else:
         raise SystemExit(f"line {lineno}: assignment must decode to exactly one token")
-    value = tokens[0]
     print(f"{name}={shlex.quote(value)}")
 PY
 )"; then
@@ -268,13 +273,19 @@ def resolve_artifact_base_dir(artifacts_map: dict):
         resolved.get("repair_result") or "",
         resolved.get("rollback_result_json") or "",
         resolved.get("rollback_result") or "",
+        resolved.get("issue_result_json") or "",
+        resolved.get("issue_result") or "",
+        resolved.get("acme_issuance_result_json") or "",
+        resolved.get("acme_issuance_result") or "",
+        resolved.get("output_dir_abs") or "",
     ]
     for value in candidates:
         if value and Path(value).exists():
-            return Path(value).parent
+            return Path(value) if Path(value).is_dir() else Path(value).parent
     for value in candidates:
         if value:
-            return Path(value).parent
+            candidate = Path(value)
+            return candidate if candidate.suffix == "" else candidate.parent
     return None
 
 
@@ -298,6 +309,22 @@ def with_companion_fallback(artifacts_map: dict):
             candidate = base_dir / "ROLLBACK-RESULT.md"
             if candidate.exists():
                 resolved["rollback_result"] = str(candidate)
+        if not resolved.get("issue_result_json"):
+            candidate = base_dir / "ISSUE-RESULT.json"
+            if candidate.exists():
+                resolved["issue_result_json"] = str(candidate)
+        if not resolved.get("issue_result"):
+            candidate = base_dir / "ISSUE-RESULT.md"
+            if candidate.exists():
+                resolved["issue_result"] = str(candidate)
+        if not resolved.get("acme_issuance_result_json"):
+            candidate = base_dir / "ACME-ISSUANCE-RESULT.json"
+            if candidate.exists():
+                resolved["acme_issuance_result_json"] = str(candidate)
+        if not resolved.get("acme_issuance_result"):
+            candidate = base_dir / "ACME-ISSUANCE-RESULT.md"
+            if candidate.exists():
+                resolved["acme_issuance_result"] = str(candidate)
     return resolved
 
 
@@ -321,7 +348,7 @@ def resolve_companion_result(cur_state: dict, kind: str, visited: set[str]):
         except Exception:
             payload = {}
         if not candidate_md:
-            candidate_md = str(Path(candidate_json).with_name(f"{kind.upper()}-RESULT.md"))
+            candidate_md = str(Path(candidate_json).with_name(f"{kind.replace('_', '-').upper()}-RESULT.md"))
         return {
             "owner_run_id": run_id,
             "json_path": candidate_json,
@@ -358,14 +385,32 @@ def resolve_companion_result(cur_state: dict, kind: str, visited: set[str]):
 
 repair_resolved = resolve_companion_result(state, "repair", set()) or {}
 rollback_resolved = resolve_companion_result(state, "rollback", set()) or {}
+acme_issuance_resolved = resolve_companion_result(state, "acme_issuance", set()) or {}
 repair_result_json_path = repair_resolved.get("json_path", "")
 rollback_result_json_path = rollback_resolved.get("json_path", "")
+acme_issuance_result_json_path = acme_issuance_resolved.get("json_path", "")
 repair_result_path = repair_resolved.get("markdown_path", "")
 rollback_result_path = rollback_resolved.get("markdown_path", "")
+acme_issuance_result_path = acme_issuance_resolved.get("markdown_path", "")
 repair_result = ensure_dict(repair_resolved.get("payload"))
 rollback_result = ensure_dict(rollback_resolved.get("payload"))
+acme_issuance_result = ensure_dict(acme_issuance_resolved.get("payload"))
 repair_execution = ensure_dict(repair_result.get("execution"))
 rollback_flags = ensure_dict(rollback_result.get("flags"))
+acme_intent = ensure_dict(acme_issuance_result.get("intent"))
+acme_execution = ensure_dict(acme_issuance_result.get("execution"))
+
+
+def acme_placeholder_requires_review(result: dict, intent: dict, execution: dict) -> bool:
+    return bool(result) and (
+        intent.get("result_role", "") == "execute-placeholder"
+        or not jsonish_bool(intent.get("real_execution_performed", True))
+        or result.get("final_status", "") == "blocked"
+        or not jsonish_bool(execution.get("client_invoked", True))
+    )
+
+
+acme_review_required = acme_placeholder_requires_review(acme_issuance_result, acme_intent, acme_execution)
 
 values = {
     "RESUME_SOURCE_RUN_ID": state.get("run_id", ""),
@@ -395,6 +440,9 @@ values = {
     "RESUME_SOURCE_ROLLBACK_RESULT_OWNER_RUN_ID": rollback_resolved.get("owner_run_id", ""),
     "RESUME_SOURCE_ROLLBACK_RESULT_PATH": rollback_result_path,
     "RESUME_SOURCE_ROLLBACK_RESULT_JSON_PATH": rollback_result_json_path,
+    "RESUME_SOURCE_ACME_ISSUANCE_RESULT_OWNER_RUN_ID": acme_issuance_resolved.get("owner_run_id", ""),
+    "RESUME_SOURCE_ACME_ISSUANCE_RESULT_PATH": acme_issuance_result_path,
+    "RESUME_SOURCE_ACME_ISSUANCE_RESULT_JSON_PATH": acme_issuance_result_json_path,
     "RESUME_SOURCE_APPLY_RECOVERY_STATUS": recovery.get("installer_status", ""),
     "RESUME_SOURCE_APPLY_RESUME_STRATEGY": recovery.get("resume_strategy", ""),
     "RESUME_SOURCE_APPLY_RESUME_RECOMMENDED": "1" if jsonish_bool(recovery.get("resume_recommended", True)) else "0",
@@ -408,6 +456,13 @@ values = {
     "RESUME_SOURCE_ROLLBACK_MODE": rollback_result.get("mode", ""),
     "RESUME_SOURCE_ROLLBACK_EXECUTE": "1" if rollback_flags.get("execute", False) else "0",
     "RESUME_SOURCE_ROLLBACK_NEXT_STEP": rollback_result.get("next_step", ""),
+    "RESUME_SOURCE_ACME_ISSUANCE_FINAL_STATUS": acme_issuance_result.get("final_status", ""),
+    "RESUME_SOURCE_ACME_ISSUANCE_MODE": acme_issuance_result.get("mode", ""),
+    "RESUME_SOURCE_ACME_INTENT_RESULT_ROLE": acme_intent.get("result_role", ""),
+    "RESUME_SOURCE_ACME_REAL_EXECUTION_PERFORMED": "1" if jsonish_bool(acme_intent.get("real_execution_performed", False)) else "0",
+    "RESUME_SOURCE_ACME_EXECUTION_CLIENT_INVOKED": "1" if jsonish_bool(acme_execution.get("client_invoked", False)) else "0",
+    "RESUME_SOURCE_ACME_REVIEW_REQUIRED": "1" if acme_review_required else "0",
+    "RESUME_SOURCE_ACME_NEXT_STEP": acme_issuance_result.get("next_step", ""),
     "RESUME_SOURCE_SUMMARY_JSON_PRIMARY": artifacts.get("summary_generated", ""),
     "RESUME_SOURCE_SUMMARY_JSON_SECONDARY": artifacts.get("summary_output", ""),
     "RESUME_SOURCE_INPUTS_ENV": artifacts.get("inputs_env", ""),
@@ -421,7 +476,7 @@ PY
 
 resume_strategy_prefers_review_boundary() {
   case "${1:-}" in
-    post-rollback-inspection|post-repair-verification|repair-review-first|inspect-after-apply-attention)
+    post-rollback-inspection|post-repair-verification|repair-review-first|inspect-after-apply-attention|inspect-after-acme-placeholder)
       return 0
       ;;
     *)
@@ -494,6 +549,9 @@ state_plan_resume_runtime() {
   elif [[ "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED" != "1" ]]; then
     RESUME_STRATEGY="inspect-after-apply-attention"
     RESUME_STRATEGY_REASON="source apply recovery marked resume as not recommended"
+  elif [[ "${RESUME_SOURCE_ACME_REVIEW_REQUIRED:-0}" == "1" ]]; then
+    RESUME_STRATEGY="inspect-after-acme-placeholder"
+    RESUME_STRATEGY_REASON="source ACME execute result is still a conservative placeholder"
   elif [[ "$SHOULD_SKIP_APPLY_PLAN" == "1" ]]; then
     RESUME_STRATEGY="reuse-apply-plan"
     RESUME_STRATEGY_REASON="source apply plan artifact is reusable"
@@ -1190,16 +1248,33 @@ def find_nearest_abnormal_ancestor(lineage_chain):
     return next((item for item in lineage_chain[1:] if item.get("alerts")), None)
 
 
-def derive_effective_resume_strategy(lineage: dict, apply_result: dict | None, repair_result: dict | None, rollback_result: dict | None):
+def acme_placeholder_requires_review(result: dict, intent: dict, execution: dict) -> bool:
+    result = ensure_dict(result)
+    intent = ensure_dict(intent)
+    execution = ensure_dict(execution)
+    return bool(result) and (
+        intent.get("result_role", "") == "execute-placeholder"
+        or not jsonish_bool(intent.get("real_execution_performed", True))
+        or result.get("final_status", "") == "blocked"
+        or not jsonish_bool(execution.get("client_invoked", True))
+    )
+
+
+def derive_effective_resume_strategy(lineage: dict, apply_result: dict | None, repair_result: dict | None, rollback_result: dict | None, acme_issuance_result: dict | None = None):
     lineage = ensure_dict(lineage)
     apply_result = ensure_dict(apply_result)
     repair_result = ensure_dict(repair_result)
     rollback_result = ensure_dict(rollback_result)
+    acme_issuance_result = ensure_dict(acme_issuance_result)
     recovery = ensure_dict(apply_result.get("recovery"))
     repair_execution = ensure_dict(repair_result.get("execution"))
+    acme_intent = ensure_dict(acme_issuance_result.get("intent"))
+    acme_execution = ensure_dict(acme_issuance_result.get("execution"))
 
     def strategy_phase(strategy: str) -> int:
         if strategy == "inspect-after-apply-attention":
+            return 1
+        if strategy == "inspect-after-acme-placeholder":
             return 1
         if strategy in {"repair-review-first", "post-repair-verification"}:
             return 2
@@ -1221,6 +1296,9 @@ def derive_effective_resume_strategy(lineage: dict, apply_result: dict | None, r
     elif apply_result and not jsonish_bool(recovery.get("resume_recommended", True)):
         direct_strategy = "inspect-after-apply-attention"
         direct_reason = "source apply recovery marked resume as not recommended"
+    elif acme_placeholder_requires_review(acme_issuance_result, acme_intent, acme_execution):
+        direct_strategy = "inspect-after-acme-placeholder"
+        direct_reason = "source ACME execute result is still a conservative placeholder"
 
     lineage_strategy = lineage.get("resume_strategy", "") or ""
     lineage_reason = lineage.get("resume_strategy_reason", "") or ""
@@ -1236,9 +1314,9 @@ def derive_effective_resume_strategy(lineage: dict, apply_result: dict | None, r
 
 
 
-def with_effective_resume_strategy(lineage: dict, apply_result: dict | None, repair_result: dict | None, rollback_result: dict | None):
+def with_effective_resume_strategy(lineage: dict, apply_result: dict | None, repair_result: dict | None, rollback_result: dict | None, acme_issuance_result: dict | None = None):
     effective = dict(ensure_dict(lineage))
-    strategy, reason = derive_effective_resume_strategy(lineage, apply_result, repair_result, rollback_result)
+    strategy, reason = derive_effective_resume_strategy(lineage, apply_result, repair_result, rollback_result, acme_issuance_result)
     if strategy:
         effective["resume_strategy"] = strategy
     if reason:
@@ -1257,6 +1335,11 @@ def choose_resume_strategy_priority_artifact(state: dict, lineage: dict):
         path = first_existing_artifact(artifacts, "apply_result_json", "apply_result", "repair_result_json", "repair_result")
         if path:
             return ("apply-result", path, "当前 run 已明确进入 inspect-after-apply-attention；应先看 apply result / recovery 字段，再决定后续动作。")
+
+    if resume_strategy == "inspect-after-acme-placeholder":
+        path = first_existing_artifact(artifacts, "acme_issuance_result_json", "acme_issuance_result", "issue_result_json", "issue_result")
+        if path:
+            return ("acme-issuance-result", path, "当前 run 的 ACME execute 结果仍是保守占位边界；应先看 ACME companion result / issue result，再决定是否设计真实 execute 子路径。")
 
     if resume_strategy == "repair-review-first":
         path = first_existing_artifact(artifacts, "repair_result_json", "repair_result", "apply_result_json")
@@ -1282,6 +1365,8 @@ def choose_resume_strategy_suggestion_focus(lineage: dict):
 
     if resume_strategy == "inspect-after-apply-attention":
         return "apply"
+    if resume_strategy == "inspect-after-acme-placeholder":
+        return "acme"
     if resume_strategy in {"repair-review-first", "post-repair-verification"}:
         return "repair"
     if resume_strategy == "post-rollback-inspection":
@@ -1391,6 +1476,8 @@ def print_resume_lineage_summary(state: dict, lineage: dict, lineage_chain):
         operator_hint = "优先核对 rollback 结果与当前落地文件状态，确认是否适合继续后续动作。"
     elif resume_strategy == "inspect-after-apply-attention":
         operator_hint = "优先查看 apply result / recovery 建议，先理解为什么该 run 不推荐直接继续 apply。"
+    elif resume_strategy == "inspect-after-acme-placeholder":
+        operator_hint = "优先核对 ACME companion result / issue result，确认当前仍停在 execute-placeholder 保守边界，而不是把 resume 当成真实签发入口。"
     elif resume_strategy in {"reuse-apply-plan", "reuse-generated-output", "reuse-preflight"}:
         operator_hint = "当前更像是复用既有产物继续推进；先确认复用产物仍然有效，再决定是否进入下一阶段。"
     elif resume_strategy == "re-enter-from-inputs":
@@ -1751,13 +1838,16 @@ repair_result_json_path, rollback_result_json_path = resolve_followup_result_jso
 repair_result = load_json_if_exists(repair_result_json_path, "repair result json")
 rollback_result = load_json_if_exists(rollback_result_json_path, "rollback result json")
 
+raw_lineage = ensure_dict(state.get("lineage"))
 effective_lineage = with_effective_resume_strategy(
-    state.get("lineage"),
+    raw_lineage,
     load_json_if_exists_quiet(apply_result_json_path),
     load_json_if_exists_quiet(repair_result_json_path),
     load_json_if_exists_quiet(rollback_result_json_path),
+    load_json_if_exists_quiet(acme_issuance_result_json_path),
 )
 lineage = effective_lineage
+lineage_for_display = effective_lineage if is_effectively_resumed_run(state, raw_lineage) else raw_lineage
 lineage_chain = build_lineage_chain(state, runs_root)
 current_run_status = ensure_dict(state.get("status"))
 current_run_alerts = collect_abnormal_status_alerts(current_run_status)
@@ -1772,12 +1862,12 @@ current_run_priority = maybe_prefer_strategy_priority_for_current_run(
     current_run_priority,
 )
 print_current_run_machine_summary(current_run_alerts, current_run_priority)
-if lineage:
-    print_lineage_machine_summary(state, lineage)
+if lineage_for_display:
+    print_lineage_machine_summary(state, lineage_for_display)
     print()
     print("[doctor] lineage 摘要")
-    if is_effectively_resumed_run(state, lineage):
-        preferred_lineage_priority = print_resume_lineage_summary(state, lineage, lineage_chain)
+    if is_effectively_resumed_run(state, raw_lineage):
+        preferred_lineage_priority = print_resume_lineage_summary(state, effective_lineage, lineage_chain)
     else:
         preferred_lineage_priority = None
         print("- 这不是 resumed run；当前运行没有接续历史 run 的 lineage。")
@@ -1899,6 +1989,16 @@ if rollback_result and suggestion_focus in {"", "rollback"}:
 elif suggestion_focus == "rollback" and resume_strategy == "post-rollback-inspection" and rollback_result_hint_path:
     suggestion = "当前处于 post-rollback-inspection，但结构化 rollback 结果缺失或不可读；建议先查看当前 run 的 rollback 结果文件，再确认现场状态后决定是否继续。"
 
+if suggestion is None and suggestion_focus == "acme" and acme_issuance_result:
+    acme_issuance_result = ensure_dict(acme_issuance_result)
+    acme_intent = ensure_dict(acme_issuance_result.get("intent"))
+    acme_execution = ensure_dict(acme_issuance_result.get("execution"))
+    if acme_placeholder_requires_review(acme_issuance_result, acme_intent, acme_execution):
+        suggestion = (
+            acme_issuance_result.get("next_step")
+            or "当前 ACME execute 结果仍是占位语义；请先核对 ISSUE/ACME companion result，再决定是否设计真实 execute 子路径。"
+        )
+
 if suggestion is None and acme_issuance_result:
     acme_issuance_result = ensure_dict(acme_issuance_result)
     acme_intent = ensure_dict(acme_issuance_result.get("intent"))
@@ -1919,7 +2019,7 @@ if suggestion is None and acme_issuance_result:
             suggestion = issue_result.get("next_step")
 
 if suggestion is None:
-    if resume_strategy in {"repair-review-first", "post-repair-verification", "post-rollback-inspection", "inspect-after-apply-attention"}:
+    if resume_strategy in {"repair-review-first", "post-repair-verification", "post-rollback-inspection", "inspect-after-apply-attention", "inspect-after-acme-placeholder"}:
         suggestion = (
             f"当前处于 {resume_strategy}；建议先跑 ./install-interactive.sh --doctor {state.get('run_id', '')} "
             "复核当前 run 与 companion result，再决定是否只做 dry-run、repair、rollback 或人工处理。"

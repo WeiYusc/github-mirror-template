@@ -108,7 +108,7 @@ What it does NOT do yet:
   - It does NOT take over complex live nginx configs automatically
 
 Recovery helpers (first iteration):
-  - --resume <run_id> : reload a previous run's captured inputs and re-enter from a safe boundary; when lineage/recovery indicates inspection-first (including inspect-after-apply-attention / repair-review-first / post-repair-verification / post-rollback-inspection), resume defaults to review-first continuation instead of real apply replay
+  - --resume <run_id> : reload a previous run's captured inputs and re-enter from a safe boundary; when lineage/recovery indicates inspection-first (including inspect-after-apply-attention / inspect-after-acme-placeholder / repair-review-first / post-repair-verification / post-rollback-inspection), resume defaults to review-first continuation instead of real apply replay
   - --doctor <run_id> : inspect one run's state/journal/artifacts and print next-step hints
 EOF
 }
@@ -222,7 +222,7 @@ choose_or_keep() {
 
 resume_strategy_allows_execute() {
   case "${1:-}" in
-    post-rollback-inspection|post-repair-verification|repair-review-first|inspect-after-apply-attention)
+    post-rollback-inspection|post-repair-verification|repair-review-first|inspect-after-apply-attention|inspect-after-acme-placeholder)
       return 1
       ;;
     *)
@@ -700,7 +700,18 @@ if [[ -n "$RESUME_RUN_ID" ]]; then
 
   if ! resume_strategy_allows_execute "$RESUME_STRATEGY"; then
     if [[ "$CLI_REQUEST_EXECUTE_APPLY" == "1" ]]; then
-      ui_error "当前 resume 策略 $RESUME_STRATEGY 不允许直接执行真实 apply；这类 inspection-first 续接（包括 inspect-after-apply-attention / repair-review-first / post-repair-verification / post-rollback-inspection）必须先按 doctor / repair / rollback 结论完成复查。"
+      if [[ "$RESUME_STRATEGY" == "inspect-after-acme-placeholder" ]]; then
+        ui_warn "源运行的 ACME companion result 仍是 execute-placeholder / blocked 保守边界；当前会进入 inspect-after-acme-placeholder / review-first 续接，不会继承真实签发 / 证书落盘 / nginx 部署执行意图。"
+        if [[ -n "$RESUME_SOURCE_ACME_NEXT_STEP" ]]; then
+          ui_warn "ACME 建议：$RESUME_SOURCE_ACME_NEXT_STEP"
+        fi
+      elif [[ "$RESUME_STRATEGY" == "inspect-after-apply-attention" ]]; then
+        ui_warn "源运行的 apply 结果标记为需人工处理；当前会进入 inspect-after-apply-attention / review-first 续接，默认不会继承上次的真实 apply / nginx test 执行意图。"
+        if [[ -n "$RESUME_SOURCE_APPLY_NEXT_STEP" ]]; then
+          ui_warn "源运行建议：$RESUME_SOURCE_APPLY_NEXT_STEP"
+        fi
+      fi
+      ui_error "当前 resume 策略 $RESUME_STRATEGY 不允许直接执行真实 apply；这类 inspection-first 续接（包括 inspect-after-apply-attention / inspect-after-acme-placeholder / repair-review-first / post-repair-verification / post-rollback-inspection）必须先按 doctor / repair / rollback 结论完成复查。"
       exit 2
     fi
     EXECUTE_APPLY="0"
@@ -752,6 +763,11 @@ if [[ "$INSTALLER_MODE" == "resume" ]]; then
     ui_warn "源运行的 apply 结果标记为需人工处理；当前会进入 inspect-after-apply-attention / review-first 续接，默认不会继承上次的真实 apply / nginx test 执行意图。"
     if [[ -n "$RESUME_SOURCE_APPLY_NEXT_STEP" ]]; then
       ui_warn "源运行建议：$RESUME_SOURCE_APPLY_NEXT_STEP"
+    fi
+  elif [[ "${RESUME_SOURCE_ACME_REVIEW_REQUIRED:-0}" == "1" ]]; then
+    ui_warn "源运行的 ACME companion result 仍是 execute-placeholder / blocked 保守边界；当前会进入 inspect-after-acme-placeholder / review-first 续接，不会继承真实签发 / 证书落盘 / nginx 部署执行意图。"
+    if [[ -n "$RESUME_SOURCE_ACME_NEXT_STEP" ]]; then
+      ui_warn "ACME 建议：$RESUME_SOURCE_ACME_NEXT_STEP"
     fi
   fi
 fi

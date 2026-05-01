@@ -779,7 +779,7 @@ check_fixture_journal_path_contract() {
 materialize_fixtures
 
 install_help_output="$(bash "$ROOT_DIR/install-interactive.sh" --help)"
-assert_contains "$install_help_output" "inspect-after-apply-attention / repair-review-first / post-repair-verification / post-rollback-inspection" "install help surfaces inspection-first resume strategy set"
+assert_contains "$install_help_output" "inspect-after-apply-attention / inspect-after-acme-placeholder / repair-review-first / post-repair-verification / post-rollback-inspection" "install help surfaces inspection-first resume strategy set"
 assert_contains "$install_help_output" "resume defaults to review-first continuation instead of real apply replay" "install help explains inspection-first resume review-first default"
 
 # shellcheck disable=SC1091
@@ -1366,7 +1366,22 @@ inspect_after_apply_execute_rc=$?
 set -e
 assert_equals "$inspect_after_apply_execute_rc" "2" "inspect-after-apply attention resume rejects explicit execute apply"
 assert_contains "$inspect_after_apply_execute_output" "当前 resume 策略 inspect-after-apply-attention 不允许直接执行真实 apply" "inspect-after-apply attention execute refusal prints strategy-specific block"
-assert_contains "$inspect_after_apply_execute_output" "这类 inspection-first 续接（包括 inspect-after-apply-attention / repair-review-first / post-repair-verification / post-rollback-inspection）必须先按 doctor / repair / rollback 结论完成复查。" "inspect-after-apply attention execute refusal explains inspection-first strategy family"
+assert_contains "$inspect_after_apply_execute_output" "这类 inspection-first 续接（包括 inspect-after-apply-attention / inspect-after-acme-placeholder / repair-review-first / post-repair-verification / post-rollback-inspection）必须先按 doctor / repair / rollback 结论完成复查。" "inspect-after-apply attention execute refusal explains inspection-first strategy family"
+rm -rf "$ROOT_DIR/scripts/generated/runs"
+mv "$ROOT_DIR/scripts/generated/runs.test-backup" "$ROOT_DIR/scripts/generated/runs"
+trap 'rm -rf "$WORKDIR"' EXIT
+
+mv "$ROOT_DIR/scripts/generated/runs" "$ROOT_DIR/scripts/generated/runs.test-backup"
+cp -a "$WORKDIR/runs" "$ROOT_DIR/scripts/generated/runs"
+trap 'rm -rf "$ROOT_DIR/scripts/generated/runs"; mv "$ROOT_DIR/scripts/generated/runs.test-backup" "$ROOT_DIR/scripts/generated/runs"; rm -rf "$WORKDIR"' EXIT
+set +e
+inspect_after_acme_execute_output="$(bash "$ROOT_DIR/install-interactive.sh" --resume fixture-tls-acme-http01 --execute-apply --yes 2>&1)"
+inspect_after_acme_execute_rc=$?
+set -e
+assert_equals "$inspect_after_acme_execute_rc" "2" "inspect-after-acme placeholder resume rejects explicit execute apply"
+assert_contains "$inspect_after_acme_execute_output" "当前 resume 策略 inspect-after-acme-placeholder 不允许直接执行真实 apply" "inspect-after-acme placeholder execute refusal prints strategy-specific block"
+assert_contains "$inspect_after_acme_execute_output" "这类 inspection-first 续接（包括 inspect-after-apply-attention / inspect-after-acme-placeholder / repair-review-first / post-repair-verification / post-rollback-inspection）必须先按 doctor / repair / rollback 结论完成复查。" "inspect-after-acme placeholder execute refusal explains inspection-first strategy family"
+assert_contains "$inspect_after_acme_execute_output" "源运行的 ACME companion result 仍是 execute-placeholder / blocked 保守边界；当前会进入 inspect-after-acme-placeholder / review-first 续接，不会继承真实签发 / 证书落盘 / nginx 部署执行意图。" "inspect-after-acme placeholder resume warning is explicit"
 rm -rf "$ROOT_DIR/scripts/generated/runs"
 mv "$ROOT_DIR/scripts/generated/runs.test-backup" "$ROOT_DIR/scripts/generated/runs"
 trap 'rm -rf "$WORKDIR"' EXIT

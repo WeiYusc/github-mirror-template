@@ -10,8 +10,8 @@
 - lineage.source_run_id: 无
 - lineage.source_checkpoint: 无
 - lineage.source_resumed_from: 无
-- lineage.resume_strategy: inspect-after-apply-attention
-- lineage.resume_strategy_reason: source apply recovery marked resume as not recommended
+- lineage.resume_strategy: fresh
+- lineage.resume_strategy_reason: new-run
 [doctor] lineage 摘要
 - 这不是 resumed run；当前运行没有接续历史 run 的 lineage。
 [doctor] 当前 run 异常摘要
