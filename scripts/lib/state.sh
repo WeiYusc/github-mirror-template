@@ -615,6 +615,8 @@ payload = {
         "apply_plan_json": env("APPLY_PLAN_JSON_PATH"),
         "apply_result": env("APPLY_RESULT_PATH"),
         "apply_result_json": env("APPLY_RESULT_JSON_PATH"),
+        "issue_result": env("ISSUE_RESULT_PATH"),
+        "issue_result_json": env("ISSUE_RESULT_JSON_PATH"),
         "summary_generated": env("SUMMARY_JSON_RUN_COPY") or env("SUMMARY_JSON_PRIMARY"),
         "summary_output": env("SUMMARY_JSON_SECONDARY"),
         "state_dir": env("STATE_DIR"),
@@ -836,6 +838,8 @@ payload = {
         "apply_plan_json": env("APPLY_PLAN_JSON_PATH"),
         "apply_result": env("APPLY_RESULT_PATH"),
         "apply_result_json": env("APPLY_RESULT_JSON_PATH"),
+        "issue_result": env("ISSUE_RESULT_PATH"),
+        "issue_result_json": env("ISSUE_RESULT_JSON_PATH"),
         "repair_result": env("REPAIR_RESULT_PATH"),
         "repair_result_json": env("REPAIR_RESULT_JSON_PATH"),
         "rollback_result": env("ROLLBACK_RESULT_PATH"),
@@ -863,13 +867,16 @@ state_record_companion_result() {
     return 0
   fi
 
-  if [[ "$kind" != "repair" && "$kind" != "rollback" ]]; then
+  if [[ "$kind" != "repair" && "$kind" != "rollback" && "$kind" != "issue" ]]; then
     echo "[state] 不支持的 companion result 类型：$kind" >&2
     return 1
   fi
 
   local recorded_run_id=""
-  recorded_run_id="$(python3 - "$STATE_JSON_PATH" "$kind" "$markdown_path" "$json_path" "$final_status" "$note" <<'PY'
+  local summary_generated_path=""
+  local summary_output_path=""
+  IFS=$'\t' read -r recorded_run_id summary_generated_path summary_output_path < <(
+    python3 - "$STATE_JSON_PATH" "$kind" "$markdown_path" "$json_path" "$final_status" "$note" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -883,13 +890,34 @@ status = state.setdefault("status", {})
 artifacts[f"{kind}_result"] = markdown_path
 artifacts[f"{kind}_result_json"] = json_path
 state["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-status[f"{kind}"] = final_status
+if kind in {"repair", "rollback"}:
+    status[kind] = final_status
 if note:
     state["note"] = note
 path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-print(state.get("run_id", ""))
+print(state.get("run_id", ""), artifacts.get("summary_generated", ""), artifacts.get("summary_output", ""), sep="\t")
 PY
-)"
+  )
+
+  local summary_path
+  for summary_path in "$summary_generated_path" "$summary_output_path"; do
+    if [[ -z "$summary_path" || ! -f "$summary_path" ]]; then
+      continue
+    fi
+    python3 - "$summary_path" "$kind" "$markdown_path" "$json_path" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+summary_path, kind, markdown_path, json_path = sys.argv[1:]
+path = Path(summary_path)
+data = json.loads(path.read_text(encoding="utf-8"))
+artifacts = data.setdefault("artifacts", {})
+artifacts[f"{kind}_result"] = markdown_path
+artifacts[f"{kind}_result_json"] = json_path
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+  done
 
   if [[ -n "${STATE_JOURNAL_PATH:-}" && -f "${STATE_JOURNAL_PATH:-}" && -n "$recorded_run_id" ]]; then
     RUN_ID="$recorded_run_id" state_append_journal "${kind}.result.recorded" "$final_status" "${note:-recorded $kind result}" "$json_path"
@@ -908,7 +936,7 @@ state_mark_checkpoint() {
   export RUN_APPLY_DRY_RUN EXECUTE_APPLY BACKUP_DIR RUN_NGINX_TEST_AFTER_EXECUTE NGINX_TEST_CMD ASSUME_YES
   export DEFAULT_ERROR_ROOT DEFAULT_LOG_DIR DEFAULT_OUTPUT_DIR DEFAULT_NGINX_SNIPPETS_TARGET_HINT DEFAULT_NGINX_VHOST_TARGET_HINT
   export INSTALLER_PREFLIGHT_STATUS INSTALLER_GENERATOR_STATUS INSTALLER_APPLY_PLAN_STATUS INSTALLER_DRY_RUN_STATUS INSTALLER_EXECUTE_STATUS INSTALLER_REPAIR_STATUS INSTALLER_ROLLBACK_STATUS INSTALLER_FINAL_STATUS
-  export GENERATED_DIR PREFLIGHT_REPORT_MD PREFLIGHT_REPORT_JSON PREFLIGHT_REPORT_MD_RUN_COPY PREFLIGHT_REPORT_JSON_RUN_COPY TLS_PLAN_MD TLS_PLAN_JSON TLS_PLAN_MD_RUN_COPY TLS_PLAN_JSON_RUN_COPY SUMMARY_JSON_PRIMARY SUMMARY_JSON_RUN_COPY SUMMARY_JSON_SECONDARY CONFIG_PATH CONFIG_PATH_RUN_COPY OUTPUT_DIR_ABS APPLY_PLAN_PATH APPLY_PLAN_JSON_PATH APPLY_RESULT_PATH APPLY_RESULT_JSON_PATH REPAIR_RESULT_PATH REPAIR_RESULT_JSON_PATH ROLLBACK_RESULT_PATH ROLLBACK_RESULT_JSON_PATH
+  export GENERATED_DIR PREFLIGHT_REPORT_MD PREFLIGHT_REPORT_JSON PREFLIGHT_REPORT_MD_RUN_COPY PREFLIGHT_REPORT_JSON_RUN_COPY TLS_PLAN_MD TLS_PLAN_JSON TLS_PLAN_MD_RUN_COPY TLS_PLAN_JSON_RUN_COPY SUMMARY_JSON_PRIMARY SUMMARY_JSON_RUN_COPY SUMMARY_JSON_SECONDARY CONFIG_PATH CONFIG_PATH_RUN_COPY OUTPUT_DIR_ABS APPLY_PLAN_PATH APPLY_PLAN_JSON_PATH APPLY_RESULT_PATH APPLY_RESULT_JSON_PATH ISSUE_RESULT_PATH ISSUE_RESULT_JSON_PATH REPAIR_RESULT_PATH REPAIR_RESULT_JSON_PATH ROLLBACK_RESULT_PATH ROLLBACK_RESULT_JSON_PATH
 
   state_write_inputs_env
   state_write_json "$checkpoint" "$note"

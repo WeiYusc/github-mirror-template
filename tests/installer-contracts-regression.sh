@@ -377,6 +377,51 @@ check_tls_plan_artifact_contract() {
   assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.tls_plan_json" "$artifact_root/TLS-PLAN.generated.json" "$run_id summary tls plan json snapshot"
 }
 
+check_acme_issue_http01_helper_contract() {
+  local run_id="fixture-tls-acme-http01"
+  local run_root="$WORKDIR/runs/$run_id"
+  local artifact_root="$WORKDIR/artifacts/$run_id"
+
+  bash "$ROOT_DIR/acme-issue-http01.sh" \
+    --state-json "$run_root/state.json" \
+    --dry-run \
+    --challenge-mode standalone \
+    --acme-client manual \
+    --staging >/dev/null
+
+  assert_contract_file "$artifact_root/ISSUE-RESULT.json" "issue-result"
+  assert_json_paths "$artifact_root/ISSUE-RESULT.json" "$run_id issue result stable paths" \
+    mode final_status context.run_id context.tls_mode request.challenge_mode request.acme_client request.staging \
+    checks.derived_hosts checks.dns_points_to_local_ready checks.port_80_status checks.port_80_ready checks.needs_webroot \
+    phase_boundary.issues_certificate phase_boundary.installs_acme_client phase_boundary.modifies_live_nginx phase_boundary.reloads_nginx phase_boundary.writes_tls_files \
+    blockers next_step
+  assert_json_value_in "$artifact_root/ISSUE-RESULT.json" "mode" "$run_id issue result mode enum" dry-run execute
+  assert_json_value_in "$artifact_root/ISSUE-RESULT.json" "final_status" "$run_id issue result final status enum" needs-attention blocked ok
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "context.run_id" "$run_id" "$run_id issue result context run id"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "context.tls_mode" "acme-http01" "$run_id issue result context tls mode"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "request.challenge_mode" "standalone" "$run_id issue result challenge mode"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "request.acme_client" "manual" "$run_id issue result acme client"
+  assert_json_value_type "$artifact_root/ISSUE-RESULT.json" "request.staging" bool "$run_id issue result staging bool"
+  assert_json_value_type "$artifact_root/ISSUE-RESULT.json" "checks.dns_points_to_local_ready" bool "$run_id issue result dns ready bool"
+  assert_json_value_in "$artifact_root/ISSUE-RESULT.json" "checks.port_80_status" "$run_id issue result port 80 status enum" listening not-listening unknown
+  assert_json_value_type "$artifact_root/ISSUE-RESULT.json" "checks.port_80_ready" bool "$run_id issue result port 80 ready bool"
+  assert_json_value_type "$artifact_root/ISSUE-RESULT.json" "checks.needs_webroot" bool "$run_id issue result needs webroot bool"
+  assert_json_value_type "$artifact_root/ISSUE-RESULT.json" "phase_boundary.issues_certificate" bool "$run_id issue result issues_certificate bool"
+  assert_json_value_type "$artifact_root/ISSUE-RESULT.json" "phase_boundary.installs_acme_client" bool "$run_id issue result installs_acme_client bool"
+  assert_json_value_type "$artifact_root/ISSUE-RESULT.json" "phase_boundary.modifies_live_nginx" bool "$run_id issue result modifies_live_nginx bool"
+  assert_json_value_type "$artifact_root/ISSUE-RESULT.json" "phase_boundary.reloads_nginx" bool "$run_id issue result reloads_nginx bool"
+  assert_json_value_type "$artifact_root/ISSUE-RESULT.json" "phase_boundary.writes_tls_files" bool "$run_id issue result writes_tls_files bool"
+
+  assert_json_value_equals "$run_root/state.json" "artifacts.issue_result" "$artifact_root/ISSUE-RESULT.md" "$run_id state issue result markdown snapshot"
+  assert_json_value_equals "$run_root/state.json" "artifacts.issue_result_json" "$artifact_root/ISSUE-RESULT.json" "$run_id state issue result json snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.generated.json" "artifacts.issue_result" "$artifact_root/ISSUE-RESULT.md" "$run_id generated summary issue result markdown snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.generated.json" "artifacts.issue_result_json" "$artifact_root/ISSUE-RESULT.json" "$run_id generated summary issue result json snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.issue_result" "$artifact_root/ISSUE-RESULT.md" "$run_id summary issue result markdown snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.issue_result_json" "$artifact_root/ISSUE-RESULT.json" "$run_id summary issue result json snapshot"
+
+  assert_journal_event_path_equals_state_artifact "$run_id" "issue.result.recorded" "issue_result_json" "$run_id issue.result.recorded path points to issue_result_json"
+}
+
 assert_journal_event_path_equals_state_artifact() {
   local run_id="$1"
   local event_name="$2"
@@ -563,6 +608,7 @@ check_per_run_artifact_snapshot_contract "fixture-post-repair-verification"
 
 check_tls_plan_artifact_contract "fixture-tls-acme-http01" "acme-http01"
 check_tls_plan_artifact_contract "fixture-tls-acme-dns-cloudflare" "acme-dns-cloudflare"
+check_acme_issue_http01_helper_contract
 
 check_fixture_journal_path_contract "fixture-legacy-fallback"
 check_fixture_journal_path_contract "fixture-resumed-repair-review"
