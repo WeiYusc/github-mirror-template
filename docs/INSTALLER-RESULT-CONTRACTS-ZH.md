@@ -601,6 +601,19 @@
 - `final_status`
 - `next_step`
 
+`planning_reference`：
+
+- `issue_result_json`
+- `issue_result_markdown`
+- `contract_scope`
+
+`intent`：
+
+- `result_role`
+- `requested_operation`
+- `requested_mode`
+- `real_execution_performed`
+
 `context`：
 
 - `run_id`
@@ -616,6 +629,16 @@
 - `acme_client`
 - `account_email`
 - `staging`
+
+`pending_execution_plan`：
+
+- `planned_target_hosts`
+- `planned_challenge_mode`
+- `planned_challenge_fulfillment`
+- `planned_acme_client`
+- `planned_acme_directory`
+- `planned_artifact_write`
+- `planned_deployment_handoff`
 
 `execution`：
 
@@ -636,6 +659,14 @@
 - `modifies_live_nginx`
 - `reloads_nginx`
 
+`operator_prerequisites`：
+
+- `review_issue_result_before_execute`
+- `implement_real_execute_path`
+- `confirm_challenge_fulfillment_path`
+- `confirm_certificate_write_target`
+- `confirm_deployment_boundary`
+
 `recovery`：
 
 - `recoverable`
@@ -648,11 +679,15 @@
 - `schema_kind/schema_version`：让未来 companion result 能独立演进
 - `mode`：至少区分 `execute` 与未来可能存在的只读 replay / inspect 语义
 - `final_status`：表达真实 execute 结果，而不是 planning helper 的 `blocked` 占位含义
+- `planning_reference.*`：把 planning/evidence 的事实来源显式钉回 `ISSUE-RESULT.{md,json}`，避免后续实现把 review 语义偷偷塞回 execute result
+- `intent.*`：明确“用户请求的是 execute / issue-certificate”，但当前文件仍只是 placeholder，而不是已经发生过 client execution 的既成事实
+- `pending_execution_plan.*`：用机器可读字段表达这次 execute placeholder 准备采用的 host / challenge / client / directory / artifact/deploy handoff 意图，给未来真实 execute 子路径留下稳定扩展点
 - `execution.attempted_hosts`：钉住“这次到底尝试给哪些 host 做真实签发”
 - `execution.fulfilled_challenge_strategy`：钉住真实 challenge fulfill 路径，而不是只停留在 plan
 - `execution.client_invoked` / `issued_certificate`：用最小布尔边界区分“只是进入 execute 子路径”与“证书确实签出来了”
 - `artifacts.*_path`：只定义为**结果指针位**，不要求当前已有文件，也不在本阶段假装 live artifact 已存在
 - `deployment_boundary.*`：明确真实签发结果是否已经跨到 live TLS / live nginx / reload 边界，避免后续把 issuance 与 deploy 混成一个黑盒动作
+- `operator_prerequisites.*`：把未来真实 execute 前仍需 operator / implementer 明确确认的关键前置条件钉成稳定布尔位，避免只剩中文 blocker
 - `recovery.*`：给 resume / doctor / operator 留下最小恢复语义，而不是只剩一段中文总结
 
 ### 7.6.4 推荐的最小 `final_status` 语义
@@ -680,6 +715,17 @@
   "schema_version": 1,
   "mode": "execute",
   "final_status": "blocked",
+  "planning_reference": {
+    "issue_result_json": "ISSUE-RESULT.json",
+    "issue_result_markdown": "ISSUE-RESULT.md",
+    "contract_scope": "planning-evidence-only"
+  },
+  "intent": {
+    "result_role": "execute-placeholder",
+    "requested_operation": "issue-certificate",
+    "requested_mode": "execute",
+    "real_execution_performed": false
+  },
   "context": {
     "run_id": "<run_id>",
     "deployment_name": "<deployment_name>",
@@ -694,9 +740,18 @@
     "account_email": "ops@example.com",
     "staging": true
   },
+  "pending_execution_plan": {
+    "planned_target_hosts": ["github.example.com"],
+    "planned_challenge_mode": "standalone",
+    "planned_challenge_fulfillment": "standalone",
+    "planned_acme_client": "acme.sh",
+    "planned_acme_directory": "staging",
+    "planned_artifact_write": "deferred-until-real-execute",
+    "planned_deployment_handoff": "separate-after-issuance"
+  },
   "execution": {
     "attempted_hosts": ["github.example.com"],
-    "fulfilled_challenge_strategy": "standalone",
+    "fulfilled_challenge_strategy": "not-executed",
     "client_invoked": false,
     "issued_certificate": false
   },
@@ -709,6 +764,13 @@
     "writes_live_tls_paths": false,
     "modifies_live_nginx": false,
     "reloads_nginx": false
+  },
+  "operator_prerequisites": {
+    "review_issue_result_before_execute": true,
+    "implement_real_execute_path": true,
+    "confirm_challenge_fulfillment_path": true,
+    "confirm_certificate_write_target": true,
+    "confirm_deployment_boundary": true
   },
   "recovery": {
     "recoverable": true,

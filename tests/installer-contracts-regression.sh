@@ -510,18 +510,38 @@ check_acme_issue_http01_helper_execute_contract() {
 
   assert_contract_file "$artifact_root/ACME-ISSUANCE-RESULT.json" "acme-issuance-result"
   assert_json_paths "$artifact_root/ACME-ISSUANCE-RESULT.json" "$run_id execute placeholder stable paths" \
-    mode final_status context.run_id context.tls_mode request.challenge_mode request.acme_client request.staging \
+    mode final_status \
+    planning_reference.issue_result_json planning_reference.issue_result_markdown planning_reference.contract_scope \
+    intent.result_role intent.requested_operation intent.requested_mode intent.real_execution_performed \
+    context.run_id context.tls_mode request.challenge_mode request.acme_client request.staging \
+    pending_execution_plan.planned_target_hosts pending_execution_plan.planned_challenge_mode pending_execution_plan.planned_challenge_fulfillment pending_execution_plan.planned_acme_client pending_execution_plan.planned_acme_directory pending_execution_plan.planned_artifact_write pending_execution_plan.planned_deployment_handoff \
     execution.attempted_hosts execution.fulfilled_challenge_strategy execution.client_invoked execution.issued_certificate \
     artifacts.cert_path artifacts.key_path artifacts.fullchain_path \
     deployment_boundary.writes_live_tls_paths deployment_boundary.modifies_live_nginx deployment_boundary.reloads_nginx \
+    operator_prerequisites.review_issue_result_before_execute operator_prerequisites.implement_real_execute_path operator_prerequisites.confirm_challenge_fulfillment_path operator_prerequisites.confirm_certificate_write_target operator_prerequisites.confirm_deployment_boundary \
     recovery.recoverable recovery.blocker_summary next_step
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "mode" "execute" "$run_id execute placeholder mode"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "final_status" "blocked" "$run_id execute placeholder final status"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "planning_reference.issue_result_json" "ISSUE-RESULT.json" "$run_id execute placeholder planning reference json"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "planning_reference.issue_result_markdown" "ISSUE-RESULT.md" "$run_id execute placeholder planning reference markdown"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "planning_reference.contract_scope" "planning-evidence-only" "$run_id execute placeholder planning reference scope"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "intent.result_role" "execute-placeholder" "$run_id execute placeholder intent result role"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "intent.requested_operation" "issue-certificate" "$run_id execute placeholder requested operation"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "intent.requested_mode" "execute" "$run_id execute placeholder requested mode"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "intent.real_execution_performed" bool "$run_id execute placeholder real_execution_performed bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "intent.real_execution_performed" "False" "$run_id execute placeholder real_execution_performed false"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "context.run_id" "$run_id" "$run_id execute placeholder run id"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "context.tls_mode" "acme-http01" "$run_id execute placeholder tls mode"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "request.challenge_mode" "standalone" "$run_id execute placeholder challenge mode"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "request.acme_client" "manual" "$run_id execute placeholder acme client"
   assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "request.staging" bool "$run_id execute placeholder staging bool"
+  assert_json_array_contains "$artifact_root/ACME-ISSUANCE-RESULT.json" "pending_execution_plan.planned_target_hosts" "github.example.com" "$run_id execute placeholder planned target hosts"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "pending_execution_plan.planned_challenge_mode" "standalone" "$run_id execute placeholder planned challenge mode"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "pending_execution_plan.planned_challenge_fulfillment" "standalone" "$run_id execute placeholder planned challenge fulfillment"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "pending_execution_plan.planned_acme_client" "manual" "$run_id execute placeholder planned acme client"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "pending_execution_plan.planned_acme_directory" "staging" "$run_id execute placeholder planned acme directory"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "pending_execution_plan.planned_artifact_write" "deferred-until-real-execute" "$run_id execute placeholder planned artifact write"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "pending_execution_plan.planned_deployment_handoff" "separate-after-issuance" "$run_id execute placeholder planned deployment handoff"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.fulfilled_challenge_strategy" "not-executed" "$run_id execute placeholder challenge strategy"
   assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.client_invoked" bool "$run_id execute placeholder client_invoked bool"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.client_invoked" "False" "$run_id execute placeholder client_invoked false"
@@ -533,6 +553,16 @@ check_acme_issue_http01_helper_execute_contract() {
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.modifies_live_nginx" "False" "$run_id execute placeholder modifies_live_nginx false"
   assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.reloads_nginx" bool "$run_id execute placeholder reloads_nginx bool"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.reloads_nginx" "False" "$run_id execute placeholder reloads_nginx false"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "operator_prerequisites.review_issue_result_before_execute" bool "$run_id execute placeholder review_issue_result_before_execute bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "operator_prerequisites.review_issue_result_before_execute" "True" "$run_id execute placeholder review_issue_result_before_execute true"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "operator_prerequisites.implement_real_execute_path" bool "$run_id execute placeholder implement_real_execute_path bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "operator_prerequisites.implement_real_execute_path" "True" "$run_id execute placeholder implement_real_execute_path true"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "operator_prerequisites.confirm_challenge_fulfillment_path" bool "$run_id execute placeholder confirm_challenge_fulfillment_path bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "operator_prerequisites.confirm_challenge_fulfillment_path" "True" "$run_id execute placeholder confirm_challenge_fulfillment_path true"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "operator_prerequisites.confirm_certificate_write_target" bool "$run_id execute placeholder confirm_certificate_write_target bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "operator_prerequisites.confirm_certificate_write_target" "True" "$run_id execute placeholder confirm_certificate_write_target true"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "operator_prerequisites.confirm_deployment_boundary" bool "$run_id execute placeholder confirm_deployment_boundary bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "operator_prerequisites.confirm_deployment_boundary" "True" "$run_id execute placeholder confirm_deployment_boundary true"
   assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "recovery.recoverable" bool "$run_id execute placeholder recoverable bool"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "recovery.recoverable" "True" "$run_id execute placeholder recoverable true"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "recovery.blocker_summary" "$execute_blocker" "$run_id execute placeholder blocker summary"
@@ -570,6 +600,23 @@ required = [
     "- `schema_version`",
     "- `mode`",
     "- `final_status`",
+    "`planning_reference`：",
+    "- `issue_result_json`",
+    "- `issue_result_markdown`",
+    "- `contract_scope`",
+    "`intent`：",
+    "- `result_role`",
+    "- `requested_operation`",
+    "- `requested_mode`",
+    "- `real_execution_performed`",
+    "`pending_execution_plan`：",
+    "- `planned_target_hosts`",
+    "- `planned_challenge_mode`",
+    "- `planned_challenge_fulfillment`",
+    "- `planned_acme_client`",
+    "- `planned_acme_directory`",
+    "- `planned_artifact_write`",
+    "- `planned_deployment_handoff`",
     "`execution`：",
     "- `attempted_hosts`",
     "- `fulfilled_challenge_strategy`",
@@ -583,6 +630,12 @@ required = [
     "- `writes_live_tls_paths`",
     "- `modifies_live_nginx`",
     "- `reloads_nginx`",
+    "`operator_prerequisites`：",
+    "- `review_issue_result_before_execute`",
+    "- `implement_real_execute_path`",
+    "- `confirm_challenge_fulfillment_path`",
+    "- `confirm_certificate_write_target`",
+    "- `confirm_deployment_boundary`",
     "`recovery`：",
     "- `recoverable`",
     "- `blocker_summary`",

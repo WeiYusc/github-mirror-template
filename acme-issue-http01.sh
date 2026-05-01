@@ -190,6 +190,7 @@ fi
 ISSUE_RESULT_PATH="$RESULT_FILE"
 ISSUE_RESULT_JSON_PATH="$RESULT_JSON_OUTPUT"
 ACME_ISSUANCE_RESULT_FILE="$(dirname "$RESULT_FILE")/ACME-ISSUANCE-RESULT.md"
+ACME_ISSUANCE_RESULT_PATH="$ACME_ISSUANCE_RESULT_FILE"
 ACME_ISSUANCE_RESULT_JSON_PATH="$(dirname "$RESULT_FILE")/ACME-ISSUANCE-RESULT.json"
 
 mapfile -t DERIVED_HOSTS < <(dns_derive_hosts "$BASE_DOMAIN" "$DOMAIN_MODE")
@@ -412,6 +413,17 @@ payload = {
     'schema_version': 1,
     'mode': 'execute',
     'final_status': env('FINAL_STATUS'),
+    'planning_reference': {
+        'issue_result_json': 'ISSUE-RESULT.json',
+        'issue_result_markdown': 'ISSUE-RESULT.md',
+        'contract_scope': 'planning-evidence-only',
+    },
+    'intent': {
+        'result_role': 'execute-placeholder',
+        'requested_operation': 'issue-certificate',
+        'requested_mode': 'execute',
+        'real_execution_performed': False,
+    },
     'context': {
         'run_id': env('RUN_ID'),
         'deployment_name': env('DEPLOYMENT_NAME'),
@@ -425,6 +437,15 @@ payload = {
         'acme_client': env('ACME_CLIENT'),
         'account_email': env('ACCOUNT_EMAIL'),
         'staging': env('USE_STAGING') == '1',
+    },
+    'pending_execution_plan': {
+        'planned_target_hosts': [h for h in env('DERIVED_HOSTS_NL').split('\n') if h],
+        'planned_challenge_mode': env('CHALLENGE_MODE'),
+        'planned_challenge_fulfillment': env('CHALLENGE_MODE'),
+        'planned_acme_client': env('ACME_CLIENT'),
+        'planned_acme_directory': 'staging' if env('USE_STAGING') == '1' else 'production',
+        'planned_artifact_write': 'deferred-until-real-execute',
+        'planned_deployment_handoff': 'separate-after-issuance',
     },
     'execution': {
         'attempted_hosts': [h for h in env('DERIVED_HOSTS_NL').split('\n') if h],
@@ -441,6 +462,13 @@ payload = {
         'writes_live_tls_paths': False,
         'modifies_live_nginx': False,
         'reloads_nginx': False,
+    },
+    'operator_prerequisites': {
+        'review_issue_result_before_execute': True,
+        'implement_real_execute_path': True,
+        'confirm_challenge_fulfillment_path': True,
+        'confirm_certificate_write_target': True,
+        'confirm_deployment_boundary': True,
     },
     'recovery': {
         'recoverable': True,
@@ -469,6 +497,24 @@ write_acme_issuance_result_markdown() {
     echo "- challenge_mode：$CHALLENGE_MODE"
     echo "- acme_client：$ACME_CLIENT"
     echo
+    echo '## Intent 语义'
+    echo
+    echo '- result_role：execute-placeholder'
+    echo '- requested_operation：issue-certificate'
+    echo '- requested_mode：execute'
+    echo '- real_execution_performed：false'
+    echo '- planning_reference：ISSUE-RESULT.{md,json}（planning-evidence-only）'
+    echo
+    echo '## Pending execution plan'
+    echo
+    echo "- planned_target_hosts：$(printf '%s ' "${DERIVED_HOSTS[@]}")"
+    echo "- planned_challenge_mode：$CHALLENGE_MODE"
+    echo "- planned_challenge_fulfillment：$CHALLENGE_MODE"
+    echo "- planned_acme_client：$ACME_CLIENT"
+    echo "- planned_acme_directory：$(if [[ "$USE_STAGING" == "1" ]]; then echo staging; else echo production; fi)"
+    echo '- planned_artifact_write：deferred-until-real-execute'
+    echo '- planned_deployment_handoff：separate-after-issuance'
+    echo
     echo '## 真实执行边界'
     echo
     echo '- client_invoked：false'
@@ -476,6 +522,14 @@ write_acme_issuance_result_markdown() {
     echo '- writes_live_tls_paths：false'
     echo '- modifies_live_nginx：false'
     echo '- reloads_nginx：false'
+    echo
+    echo '## Operator prerequisites'
+    echo
+    echo '- review_issue_result_before_execute：true'
+    echo '- implement_real_execute_path：true'
+    echo '- confirm_challenge_fulfillment_path：true'
+    echo '- confirm_certificate_write_target：true'
+    echo '- confirm_deployment_boundary：true'
     echo
     echo '## Placeholder blocker'
     echo
@@ -487,7 +541,7 @@ write_acme_issuance_result_markdown() {
   } > "$target_file"
 }
 
-export MODE_LABEL FINAL_STATUS RUN_ID DEPLOYMENT_NAME BASE_DOMAIN DOMAIN_MODE PLATFORM TLS_MODE CHALLENGE_MODE WEBROOT_PATH ACME_CLIENT ACCOUNT_EMAIL USE_STAGING DNS_READY PORT_80_STATUS PORT_80_READY NEEDS_WEBROOT WEBROOT_READY WEBROOT_NOTE NEXT_STEP EXECUTE_PLACEHOLDER_BLOCKER FULFILLED_CHALLENGE_STRATEGY
+export MODE_LABEL FINAL_STATUS RUN_ID DEPLOYMENT_NAME BASE_DOMAIN DOMAIN_MODE PLATFORM TLS_MODE CHALLENGE_MODE WEBROOT_PATH ACME_CLIENT ACCOUNT_EMAIL USE_STAGING DNS_READY PORT_80_STATUS PORT_80_READY NEEDS_WEBROOT WEBROOT_READY WEBROOT_NOTE NEXT_STEP EXECUTE_PLACEHOLDER_BLOCKER FULFILLED_CHALLENGE_STRATEGY ACME_ISSUANCE_RESULT_PATH ACME_ISSUANCE_RESULT_JSON_PATH
 DERIVED_HOSTS_NL="$(printf '%s\n' "${DERIVED_HOSTS[@]}")"
 RESULT_BLOCKERS_NL="$(printf '%s\n' "${RESULT_BLOCKERS[@]:-}")"
 export DERIVED_HOSTS_NL RESULT_BLOCKERS_NL
@@ -497,7 +551,7 @@ write_issue_result_json "$RESULT_JSON_OUTPUT"
 if [[ "$EXECUTE" == "1" ]]; then
   write_acme_issuance_result_markdown "$ACME_ISSUANCE_RESULT_FILE"
   write_acme_issuance_result_json "$ACME_ISSUANCE_RESULT_JSON_PATH"
-  state_record_companion_result "acme_issuance" "$ACME_ISSUANCE_RESULT_FILE" "$ACME_ISSUANCE_RESULT_JSON_PATH" "$FINAL_STATUS" "acme issuance execute placeholder recorded" "acme_issuance"
+  state_record_companion_result "acme_issuance" "$ACME_ISSUANCE_RESULT_FILE" "$ACME_ISSUANCE_RESULT_JSON_PATH" "$FINAL_STATUS" "acme issuance result recorded"
 fi
 state_record_companion_result "issue" "$RESULT_FILE" "$RESULT_JSON_OUTPUT" "$FINAL_STATUS" "issue result recorded"
 
@@ -506,7 +560,12 @@ cat <<EOF
 [issue-http01] 来源 state.json：$STATE_JSON
 [issue-http01] 结果摘要文件：$RESULT_FILE
 [issue-http01] 结果 JSON 文件：$RESULT_JSON_OUTPUT
-$(if [[ "$EXECUTE" == "1" ]]; then printf '%s\n%s\n' "[issue-http01] execute placeholder：$ACME_ISSUANCE_RESULT_FILE" "[issue-http01] execute placeholder JSON：$ACME_ISSUANCE_RESULT_JSON_PATH"; fi)[issue-http01] DNS ready：$DNS_READY
+$(if [[ "$EXECUTE" == "1" ]]; then
+  printf '%s\n%s\n' \
+    "[issue-http01] execute placeholder：$ACME_ISSUANCE_RESULT_FILE" \
+    "[issue-http01] execute placeholder JSON：$ACME_ISSUANCE_RESULT_JSON_PATH"
+fi)
+[issue-http01] DNS ready：$DNS_READY
 [issue-http01] port 80 status：$PORT_80_STATUS
 [issue-http01] 最终状态：$FINAL_STATUS
 [issue-http01] 下一步：$NEXT_STEP

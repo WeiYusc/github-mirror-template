@@ -220,9 +220,9 @@ bash tests/installer-doctor-golden.sh
   - `ACME-ISSUANCE-RESULT.md`
   - `schema_kind=acme-issuance-result`
 - 目前已在 `docs/INSTALLER-RESULT-CONTRACTS-ZH.md` 中把这个 future companion result 的**最小 skeleton**钉成文档契约，并且当前 `--execute` 占位路径会额外落一个同骨架的 placeholder 文件：
-  - 最小稳定字段只覆盖 `schema_kind/schema_version`、`mode/final_status`、`context`、`request`、`execution`、`artifacts`、`deployment_boundary`、`recovery`、`next_step`
-  - 重点是把“真实 execute 尝试 / challenge fulfillment / artifact outcome / deploy boundary”收进独立结果容器
-  - 当前落出的 placeholder 仍明确保持：`client_invoked=false`、`issued_certificate=false`、deployment boundary 全 false
+  - 最小稳定字段只覆盖 `schema_kind/schema_version`、`mode/final_status`、`planning_reference`、`intent`、`context`、`request`、`pending_execution_plan`、`execution`、`artifacts`、`deployment_boundary`、`operator_prerequisites`、`recovery`、`next_step`
+  - 重点是把“真实 execute 尝试 / challenge fulfillment / artifact outcome / deploy boundary”收进独立结果容器，并额外把“计划引用 / execute intent / pending plan / operator prerequisites”钉成稳定机器字段
+  - 当前落出的 placeholder 仍明确保持：`intent.real_execution_performed=false`、`client_invoked=false`、`issued_certificate=false`、deployment boundary 全 false
 - 这样分叉是为了避免 operator / automation / resume logic 混淆：
   - 当前 helper 的前置检查/计划结果
   - `mode=execute` 的占位语义
