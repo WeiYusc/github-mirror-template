@@ -15,6 +15,7 @@ RUN_IDS=(
   fixture-post-rollback-inspection
   fixture-inspect-after-apply-attention
   fixture-missing-source-state
+  fixture-tls-acme-http01
 )
 
 materialize_fixtures() {
@@ -54,6 +55,7 @@ keep_headers = {
     "[doctor] 当前 run 异常摘要",
     "[doctor] 状态",
     "[doctor] apply result json",
+    "[doctor] acme issuance result json",
     "[doctor] repair result json",
     "[doctor] rollback result json",
     "[doctor] journal",
@@ -87,6 +89,22 @@ keep_prefixes = (
     "- recovery.resume_strategy:",
     "- recovery.resume_recommended:",
     "- recovery.operator_action:",
+    "- intent.result_role:",
+    "- intent.real_execution_performed:",
+    "- request.challenge_mode:",
+    "- request.acme_client:",
+    "- request.staging:",
+    "- pending_execution_plan.planned_target_hosts:",
+    "- pending_execution_plan.planned_challenge_mode:",
+    "- pending_execution_plan.planned_challenge_fulfillment:",
+    "- pending_execution_plan.planned_acme_client:",
+    "- pending_execution_plan.planned_acme_directory:",
+    "- execution.client_invoked:",
+    "- execution.issued_certificate:",
+    "- deployment_boundary.writes_live_tls_paths:",
+    "- deployment_boundary.modifies_live_nginx:",
+    "- deployment_boundary.reloads_nginx:",
+    "- operator_prerequisites.pending:",
     "- source_recovery.installer_status:",
     "- source_recovery.resume_strategy:",
     "- source_recovery.resume_recommended:",
@@ -166,6 +184,13 @@ assert_golden() {
 }
 
 materialize_fixtures
+
+bash "$ROOT_DIR/acme-issue-http01.sh" \
+  --state-json "$WORKDIR/runs/fixture-tls-acme-http01/state.json" \
+  --execute \
+  --challenge-mode standalone \
+  --acme-client manual \
+  --staging >/dev/null
 
 source "$ROOT_DIR/scripts/lib/status-contracts.sh"
 source "$ROOT_DIR/scripts/lib/state.sh"

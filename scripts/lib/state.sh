@@ -1558,6 +1558,101 @@ def print_suggestion_summary(suggestion: str, inputs_path: str):
         print(f"- 输入快照可用于 resume：{inputs_path}")
 
 
+def resolve_tls_issue_result_json_paths(artifacts: dict):
+    artifacts = ensure_dict(artifacts)
+    issue_result_json_path = artifacts.get("issue_result_json") or ""
+    acme_issuance_result_json_path = artifacts.get("acme_issuance_result_json") or ""
+
+    base_dir = None
+    candidates = [
+        issue_result_json_path,
+        artifacts.get("issue_result") or "",
+        acme_issuance_result_json_path,
+        artifacts.get("acme_issuance_result") or "",
+        artifacts.get("output_dir_abs") or "",
+    ]
+    for value in candidates:
+        if not value:
+            continue
+        candidate_path = Path(value)
+        if candidate_path.exists():
+            base_dir = candidate_path if candidate_path.is_dir() else candidate_path.parent
+            break
+    if base_dir is None:
+        for value in candidates:
+            if not value:
+                continue
+            candidate_path = Path(value)
+            base_dir = candidate_path if candidate_path.suffix == "" else candidate_path.parent
+            break
+
+    if base_dir is not None:
+        if not issue_result_json_path:
+            candidate = base_dir / "ISSUE-RESULT.json"
+            if candidate.exists():
+                issue_result_json_path = str(candidate)
+        if not acme_issuance_result_json_path:
+            candidate = base_dir / "ACME-ISSUANCE-RESULT.json"
+            if candidate.exists():
+                acme_issuance_result_json_path = str(candidate)
+
+    return issue_result_json_path, acme_issuance_result_json_path
+
+
+def print_acme_issuance_result_summary(acme_issuance_result: dict, acme_issuance_result_json_path: str):
+    acme_issuance_result = ensure_dict(acme_issuance_result)
+    print("[doctor] acme issuance result json")
+    print(f"- path: {acme_issuance_result_json_path}")
+    print(f"- mode: {acme_issuance_result.get('mode', '')}")
+    print(f"- final_status: {acme_issuance_result.get('final_status', '')}")
+    intent = ensure_dict(acme_issuance_result.get("intent"))
+    if intent:
+        print(f"- intent.result_role: {intent.get('result_role', '')}")
+        print(f"- intent.real_execution_performed: {intent.get('real_execution_performed', False)}")
+    request = ensure_dict(acme_issuance_result.get("request"))
+    if request:
+        print(f"- request.challenge_mode: {request.get('challenge_mode', '')}")
+        print(f"- request.acme_client: {request.get('acme_client', '')}")
+        print(f"- request.staging: {request.get('staging', False)}")
+    pending_execution_plan = ensure_dict(acme_issuance_result.get("pending_execution_plan"))
+    if pending_execution_plan:
+        planned_target_hosts = pending_execution_plan.get("planned_target_hosts")
+        if isinstance(planned_target_hosts, list) and planned_target_hosts:
+            print(f"- pending_execution_plan.planned_target_hosts: {', '.join(str(item) for item in planned_target_hosts)}")
+        print(f"- pending_execution_plan.planned_challenge_mode: {pending_execution_plan.get('planned_challenge_mode', '')}")
+        print(f"- pending_execution_plan.planned_challenge_fulfillment: {pending_execution_plan.get('planned_challenge_fulfillment', '')}")
+        print(f"- pending_execution_plan.planned_acme_client: {pending_execution_plan.get('planned_acme_client', '')}")
+        print(f"- pending_execution_plan.planned_acme_directory: {pending_execution_plan.get('planned_acme_directory', '')}")
+    execution = ensure_dict(acme_issuance_result.get("execution"))
+    if execution:
+        print(f"- execution.client_invoked: {execution.get('client_invoked', False)}")
+        print(f"- execution.issued_certificate: {execution.get('issued_certificate', False)}")
+    deployment_boundary = ensure_dict(acme_issuance_result.get("deployment_boundary"))
+    if deployment_boundary:
+        print(f"- deployment_boundary.writes_live_tls_paths: {deployment_boundary.get('writes_live_tls_paths', False)}")
+        print(f"- deployment_boundary.modifies_live_nginx: {deployment_boundary.get('modifies_live_nginx', False)}")
+        print(f"- deployment_boundary.reloads_nginx: {deployment_boundary.get('reloads_nginx', False)}")
+    operator_prerequisites = ensure_dict(acme_issuance_result.get("operator_prerequisites"))
+    if operator_prerequisites:
+        pending = [
+            key
+            for key in [
+                "review_issue_result_before_execute",
+                "implement_real_execute_path",
+                "confirm_challenge_fulfillment_path",
+                "confirm_certificate_write_target",
+                "confirm_deployment_boundary",
+            ]
+            if jsonish_bool(operator_prerequisites.get(key, False))
+        ]
+        if pending:
+            print(f"- operator_prerequisites.pending: {', '.join(pending)}")
+    next_step = acme_issuance_result.get("next_step")
+    if next_step:
+        print(f"- next_step: {next_step}")
+    print()
+
+
 def resolve_followup_result_json_paths(artifacts: dict, apply_result_json_path: str):
     artifacts = with_companion_fallback(artifacts)
     repair_result_json_path = artifacts.get("repair_result_json") or ""
@@ -1644,6 +1739,9 @@ runs_root = Path(state_path).resolve().parent.parent
 artifacts = ensure_dict(state.get("artifacts"))
 apply_result_json_path = artifacts.get("apply_result_json") or ""
 apply_result = load_json_if_exists(apply_result_json_path, "apply result json")
+issue_result_json_path, acme_issuance_result_json_path = resolve_tls_issue_result_json_paths(artifacts)
+issue_result = load_json_if_exists_quiet(issue_result_json_path)
+acme_issuance_result = load_json_if_exists(acme_issuance_result_json_path, "acme issuance result json")
 
 repair_result_json_path, rollback_result_json_path = resolve_followup_result_json_paths(
     artifacts,
@@ -1712,6 +1810,9 @@ print_artifacts_summary(artifacts)
 
 if apply_result:
     print_apply_result_summary(apply_result, apply_result_json_path)
+
+if acme_issuance_result:
+    print_acme_issuance_result_summary(acme_issuance_result, acme_issuance_result_json_path)
 
 if repair_result:
     print_repair_result_summary(repair_result, repair_result_json_path)
@@ -1797,6 +1898,25 @@ if rollback_result and suggestion_focus in {"", "rollback"}:
         suggestion = rollback_result.get("next_step") or "已存在 rollback 执行结果；建议先按 rollback 结果复核当前系统状态。"
 elif suggestion_focus == "rollback" and resume_strategy == "post-rollback-inspection" and rollback_result_hint_path:
     suggestion = "当前处于 post-rollback-inspection，但结构化 rollback 结果缺失或不可读；建议先查看当前 run 的 rollback 结果文件，再确认现场状态后决定是否继续。"
+
+if suggestion is None and acme_issuance_result:
+    acme_issuance_result = ensure_dict(acme_issuance_result)
+    acme_intent = ensure_dict(acme_issuance_result.get("intent"))
+    acme_execution = ensure_dict(acme_issuance_result.get("execution"))
+    if (
+        acme_intent.get("result_role", "") == "execute-placeholder"
+        or not jsonish_bool(acme_intent.get("real_execution_performed", True))
+        or acme_issuance_result.get("final_status", "") == "blocked"
+        or not jsonish_bool(acme_execution.get("client_invoked", True))
+    ):
+        suggestion = (
+            acme_issuance_result.get("next_step")
+            or "当前 ACME execute 结果仍是占位语义；请先核对 ISSUE/ACME companion result，再决定是否设计真实 execute 子路径。"
+        )
+    elif issue_result:
+        issue_result = ensure_dict(issue_result)
+        if issue_result.get("next_step"):
+            suggestion = issue_result.get("next_step")
 
 if suggestion is None:
     if resume_strategy in {"repair-review-first", "post-repair-verification", "post-rollback-inspection", "inspect-after-apply-attention"}:

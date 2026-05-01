@@ -1,0 +1,46 @@
+[doctor] 运行摘要
+- run_id: fixture-tls-acme-http01
+- checkpoint: completed
+- resumed_from: 无
+- lineage.mode: new
+- lineage.is_resumed_run: False
+- lineage.source_run_id: 无
+- lineage.source_checkpoint: 无
+- lineage.source_resumed_from: 无
+- lineage.resume_strategy: fresh
+- lineage.resume_strategy_reason: new-run
+[doctor] lineage 摘要
+- 这不是 resumed run；当前运行没有接续历史 run 的 lineage。
+[doctor] 状态
+- apply_execute: skipped
+- repair:
+- rollback:
+- final: success
+[doctor] acme issuance result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/ACME-ISSUANCE-RESULT.json
+- mode: execute
+- final_status: blocked
+- intent.result_role: execute-placeholder
+- intent.real_execution_performed: False
+- request.challenge_mode: standalone
+- request.acme_client: manual
+- request.staging: True
+- pending_execution_plan.planned_target_hosts: github.example.com, raw.example.com, gist.example.com, assets.example.com, archive.example.com, download.example.com
+- pending_execution_plan.planned_challenge_mode: standalone
+- pending_execution_plan.planned_challenge_fulfillment: standalone
+- pending_execution_plan.planned_acme_client: manual
+- pending_execution_plan.planned_acme_directory: staging
+- execution.client_invoked: False
+- execution.issued_certificate: False
+- deployment_boundary.writes_live_tls_paths: False
+- deployment_boundary.modifies_live_nginx: False
+- deployment_boundary.reloads_nginx: False
+- operator_prerequisites.pending: review_issue_result_before_execute, implement_real_execute_path, confirm_challenge_fulfillment_path, confirm_certificate_write_target, confirm_deployment_boundary
+- next_step: 如需真实签发，请先设计并实现独立 execute 子路径（落成 ACME-ISSUANCE-RESULT.{md,json} companion contract，含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。
+[doctor] journal
+- entries: 9
+- last_event: issue.result.recorded [blocked]
+- last_message: issue result recorded
+[doctor] 下一步建议
+- 如需真实签发，请先设计并实现独立 execute 子路径（落成 ACME-ISSUANCE-RESULT.{md,json} companion contract，含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。
+- 输入快照可用于 resume：__FIXTURE_ROOT__/runs/fixture-tls-acme-http01/inputs.env

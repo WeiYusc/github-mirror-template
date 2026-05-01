@@ -60,6 +60,8 @@
     "apply_result_json": "",
     "issue_result": "",
     "issue_result_json": "",
+    "acme_issuance_result": "",
+    "acme_issuance_result_json": "",
     "repair_result": "",
     "repair_result_json": "",
     "rollback_result": "",
