@@ -1,0 +1,45 @@
+{
+  "schema_kind": "installer-summary",
+  "schema_version": 1,
+  "deployment_name": "fixture-tls-acme-http01",
+  "base_domain": "github.example.com",
+  "domain_mode": "flat-siblings",
+  "platform": "plain-nginx",
+  "tls_mode": "acme-http01",
+  "input_mode": "advanced",
+  "flags": {
+    "assume_yes": true,
+    "run_apply_dry_run": false,
+    "execute_apply": false,
+    "run_nginx_test_after_execute": false
+  },
+  "status": {
+    "preflight": "warn",
+    "generator": "success",
+    "apply_plan": "generated",
+    "apply_dry_run": "not-requested",
+    "apply_execute": "skipped",
+    "final": "success",
+    "exit_code": 0
+  },
+  "artifacts": {
+    "preflight_markdown": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/preflight.generated.md",
+    "preflight_json": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/preflight.generated.json",
+    "tls_plan_markdown": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/TLS-PLAN.generated.md",
+    "tls_plan_json": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/TLS-PLAN.generated.json",
+    "config": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/deploy.generated.yaml",
+    "output_dir": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01",
+    "apply_plan_markdown": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/APPLY-PLAN.md",
+    "apply_plan_json": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/APPLY-PLAN.json",
+    "apply_result": "",
+    "apply_result_json": "",
+    "summary_generated": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/INSTALLER-SUMMARY.generated.json",
+    "summary_output": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/INSTALLER-SUMMARY.json",
+    "state_dir": "__FIXTURE_ROOT__/runs/fixture-tls-acme-http01",
+    "state_json": "__FIXTURE_ROOT__/runs/fixture-tls-acme-http01/state.json",
+    "journal_jsonl": "__FIXTURE_ROOT__/runs/fixture-tls-acme-http01/journal.jsonl",
+    "run_id": "fixture-tls-acme-http01",
+    "apply_result_exists": false,
+    "apply_result_json_exists": false
+  }
+}

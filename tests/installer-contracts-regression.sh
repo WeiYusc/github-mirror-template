@@ -357,6 +357,26 @@ check_per_run_artifact_snapshot_contract() {
   assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.summary_generated" "$artifact_root/INSTALLER-SUMMARY.generated.json" "$run_id summary summary_generated points to run-scoped snapshot"
 }
 
+check_tls_plan_artifact_contract() {
+  local run_id="$1"
+  local tls_mode="$2"
+  local run_root="$WORKDIR/runs/$run_id"
+  local artifact_root="$WORKDIR/artifacts/$run_id"
+
+  assert_contract_file "$run_root/state.json" "installer-state"
+  assert_contract_file "$artifact_root/INSTALLER-SUMMARY.json" "installer-summary"
+  assert_json_paths "$run_root/state.json" "$run_id tls plan state paths" \
+    inputs.tls_mode artifacts.tls_plan_markdown artifacts.tls_plan_json artifacts.summary_output
+  assert_json_paths "$artifact_root/INSTALLER-SUMMARY.json" "$run_id tls plan summary paths" \
+    tls_mode artifacts.tls_plan_markdown artifacts.tls_plan_json artifacts.summary_output
+  assert_json_value_equals "$run_root/state.json" "inputs.tls_mode" "$tls_mode" "$run_id state records tls mode"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "tls_mode" "$tls_mode" "$run_id summary records tls mode"
+  assert_json_value_equals "$run_root/state.json" "artifacts.tls_plan_markdown" "$artifact_root/TLS-PLAN.generated.md" "$run_id state tls plan markdown snapshot"
+  assert_json_value_equals "$run_root/state.json" "artifacts.tls_plan_json" "$artifact_root/TLS-PLAN.generated.json" "$run_id state tls plan json snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.tls_plan_markdown" "$artifact_root/TLS-PLAN.generated.md" "$run_id summary tls plan markdown snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.tls_plan_json" "$artifact_root/TLS-PLAN.generated.json" "$run_id summary tls plan json snapshot"
+}
+
 assert_journal_event_path_equals_state_artifact() {
   local run_id="$1"
   local event_name="$2"
@@ -540,6 +560,9 @@ check_per_run_artifact_snapshot_contract "fixture-current-apply-attention"
 check_per_run_artifact_snapshot_contract "fixture-inspect-after-apply-attention"
 check_per_run_artifact_snapshot_contract "fixture-post-rollback-inspection"
 check_per_run_artifact_snapshot_contract "fixture-post-repair-verification"
+
+check_tls_plan_artifact_contract "fixture-tls-acme-http01" "acme-http01"
+check_tls_plan_artifact_contract "fixture-tls-acme-dns-cloudflare" "acme-dns-cloudflare"
 
 check_fixture_journal_path_contract "fixture-legacy-fallback"
 check_fixture_journal_path_contract "fixture-resumed-repair-review"

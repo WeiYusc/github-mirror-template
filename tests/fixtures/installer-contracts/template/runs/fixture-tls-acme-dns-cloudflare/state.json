@@ -1,0 +1,71 @@
+{
+  "schema_kind": "installer-state",
+  "schema_version": 1,
+  "run_id": "fixture-tls-acme-dns-cloudflare",
+  "state_dir": "__FIXTURE_ROOT__/runs/fixture-tls-acme-dns-cloudflare",
+  "updated_at": "2026-04-30T13:14:00Z",
+  "checkpoint": "completed",
+  "note": "fixture tls phase 1 run",
+  "resumed_from": "",
+  "lineage": {
+    "mode": "new",
+    "source_run_id": "",
+    "source_checkpoint": "",
+    "source_resumed_from": "",
+    "resume_strategy": "fresh",
+    "resume_strategy_reason": "new-run",
+    "is_resumed_run": false
+  },
+  "status": {
+    "preflight": "warn",
+    "generator": "success",
+    "apply_plan": "generated",
+    "apply_dry_run": "not-requested",
+    "apply_execute": "skipped",
+    "repair": "",
+    "rollback": "",
+    "final": "success"
+  },
+  "inputs": {
+    "deployment_name": "fixture-tls-acme-dns-cloudflare",
+    "base_domain": "github.example.com",
+    "domain_mode": "flat-siblings",
+    "platform": "plain-nginx",
+    "input_mode": "advanced",
+    "tls_mode": "acme-dns-cloudflare",
+    "tls_cert": "",
+    "tls_key": "",
+    "error_root": "/tmp/errors",
+    "log_dir": "/tmp/logs",
+    "output_dir": "./dist/fixture-tls-acme-dns-cloudflare",
+    "snippets_target": "/tmp/snippets",
+    "vhost_target": "/tmp/conf.d"
+  },
+  "flags": {
+    "assume_yes": true,
+    "run_apply_dry_run": false,
+    "execute_apply": false,
+    "run_nginx_test_after_execute": false
+  },
+  "artifacts": {
+    "config": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-dns-cloudflare/deploy.generated.yaml",
+    "output_dir_abs": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-dns-cloudflare",
+    "preflight_markdown": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-dns-cloudflare/preflight.generated.md",
+    "preflight_json": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-dns-cloudflare/preflight.generated.json",
+    "tls_plan_markdown": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-dns-cloudflare/TLS-PLAN.generated.md",
+    "tls_plan_json": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-dns-cloudflare/TLS-PLAN.generated.json",
+    "apply_plan_markdown": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-dns-cloudflare/APPLY-PLAN.md",
+    "apply_plan_json": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-dns-cloudflare/APPLY-PLAN.json",
+    "apply_result": "",
+    "apply_result_json": "",
+    "repair_result": "",
+    "repair_result_json": "",
+    "rollback_result": "",
+    "rollback_result_json": "",
+    "summary_generated": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-dns-cloudflare/INSTALLER-SUMMARY.generated.json",
+    "summary_output": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-dns-cloudflare/INSTALLER-SUMMARY.json",
+    "state_json": "__FIXTURE_ROOT__/runs/fixture-tls-acme-dns-cloudflare/state.json",
+    "inputs_env": "__FIXTURE_ROOT__/runs/fixture-tls-acme-dns-cloudflare/inputs.env",
+    "journal_jsonl": "__FIXTURE_ROOT__/runs/fixture-tls-acme-dns-cloudflare/journal.jsonl"
+  }
+}
