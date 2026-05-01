@@ -219,6 +219,10 @@ bash tests/installer-doctor-golden.sh
   - `ACME-ISSUANCE-RESULT.json`
   - `ACME-ISSUANCE-RESULT.md`
   - `schema_kind=acme-issuance-result`
+- 目前已在 `docs/INSTALLER-RESULT-CONTRACTS-ZH.md` 中把这个 future companion result 的**最小 skeleton**钉成文档契约：
+  - 最小稳定字段只覆盖 `schema_kind/schema_version`、`mode/final_status`、`context`、`request`、`execution`、`artifacts`、`deployment_boundary`、`recovery`、`next_step`
+  - 重点是把“真实 execute 尝试 / challenge fulfillment / artifact outcome / deploy boundary”收进独立结果容器
+  - 仍然**不要求当前 helper 产出该文件**
 - 这样分叉是为了避免 operator / automation / resume logic 混淆：
   - 当前 helper 的前置检查/计划结果
   - `mode=execute` 的占位语义

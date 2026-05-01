@@ -618,6 +618,10 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
   - `ACME-ISSUANCE-RESULT.json`
   - `ACME-ISSUANCE-RESULT.md`
   - `schema_kind=acme-issuance-result`
+- 这份 future execute companion result 现在还额外有一个**最小 skeleton 红线**：
+  - 只承载真实 execute 尝试、challenge fulfillment、client invocation、artifact pointers、deployment boundary、recoverability
+  - 不重复承载当前 planning / evidence helper 的 review 语义
+  - 不因为看见 `--execute` 就默认等于“证书已签出来 / 已可部署”
 - 不安装 acme client
 - 不真实签发证书
 - 不改 live nginx

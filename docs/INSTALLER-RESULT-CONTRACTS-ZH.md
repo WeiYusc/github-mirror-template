@@ -2,7 +2,7 @@
 
 > 状态：实现对齐文档
 > 适用分支：`weiyusc/exp/interactive-installer`
-> 适用范围：`state.json`、`INSTALLER-SUMMARY.json`、`ISSUE-RESULT.json`、`APPLY-PLAN.json`、`APPLY-RESULT.json`、`REPAIR-RESULT.json`、`ROLLBACK-RESULT.json`
+> 适用范围：`state.json`、`INSTALLER-SUMMARY.json`、`ISSUE-RESULT.json`、`APPLY-PLAN.json`、`APPLY-RESULT.json`、`REPAIR-RESULT.json`、`ROLLBACK-RESULT.json`，以及 future real execute 预留的 `ACME-ISSUANCE-RESULT.json` 最小 skeleton
 
 ---
 
@@ -25,7 +25,7 @@
 
 ---
 
-## 2. 当前涉及的 7 类 JSON 产物
+## 2. 当前涉及的 7 类已产出 JSON 产物 + 1 个预留 execute skeleton
 
 ### 2.1 主状态账本
 
@@ -55,6 +55,10 @@
 
 - `ROLLBACK-RESULT.json`
 
+### 2.8 future real execute 结果容器 skeleton
+
+- `ACME-ISSUANCE-RESULT.json`（当前只定义最小 contract skeleton，不要求当前 helper 产出）
+
 ---
 
 ## 3. 顶层 schema 元信息
@@ -78,6 +82,7 @@
 - `APPLY-RESULT.json` → `apply-result`
 - `REPAIR-RESULT.json` → `repair-result`
 - `ROLLBACK-RESULT.json` → `rollback-result`
+- `ACME-ISSUANCE-RESULT.json` → `acme-issuance-result`（当前为 future execute 预留 skeleton kind）
 
 ### 3.1 兼容原则
 
@@ -561,6 +566,167 @@
 
 - `ISSUE-RESULT.json`：前置条件、检查、challenge 方案、保守边界、operator review
 - `ACME-ISSUANCE-RESULT.json`：真实签发尝试、challenge fulfillment、client execution、证书产物落盘、部署/回写边界、可恢复执行结果
+
+### 7.6 `ACME-ISSUANCE-RESULT.json` 最小 contract skeleton（future real execute 预留）
+
+> 这一节定义的是 **future real execute 的最小稳定骨架**，不是当前实现承诺。
+> 当前 helper 不会产出它；这份 skeleton 的作用，是让后续真正实现 execute 子路径的人有一个可直接落地的结果容器下限。
+
+### 7.6.1 职责边界
+
+`ACME-ISSUANCE-RESULT.json` 只回答一类问题：
+
+- 当真实 ACME execute 子路径被实现后，这次**真实签发尝试**做到了什么程度
+- challenge 实际采用了什么 fulfillment 策略
+- ACME client 是否真的执行过
+- 是否产生了可供后续部署/引用的证书产物指针
+- 当前停点更接近成功、部分完成、阻断、失败，还是需要人工接管
+- 下一步应该继续签发恢复、人工修正 challenge，还是再进入部署/验证阶段
+
+它**不负责**重复表达这些 planning 语义：
+
+- 派生域名是否理论可行
+- 当前 conservative helper 的 review 建议
+- “当前 helper 不会真实签发”的阶段边界声明
+
+这些继续留在 `ISSUE-RESULT.json`。
+
+### 7.6.2 建议锁定的最小稳定字段
+
+顶层：
+
+- `schema_kind`
+- `schema_version`
+- `mode`
+- `final_status`
+- `next_step`
+
+`context`：
+
+- `run_id`
+- `deployment_name`
+- `base_domain`
+- `domain_mode`
+- `platform`
+- `tls_mode`
+
+`request`：
+
+- `challenge_mode`
+- `acme_client`
+- `account_email`
+- `staging`
+
+`execution`：
+
+- `attempted_hosts`
+- `fulfilled_challenge_strategy`
+- `client_invoked`
+- `issued_certificate`
+
+`artifacts`：
+
+- `cert_path`
+- `key_path`
+- `fullchain_path`
+
+`deployment_boundary`：
+
+- `writes_live_tls_paths`
+- `modifies_live_nginx`
+- `reloads_nginx`
+
+`recovery`：
+
+- `recoverable`
+- `blocker_summary`
+
+### 7.6.3 字段设计意图（为什么只留这些）
+
+这份 skeleton 刻意只保留长期稳定、且对 operator / automation / 后续 deploy helper 真有价值的骨架：
+
+- `schema_kind/schema_version`：让未来 companion result 能独立演进
+- `mode`：至少区分 `execute` 与未来可能存在的只读 replay / inspect 语义
+- `final_status`：表达真实 execute 结果，而不是 planning helper 的 `blocked` 占位含义
+- `execution.attempted_hosts`：钉住“这次到底尝试给哪些 host 做真实签发”
+- `execution.fulfilled_challenge_strategy`：钉住真实 challenge fulfill 路径，而不是只停留在 plan
+- `execution.client_invoked` / `issued_certificate`：用最小布尔边界区分“只是进入 execute 子路径”与“证书确实签出来了”
+- `artifacts.*_path`：只定义为**结果指针位**，不要求当前已有文件，也不在本阶段假装 live artifact 已存在
+- `deployment_boundary.*`：明确真实签发结果是否已经跨到 live TLS / live nginx / reload 边界，避免后续把 issuance 与 deploy 混成一个黑盒动作
+- `recovery.*`：给 resume / doctor / operator 留下最小恢复语义，而不是只剩一段中文总结
+
+### 7.6.4 推荐的最小 `final_status` 语义
+
+这份 future skeleton 建议至少允许这些最小状态：
+
+- `ok`
+- `partial`
+- `blocked`
+- `failed`
+- `needs-attention`
+
+其中关键区别是：
+
+- `ISSUE-RESULT.json.final_status` 当前是在 planning/evidence contract 里表达 review 结论或 execute 占位阻断
+- `ACME-ISSUANCE-RESULT.json.final_status` 将来表达的是**真实 execute 现场结果**
+
+所以即便两边都可能出现 `blocked` / `needs-attention`，语义源也不同，不能合并成同一份 artifact。
+
+### 7.6.5 最小 skeleton 示例（仅示意 contract，不代表当前实现）
+
+```json
+{
+  "schema_kind": "acme-issuance-result",
+  "schema_version": 1,
+  "mode": "execute",
+  "final_status": "blocked",
+  "context": {
+    "run_id": "<run_id>",
+    "deployment_name": "<deployment_name>",
+    "base_domain": "<base_domain>",
+    "domain_mode": "<domain_mode>",
+    "platform": "<platform>",
+    "tls_mode": "acme-http01"
+  },
+  "request": {
+    "challenge_mode": "standalone",
+    "acme_client": "acme.sh",
+    "account_email": "ops@example.com",
+    "staging": true
+  },
+  "execution": {
+    "attempted_hosts": ["github.example.com"],
+    "fulfilled_challenge_strategy": "standalone",
+    "client_invoked": false,
+    "issued_certificate": false
+  },
+  "artifacts": {
+    "cert_path": "",
+    "key_path": "",
+    "fullchain_path": ""
+  },
+  "deployment_boundary": {
+    "writes_live_tls_paths": false,
+    "modifies_live_nginx": false,
+    "reloads_nginx": false
+  },
+  "recovery": {
+    "recoverable": true,
+    "blocker_summary": "challenge fulfillment not completed"
+  },
+  "next_step": "补足 challenge fulfillment / client execute / artifact write 的真实子路径后，再决定是否进入部署阶段"
+}
+```
+
+### 7.6.6 与 `ISSUE-RESULT.json` 的最小分工红线
+
+最小红线只有三条，但都必须守住：
+
+1. `ISSUE-RESULT.json` 继续只表示 planning / evidence / conservative boundary
+2. `ACME-ISSUANCE-RESULT.json` 才表示真实 execute / challenge fulfillment / artifact outcome
+3. 后续实现可以让两份结果互相引用，但**不能**把真实 execute 字段直接塞回 `ISSUE-RESULT.json`
+
+只要这三条不倒退，后续就还能在 execute / renew / deploy 方向安全扩展，而不会把 operator 语义、自动化输入和恢复逻辑搅成一团。
 
 ---
 

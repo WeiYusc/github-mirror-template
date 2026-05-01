@@ -518,6 +518,50 @@ check_acme_issue_http01_helper_execute_contract() {
   assert_journal_event_path_equals_state_artifact "$run_id" "issue.result.recorded" "issue_result_json" "$run_id execute issue.result.recorded path points to issue_result_json"
 }
 
+check_acme_issuance_result_doc_contract_guard() {
+  local contracts_doc="$ROOT_DIR/docs/INSTALLER-RESULT-CONTRACTS-ZH.md"
+
+  python3 - "$contracts_doc" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+required = [
+    "## 2. 当前涉及的 7 类已产出 JSON 产物 + 1 个预留 execute skeleton",
+    "### 7.6 `ACME-ISSUANCE-RESULT.json` 最小 contract skeleton（future real execute 预留）",
+    "### 7.6.2 建议锁定的最小稳定字段",
+    "- `schema_kind`",
+    "- `schema_version`",
+    "- `mode`",
+    "- `final_status`",
+    "`execution`：",
+    "- `attempted_hosts`",
+    "- `fulfilled_challenge_strategy`",
+    "- `client_invoked`",
+    "- `issued_certificate`",
+    "`artifacts`：",
+    "- `cert_path`",
+    "- `key_path`",
+    "- `fullchain_path`",
+    "`deployment_boundary`：",
+    "- `writes_live_tls_paths`",
+    "- `modifies_live_nginx`",
+    "- `reloads_nginx`",
+    "`recovery`：",
+    "- `recoverable`",
+    "- `blocker_summary`",
+    "### 7.6.6 与 `ISSUE-RESULT.json` 的最小分工红线",
+    "1. `ISSUE-RESULT.json` 继续只表示 planning / evidence / conservative boundary",
+    "2. `ACME-ISSUANCE-RESULT.json` 才表示真实 execute / challenge fulfillment / artifact outcome",
+    "3. 后续实现可以让两份结果互相引用，但**不能**把真实 execute 字段直接塞回 `ISSUE-RESULT.json`",
+]
+missing = [item for item in required if item not in text]
+if missing:
+    raise SystemExit("[FAIL] acme issuance result doc contract guard missing: " + " | ".join(missing))
+PY
+}
+
 assert_journal_event_path_equals_state_artifact() {
   local run_id="$1"
   local event_name="$2"
@@ -706,6 +750,7 @@ check_tls_plan_artifact_contract "fixture-tls-acme-http01" "acme-http01"
 check_tls_plan_artifact_contract "fixture-tls-acme-dns-cloudflare" "acme-dns-cloudflare"
 check_acme_issue_http01_helper_contract
 check_acme_issue_http01_helper_execute_contract
+check_acme_issuance_result_doc_contract_guard
 
 check_fixture_journal_path_contract "fixture-legacy-fallback"
 check_fixture_journal_path_contract "fixture-resumed-repair-review"
