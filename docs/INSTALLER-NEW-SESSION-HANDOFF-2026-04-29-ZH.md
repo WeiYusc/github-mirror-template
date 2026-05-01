@@ -101,16 +101,17 @@ bash tests/installer-doctor-golden.sh
 
 ### 本轮新增 / 推荐优先读的交接文档
 
-1. `docs/INSTALLER-NEW-SESSION-HANDOFF-2026-04-29-ZH.md`（本文件）
-2. `docs/INSTALLER-CONTROL-PLANE-HANDOFF-2026-04-29-ZH.md`
-3. `docs/INSTALLER-INSPECTION-FIRST-HANDOFF-2026-04-22-ZH.md`
-4. `docs/INSTALLER-PAUSE-HANDOFF-2026-04-21-ZH.md`
-5. `docs/INSTALLER-RESULT-CONTRACTS-ZH.md`
-6. `docs/INSTALLER-STATE-MODEL-ZH.md`
+1. `docs/INSTALLER-TLS-PHASE1-HANDOFF-2026-05-01-ZH.md`（TLS Phase 1 专用续接入口）
+2. `docs/INSTALLER-NEW-SESSION-HANDOFF-2026-04-29-ZH.md`
+3. `docs/INSTALLER-CONTROL-PLANE-HANDOFF-2026-04-29-ZH.md`
+4. `docs/INSTALLER-INSPECTION-FIRST-HANDOFF-2026-04-22-ZH.md`
+5. `docs/INSTALLER-PAUSE-HANDOFF-2026-04-21-ZH.md`
+6. `docs/INSTALLER-RESULT-CONTRACTS-ZH.md`
+7. `docs/INSTALLER-STATE-MODEL-ZH.md`
 
 ---
 
-## 4. 如果新会话要继续，先做什么
+如果新会话要继续，先做什么
 
 在仓库根目录先执行：
 
@@ -121,6 +122,10 @@ bash tests/installer-smoke.sh
 bash tests/installer-contracts-regression.sh
 bash tests/installer-doctor-golden.sh
 ```
+
+如果要继续的是 **TLS / 自动 SSL / ACME** 这条线，再额外读：
+
+- `docs/INSTALLER-TLS-PHASE1-HANDOFF-2026-05-01-ZH.md`
 
 如果都为绿，说明当前停点仍然可靠，可以继续下一轮。
 
