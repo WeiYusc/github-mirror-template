@@ -136,7 +136,7 @@ cp deploy.example.yaml deploy.yaml
 
 - `docs/INSTALLER-OPERATOR-RUNBOOK-ZH.md`：面向 `needs-attention` / `blocked` / `failed` / `cancelled` 的检查顺序、建议动作与禁止误操作说明
 - `docs/INSTALLER-STATE-MODEL-ZH.md`：面向 `state.json` / `checkpoint` / `status.final` / `lineage` / `resume_strategy` / companion result 的实现语义说明
-- `docs/INSTALLER-RESULT-CONTRACTS-ZH.md`：面向 `state.json` / `INSTALLER-SUMMARY.json` / `APPLY-PLAN.json` / `APPLY-RESULT.json` / `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` 的职责边界、稳定字段与兼容策略说明
+- `docs/INSTALLER-RESULT-CONTRACTS-ZH.md`：面向 `state.json` / `INSTALLER-SUMMARY.json` / `ISSUE-RESULT.json` / `APPLY-PLAN.json` / `APPLY-RESULT.json` / `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` 的职责边界、稳定字段与兼容策略说明
 
 更完整的“从哪读起 / 哪份算权威 / 哪些只是历史材料”导航，见：`docs/README.md`
 
@@ -209,6 +209,24 @@ bash tests/installer-doctor-golden.sh
 - `--execute` 当前也只会重跑 `nginx -t`（或你指定的 `--nginx-test-cmd`）并把结果落盘，不会自动 reload nginx
 - 会输出 `REPAIR-RESULT.md` / `REPAIR-RESULT.json`
 - 若来源 run 可定位到 `state.json`，repair 结果还会自动回写到该 run 的 `artifacts` / `status.repair`，供后续 `--doctor` 直接消费
+
+另外，针对 `tls.mode=acme-http01` 的 run，当前还补了一个保守式 issue helper：
+
+- `./acme-issue-http01.sh --state-json <state.json>`：默认只做 dry-run，只输出 HTTP-01 issue planning / evidence
+- `--execute` 当前也**不会**真实签发；它只会把本次尝试标记为 execute 模式，并产出同一套 planning / evidence 结果
+- 关键参数至少包括：
+  - `--state-json <path>`
+  - `--dry-run`
+  - `--execute`
+  - `--challenge-mode <standalone|webroot|file-plan>`
+  - `--webroot <path>`
+  - `--acme-client <acme.sh|certbot|manual>`
+  - `--account-email <email>`
+  - `--staging`
+- 会输出 `ISSUE-RESULT.md` / `ISSUE-RESULT.json`
+- 若来源 run 可定位到 `state.json`，helper 会把 `issue_result` / `issue_result_json` 回写到该 run 的 `artifacts`，并同步到 generated summary / output summary / `journal.jsonl`
+- 当前 **不会** 真实签发证书、不会安装 acme client、不会改 live nginx、不会 reload nginx、不会写入证书文件
+- 所以它当前的定位仍是 **planning / evidence helper**，不是完整 ACME lifecycle
 
 另外，`--resume <run_id>` 现在有一个更保守的新约束：
 

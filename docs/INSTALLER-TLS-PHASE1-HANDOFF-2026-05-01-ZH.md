@@ -208,21 +208,51 @@ bash tests/installer-doctor-golden.sh
 
 ### 第一优先级：Phase 2 = ACME HTTP-01 真正 issue 接入
 
-最值得先做的是：
+Phase 2 的第一刀现在已经落成 **conservative issue-helper** 形态，边界是：
 
-1. 明确 ACME issue helper 的边界
-   - 单独 helper，而不是直接把所有逻辑塞回 installer 主脚本
-2. 明确 challenge 模式
+- 独立 helper：`./acme-issue-http01.sh`
+- 默认 `dry-run`；显式 `--execute` 当前也只做 execute-mode planning / evidence，不真实签发
+- 当前会输出：
+  - `ISSUE-RESULT.md`
+  - `ISSUE-RESULT.json`
+- 当前会把 `issue_result` / `issue_result_json` 回写进：
+  - `state.json.artifacts.*`
+  - `INSTALLER-SUMMARY.generated.json.artifacts.*`
+  - `INSTALLER-SUMMARY.json.artifacts.*`
+  - `journal.jsonl` 的 `issue.result.recorded`
+- 当前 helper 至少支持这些参数：
+  - `--state-json`
+  - `--dry-run`
+  - `--execute`
+  - `--challenge-mode <standalone|webroot|file-plan>`
+  - `--webroot`
+  - `--acme-client <acme.sh|certbot|manual>`
+  - `--account-email`
+  - `--staging`
+- 当前仍**不会**：
+  - 真实申请证书
+  - 安装 `acme.sh` / `certbot`
+  - 改 live nginx / takeover challenge 流量
+  - reload nginx
+  - 写入证书/私钥文件
+
+所以这一步完成的重点已经从“是否需要单独产物”收口为：
+
+- `ISSUE-RESULT.json / md` 已经是单独 companion result
+- 但它当前表达的是 **planning / evidence contract**，不是“证书签发成功”
+
+最值得继续做的是：
+
+1. 保持独立 helper，而不是直接把所有逻辑塞回 installer 主脚本
+2. 继续收紧 challenge 模式边界
    - standalone
    - webroot
-   - 或保守 challenge file 方案
-3. 明确与现网 nginx 的关系
+   - file-plan
+3. 继续收紧与现网 nginx 的关系
    - 不默认 takeover
    - 不默认 reload
    - 先 dry-run / 计划 / 显式确认
-4. 明确结果契约
-   - ISSUE-RESULT.json / md 是否需要单独产物
-   - 如何进入 summary / state / doctor
+4. 在真正接通 execute 前，避免让 operator 误读为完整 ACME lifecycle 已经打通
 
 ### 第二优先级：Cloudflare DNS-01 设计收口
 
@@ -253,4 +283,4 @@ Phase 1 contract/scaffolding ✅
 
 ## 8. 一句话停点结论
 
-> 到 `26acd24` 为止，interactive installer 的 TLS 这条线已经从“只有 existing 证书模式”推进到“拥有 `tls.mode` 抽象、mode-aware preflight、TLS plan artifacts、state/summary/resume contract、以及完整 regression fixtures”的稳定 Phase 1 停点；下一次继续时，不该重新争论 Phase 1 是否做实，而应直接从保守式 ACME issue 接入（优先 HTTP-01）往前推。
+> 到当前 Phase 2 first-cut 为止，interactive installer 的 TLS 这条线已经从“只有 `tls.mode` 抽象与 TLS plan 的 Phase 1 scaffolding”，推进到“拥有独立 `acme-issue-http01.sh`、`ISSUE-RESULT.{md,json}` companion contract、以及 state/summary/journal 路径回写”的保守 issue-helper 停点；但它仍只负责 planning / evidence，不代表已经接通真实 ACME issue / deploy lifecycle。

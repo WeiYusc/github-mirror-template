@@ -561,6 +561,18 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
 - 当前更推荐 resume 还是人工检查
 - 操作者下一步应该做什么
 
+### `ISSUE-RESULT.json`
+
+这是 `tls.mode=acme-http01` conservative issue helper 的 planning / evidence 文件。
+
+适合判断：
+
+- helper 只是做了 dry-run 计划，还是被显式标成 execute 模式
+- 派生域名、DNS 指向本机、80 端口、webroot 条件是否具备
+- 当前选定的 `challenge_mode` / `acme_client` / `staging` 参数是什么
+- 这次 helper 是否仍停留在“不真实签发、不改 live nginx、不写证书文件”的 Phase 2 保守边界
+- operator 下一步更像该补前置条件、收口 execute 设计，还是重新审视 challenge 方案
+
 ### `INSTALLER-SUMMARY.json`
 
 这是对外更容易消费的摘要。
@@ -590,7 +602,21 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
 
 很多时候后者反而更需要谨慎。
 
-### 误区 3：只看 `final` 就够了
+### 误区 3：看到 `ISSUE-RESULT.json` / `--execute` 就以为已经真实签发
+
+不是。
+
+当前 `acme-issue-http01.sh` 即便显式带 `--execute`，也仍只是在保守 contract 下输出 planning / evidence：
+
+- 不安装 acme client
+- 不真实签发证书
+- 不改 live nginx
+- 不 reload nginx
+- 不写证书文件
+
+所以它当前解决的是“把 issue helper 的输入/检查/边界说清楚”，不是“把 ACME lifecycle 做完”。
+
+### 误区 4：只看 `final` 就够了
 
 不够。
 
@@ -600,7 +626,7 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
 - `APPLY-RESULT.json`
 - `journal.jsonl`
 
-### 误区 4：`cancelled` 就等于没动机器
+### 误区 5：`cancelled` 就等于没动机器
 
 不一定。
 
@@ -616,6 +642,6 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
 
 如果还要再压缩一句：
 
-> 当前 installer 的职责是把状态和建议说清楚，不是替你越过生产边界做决定。
+> 当前 installer / helper 的职责是把状态、证据和建议说清楚，不是替你越过生产边界做决定。
 
 这就是这套 runbook 的核心。

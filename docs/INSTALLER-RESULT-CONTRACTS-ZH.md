@@ -2,7 +2,7 @@
 
 > 状态：实现对齐文档
 > 适用分支：`weiyusc/exp/interactive-installer`
-> 适用范围：`state.json`、`INSTALLER-SUMMARY.json`、`APPLY-PLAN.json`、`APPLY-RESULT.json`、`REPAIR-RESULT.json`、`ROLLBACK-RESULT.json`
+> 适用范围：`state.json`、`INSTALLER-SUMMARY.json`、`ISSUE-RESULT.json`、`APPLY-PLAN.json`、`APPLY-RESULT.json`、`REPAIR-RESULT.json`、`ROLLBACK-RESULT.json`
 
 ---
 
@@ -12,7 +12,7 @@
 
 这份文档只做另一件事：
 
-> 把 installer 当前产出的 6 类 JSON 文件，按“职责 / 稳定字段 / 消费方 / 兼容策略”收成一份结果契约说明。
+> 把 installer 当前产出的 7 类 JSON 文件，按“职责 / 稳定字段 / 消费方 / 兼容策略”收成一份结果契约说明。
 
 它不是 JSON Schema 标准文件，也不是 OpenAPI。
 
@@ -25,7 +25,7 @@
 
 ---
 
-## 2. 当前涉及的 6 类 JSON 产物
+## 2. 当前涉及的 7 类 JSON 产物
 
 ### 2.1 主状态账本
 
@@ -35,19 +35,23 @@
 
 - `INSTALLER-SUMMARY.json`
 
-### 2.3 apply 规划
+### 2.3 issue 规划 / 证据结果
+
+- `ISSUE-RESULT.json`
+
+### 2.4 apply 规划
 
 - `APPLY-PLAN.json`
 
-### 2.4 apply 结果
+### 2.5 apply 结果
 
 - `APPLY-RESULT.json`
 
-### 2.5 repair 结果
+### 2.6 repair 结果
 
 - `REPAIR-RESULT.json`
 
-### 2.6 rollback 结果
+### 2.7 rollback 结果
 
 - `ROLLBACK-RESULT.json`
 
@@ -69,6 +73,7 @@
 
 - `state.json` → `installer-state`
 - `INSTALLER-SUMMARY.json` → `installer-summary`
+- `ISSUE-RESULT.json` → `issue-result`
 - `APPLY-PLAN.json` → `apply-plan`
 - `APPLY-RESULT.json` → `apply-result`
 - `REPAIR-RESULT.json` → `repair-result`
@@ -95,11 +100,12 @@
 
 1. `./install-interactive.sh --doctor <run_id>`
 2. `state.json`
-3. `APPLY-RESULT.json`
-4. `REPAIR-RESULT.json`
-5. `ROLLBACK-RESULT.json`
-6. `INSTALLER-SUMMARY.json`
-7. `APPLY-PLAN.json`
+3. `ISSUE-RESULT.json`（如果当前 run 做过 `acme-http01` issue helper）
+4. `APPLY-RESULT.json`
+5. `REPAIR-RESULT.json`
+6. `ROLLBACK-RESULT.json`
+7. `INSTALLER-SUMMARY.json`
+8. `APPLY-PLAN.json`
 
 ### 4.2 `resume` 当前的主消费面
 
@@ -117,9 +123,15 @@
 - `ROLLBACK-RESULT.json.flags.execute`
 - `ROLLBACK-RESULT.json.next_step`
 
+当前 `ISSUE-RESULT.json` **不会**驱动 `resume` 策略决策。它的职责更窄：
+
+- 为 `tls.mode=acme-http01` 的 conservative helper 提供独立的 planning / evidence contract
+- 把 HTTP-01 issue 尝试的模式、检查结果、阶段边界与 operator 下一步建议落成 companion result
+- 让 `state.json` / `INSTALLER-SUMMARY.json` / `journal.jsonl` 能稳定回指这份结果
+
 所以当前结论很明确：
 
-> `resume` 不是只看 `state.json`，而是已经把 companion result 视为正式输入的一部分。
+> `resume` 不是只看 `state.json`，而是已经把 apply/repair/rollback companion result 视为正式输入的一部分；而 `ISSUE-RESULT.json` 当前主要服务于 operator review / contract 对齐，不代表已经接通真实 ACME lifecycle。
 
 ### 4.3 `doctor` 当前的主消费面
 
@@ -128,10 +140,11 @@
 - 先看 `state.json`
 - 再按 `artifacts` 指针找 `apply/repair/rollback` result
 - 如果老 run 没登记 `repair_result_json` / `rollback_result_json`，会从 `apply_result_json` 同目录自动回退发现
+- 如果当前 run 已登记 `issue_result_json`，会把它作为补充 artifact 展示给 operator
 
 这意味着：
 
-> companion result 的“同目录约定名”当前也是兼容契约的一部分。
+> apply/repair/rollback companion result 的“同目录约定名”当前也是兼容契约的一部分；而 `ISSUE-RESULT.json` 目前更像 TLS issue helper 的 operator-facing companion artifact，不参与 resume strategy 推导。
 
 ### 4.4 inspection-first 策略的字段消费顺序
 
@@ -242,6 +255,8 @@
 - `apply_plan_json`
 - `apply_result`
 - `apply_result_json`
+- `issue_result`
+- `issue_result_json`
 - `repair_result`
 - `repair_result_json`
 - `rollback_result`
@@ -321,6 +336,8 @@
 - `apply_plan_json`
 - `apply_result`
 - `apply_result_json`
+- `issue_result`
+- `issue_result_json`
 - `summary_generated`
 - `summary_output`
 - `state_dir`
@@ -354,6 +371,8 @@
    - `apply_plan_json`
    - `apply_result`
    - `apply_result_json`
+   - `issue_result`
+   - `issue_result_json`
    - `summary_output`
 
 也就是说：
@@ -403,7 +422,112 @@
 
 ---
 
-## 7. `APPLY-PLAN.json`
+## 7. `ISSUE-RESULT.json`
+
+### 7.1 职责
+
+`ISSUE-RESULT.json` 是 **`tls.mode=acme-http01` conservative issue helper 的 planning / evidence result**。
+
+它回答：
+
+- 这次 helper 是以 `dry-run` 还是 `execute` 标记运行
+- 当前派生域名、DNS 指向本机、80 端口、webroot 前提是否满足
+- 当前打算采用什么 challenge 模式与 acme client
+- 当前阶段边界是否仍停留在“只出计划、不真实签发”
+- operator 下一步更像该补哪些前置条件，而不是把它误解成证书已签发
+
+### 7.2 当前应稳定依赖的字段
+
+顶层：
+
+- `schema_kind`
+- `schema_version`
+- `mode`
+- `final_status`
+- `next_step`
+
+`context`：
+
+- `run_id`
+- `deployment_name`
+- `base_domain`
+- `domain_mode`
+- `platform`
+- `tls_mode`
+
+`request`：
+
+- `challenge_mode`
+- `webroot`
+- `acme_client`
+- `account_email`
+- `staging`
+
+`checks`：
+
+- `derived_hosts`
+- `dns_points_to_local_ready`
+- `port_80_status`
+- `port_80_ready`
+- `needs_webroot`
+- `webroot_ready`
+
+`phase_boundary`：
+
+- `issues_certificate`
+- `installs_acme_client`
+- `modifies_live_nginx`
+- `reloads_nginx`
+- `writes_tls_files`
+
+另外还有：
+
+- `blockers`
+
+### 7.3 当前最关键的机器/操作语义
+
+当前最该被读者抓住的不是 `execute` 这个词，而是 `phase_boundary.*` 这一组布尔字段：
+
+- `issues_certificate=false`
+- `installs_acme_client=false`
+- `modifies_live_nginx=false`
+- `reloads_nginx=false`
+- `writes_tls_files=false`
+
+也就是说：
+
+> `ISSUE-RESULT.json` 当前不是“签发成功记录”，而是“保守式 issue planning / evidence contract”。
+
+即便 helper 以 `--execute` 运行，当前也只是把本次尝试标成 execute 模式，便于后续继续收敛真实执行子路径；它**不代表**已经接通真实 ACME issue lifecycle。
+
+### 7.4 与 `state.json` / `INSTALLER-SUMMARY.json` / journal 的关系
+
+当前 helper 落盘后会同步更新：
+
+- `state.json.artifacts.issue_result`
+- `state.json.artifacts.issue_result_json`
+- `INSTALLER-SUMMARY.generated.json.artifacts.issue_result`
+- `INSTALLER-SUMMARY.generated.json.artifacts.issue_result_json`
+- `INSTALLER-SUMMARY.json.artifacts.issue_result`
+- `INSTALLER-SUMMARY.json.artifacts.issue_result_json`
+- `journal.jsonl` 中的 `issue.result.recorded`
+
+因此当前 contract 边界是：
+
+- `state.json` 负责把这份 issue result 记成 run 的正式 companion artifact 路径
+- `INSTALLER-SUMMARY.json` 负责把它暴露给人机共用摘要视图
+- `journal.jsonl` 负责记录“这份 companion result 何时被登记、路径指向哪里”
+- `ISSUE-RESULT.json` 本身负责承载 helper 的 planning / evidence 语义
+
+### 7.5 兼容备注
+
+- 当前 `ISSUE-RESULT.json` 不参与 `resume` 的策略优先级判定
+- 当前也不应该被外部自动化当成“证书已签发 / 可直接部署”的依据
+- 真正的 ACME execute / renew / deploy lifecycle 若后续落地，建议新增更明确的执行结果字段或 companion result，而不是静默改写这份 Phase 2 first-cut contract 的含义
+
+---
+
+## 8. `APPLY-PLAN.json`
 
 ### 7.1 职责
 
@@ -461,7 +585,7 @@
 
 ---
 
-## 8. `APPLY-RESULT.json`
+## 9. `APPLY-RESULT.json`
 
 ### 8.1 职责
 
@@ -576,7 +700,7 @@
 
 ---
 
-## 9. `REPAIR-RESULT.json`
+## 10. `REPAIR-RESULT.json`
 
 ### 9.1 职责
 
@@ -678,7 +802,7 @@
 
 ---
 
-## 10. `ROLLBACK-RESULT.json`
+## 11. `ROLLBACK-RESULT.json`
 
 ### 10.1 职责
 
@@ -767,7 +891,7 @@
 
 ---
 
-## 11. 哪些字段现在不该被过度绑定
+## 12. 哪些字段现在不该被过度绑定
 
 虽然这些 JSON 已经开始像正式契约，但当前仍有几类内容不建议当成强硬依赖：
 
@@ -785,8 +909,9 @@
 
 当前顺序来自扫描顺序，更多是实现产物，不宜默认当成严格语义。
 
-### 11.3 Markdown 对应文件
+### 12.3 Markdown 对应文件
 
+- `ISSUE-RESULT.md`
 - `APPLY-RESULT.md`
 - `REPAIR-RESULT.md`
 - `ROLLBACK-RESULT.md`
@@ -811,21 +936,22 @@
 
 ---
 
-## 12. 下一阶段最值得补强的地方
+## 13. 下一阶段最值得补强的地方
 
 按当前实现边界，最值得继续推进的是：
 
-1. 给这 6 类 JSON 产物补一份更明确的字段矩阵
+1. 给这 7 类 JSON 产物补一份更明确的字段矩阵
 2. 用 fixture/golden 把关键字段钉住
 3. 明确哪些字段升级要 bump `schema_version`
 4. 把 `doctor` / `resume` 对旧样本的 fallback 也纳入测试
+5. 在真正接入 ACME execute 子路径前，先把 `ISSUE-RESULT` 与未来真实签发结果的边界钉死
 
 ---
 
-## 13. 一句话结论
+## 14. 一句话结论
 
 当前 installer 已经不只是“随手写几个 JSON”，而是已经长出了一个可继续收紧的结果契约层。
 
 最核心的现实判断是：
 
-> `state.json` 是主账本，`APPLY/REPAIR/ROLLBACK-RESULT.json` 是 companion contracts，而 `INSTALLER-SUMMARY.json` / `APPLY-PLAN.json` 更偏摘要与规划层。
+> `state.json` 是主账本，`ISSUE/APPLY/REPAIR/ROLLBACK-RESULT.json` 是 companion contracts，而 `INSTALLER-SUMMARY.json` / `APPLY-PLAN.json` 更偏摘要与规划层。
