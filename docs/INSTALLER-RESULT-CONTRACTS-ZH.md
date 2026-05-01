@@ -498,7 +498,13 @@
 
 > `ISSUE-RESULT.json` 当前不是“签发成功记录”，而是“保守式 issue planning / evidence contract”。
 
-即便 helper 以 `--execute` 运行，当前也只是把本次尝试标成 execute 模式，便于后续继续收敛真实执行子路径；它**不代表**已经接通真实 ACME issue lifecycle。
+即便 helper 以 `--execute` 运行，当前也不会真实签发；相反，它应稳定表现为：
+
+- `final_status=blocked`
+- `blockers[]` 含清晰的 execute 占位边界说明（例如 `execute path not implemented: 当前 --execute 仅为占位语义，不会真实签发证书`）
+- `next_step` 明确指向“先设计/实现独立 execute 子路径”
+
+这样做是为了让 operator / 自动化 不会把 `mode=execute` 误读成“已经尝试签发”或“只差收尾”。
 
 ### 7.4 与 `state.json` / `INSTALLER-SUMMARY.json` / journal 的关系
 

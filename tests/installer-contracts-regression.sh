@@ -223,6 +223,35 @@ if value_as_text != expected:
 PY
 }
 
+assert_json_array_contains() {
+  local path="$1"
+  local dotted="$2"
+  local expected="$3"
+  local label="$4"
+  python3 - "$path" "$dotted" "$expected" "$label" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+dotted = sys.argv[2]
+expected = sys.argv[3]
+label = sys.argv[4]
+obj = json.loads(path.read_text(encoding="utf-8"))
+value = obj
+for part in dotted.split('.'):
+    if not isinstance(value, dict) or part not in value:
+        raise SystemExit(f"[FAIL] {label}: missing path {dotted}")
+    value = value[part]
+if not isinstance(value, list):
+    raise SystemExit(f"[FAIL] {label}: expected {dotted} to be list, got {type(value).__name__}")
+if expected not in [str(item) for item in value]:
+    raise SystemExit(
+        f"[FAIL] {label}: expected {dotted} to contain {expected!r}, got {value!r}"
+    )
+PY
+}
+
 assert_json_value_in_contract() {
   local path="$1"
   local dotted="$2"
@@ -422,6 +451,36 @@ check_acme_issue_http01_helper_contract() {
   assert_journal_event_path_equals_state_artifact "$run_id" "issue.result.recorded" "issue_result_json" "$run_id issue.result.recorded path points to issue_result_json"
 }
 
+check_acme_issue_http01_helper_execute_contract() {
+  local run_id="fixture-tls-acme-http01"
+  local run_root="$WORKDIR/runs/$run_id"
+  local artifact_root="$WORKDIR/artifacts/$run_id"
+  local execute_blocker="execute path not implemented: 当前 --execute 仅为占位语义，不会真实签发证书"
+  local execute_next_step="如需真实签发，请先设计并实现独立 execute 子路径（含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。"
+
+  bash "$ROOT_DIR/acme-issue-http01.sh" \
+    --state-json "$run_root/state.json" \
+    --execute \
+    --challenge-mode standalone \
+    --acme-client manual \
+    --staging >/dev/null
+
+  assert_contract_file "$artifact_root/ISSUE-RESULT.json" "issue-result"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "mode" "execute" "$run_id execute issue result mode"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "final_status" "blocked" "$run_id execute issue result final status"
+  assert_json_array_contains "$artifact_root/ISSUE-RESULT.json" "blockers" "$execute_blocker" "$run_id execute issue result blockers carry execute placeholder boundary"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "next_step" "$execute_next_step" "$run_id execute issue result next step tightened"
+
+  assert_json_value_equals "$run_root/state.json" "artifacts.issue_result" "$artifact_root/ISSUE-RESULT.md" "$run_id execute state issue result markdown snapshot"
+  assert_json_value_equals "$run_root/state.json" "artifacts.issue_result_json" "$artifact_root/ISSUE-RESULT.json" "$run_id execute state issue result json snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.issue_result" "$artifact_root/ISSUE-RESULT.md" "$run_id execute summary issue result markdown snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.issue_result_json" "$artifact_root/ISSUE-RESULT.json" "$run_id execute summary issue result json snapshot"
+  assert_json_value_equals "$run_root/state.json" "artifacts.journal_jsonl" "$run_root/journal.jsonl" "$run_id execute state journal snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.journal_jsonl" "$run_root/journal.jsonl" "$run_id execute summary journal snapshot"
+
+  assert_journal_event_path_equals_state_artifact "$run_id" "issue.result.recorded" "issue_result_json" "$run_id execute issue.result.recorded path points to issue_result_json"
+}
+
 assert_journal_event_path_equals_state_artifact() {
   local run_id="$1"
   local event_name="$2"
@@ -609,6 +668,7 @@ check_per_run_artifact_snapshot_contract "fixture-post-repair-verification"
 check_tls_plan_artifact_contract "fixture-tls-acme-http01" "acme-http01"
 check_tls_plan_artifact_contract "fixture-tls-acme-dns-cloudflare" "acme-dns-cloudflare"
 check_acme_issue_http01_helper_contract
+check_acme_issue_http01_helper_execute_contract
 
 check_fixture_journal_path_contract "fixture-legacy-fallback"
 check_fixture_journal_path_contract "fixture-resumed-repair-review"

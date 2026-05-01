@@ -198,7 +198,6 @@ DNS_READY="true"
 DNS_BLOCKERS=()
 PORT_80_STATUS="unknown"
 PORT_80_READY="false"
-CURRENT_PHASE_BOUNDARY_BLOCKED="true"
 
 for host in "${DERIVED_HOSTS[@]}"; do
   [[ -n "$host" ]] || continue
@@ -242,10 +241,26 @@ if [[ "$CHALLENGE_MODE" == "webroot" ]]; then
   fi
 fi
 
-FINAL_STATUS="needs-attention"
-NEXT_STEP="当前 helper 只输出保守式 issue 计划与契约；请先确认 challenge 路径、acme client 选择与证书落盘/接管边界，再决定是否实现真实 execute。"
-if [[ "$DNS_READY" == "true" && "$PORT_80_READY" == "true" ]]; then
-  NEXT_STEP="DNS 与 80 端口基础条件看起来已具备；下一步建议把真实签发执行收敛成显式 execute 子路径，并继续保持不默认 reload nginx。"
+RESULT_BLOCKERS=()
+if [[ ${#DNS_BLOCKERS[@]} -gt 0 ]]; then
+  RESULT_BLOCKERS=("${DNS_BLOCKERS[@]}")
+fi
+if [[ -n "$WEBROOT_NOTE" ]]; then
+  RESULT_BLOCKERS+=("$WEBROOT_NOTE")
+fi
+
+EXECUTE_PLACEHOLDER_BLOCKER=""
+if [[ "$EXECUTE" == "1" ]]; then
+  EXECUTE_PLACEHOLDER_BLOCKER="execute path not implemented: 当前 --execute 仅为占位语义，不会真实签发证书"
+  RESULT_BLOCKERS+=("$EXECUTE_PLACEHOLDER_BLOCKER")
+  FINAL_STATUS="blocked"
+  NEXT_STEP="如需真实签发，请先设计并实现独立 execute 子路径（含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。"
+else
+  FINAL_STATUS="needs-attention"
+  NEXT_STEP="当前 helper 只输出保守式 issue 计划与契约；请先确认 challenge 路径、acme client 选择与证书落盘/接管边界，再决定是否实现真实 execute。"
+  if [[ "$DNS_READY" == "true" && "$PORT_80_READY" == "true" ]]; then
+    NEXT_STEP="DNS 与 80 端口基础条件看起来已具备；下一步建议把真实签发执行收敛成显式 execute 子路径，并继续保持不默认 reload nginx。"
+  fi
 fi
 
 write_issue_result_json() {
@@ -297,7 +312,7 @@ payload = {
         'reloads_nginx': False,
         'writes_tls_files': False,
     },
-    'blockers': [item for item in env('DNS_BLOCKERS_NL').split('\n') if item] + ([env('WEBROOT_NOTE')] if env('WEBROOT_NOTE') else []),
+    'blockers': [item for item in env('RESULT_BLOCKERS_NL').split('\n') if item],
     'next_step': env('NEXT_STEP'),
 }
 
@@ -348,16 +363,13 @@ write_issue_result_markdown() {
     echo
     echo '## Blockers'
     echo
-    if [[ ${#DNS_BLOCKERS[@]} -eq 0 && -z "$WEBROOT_NOTE" ]]; then
+    if [[ ${#RESULT_BLOCKERS[@]} -eq 0 ]]; then
       echo '- 无硬阻断，但当前仍停留在保守式计划阶段'
     else
       local item
-      for item in "${DNS_BLOCKERS[@]}"; do
+      for item in "${RESULT_BLOCKERS[@]}"; do
         echo "- $item"
       done
-      if [[ -n "$WEBROOT_NOTE" ]]; then
-        echo "- $WEBROOT_NOTE"
-      fi
     fi
     echo
     echo '## 下一步建议'
@@ -368,8 +380,8 @@ write_issue_result_markdown() {
 
 export MODE_LABEL FINAL_STATUS RUN_ID DEPLOYMENT_NAME BASE_DOMAIN DOMAIN_MODE PLATFORM TLS_MODE CHALLENGE_MODE WEBROOT_PATH ACME_CLIENT ACCOUNT_EMAIL USE_STAGING DNS_READY PORT_80_STATUS PORT_80_READY NEEDS_WEBROOT WEBROOT_READY WEBROOT_NOTE NEXT_STEP
 DERIVED_HOSTS_NL="$(printf '%s\n' "${DERIVED_HOSTS[@]}")"
-DNS_BLOCKERS_NL="$(printf '%s\n' "${DNS_BLOCKERS[@]:-}")"
-export DERIVED_HOSTS_NL DNS_BLOCKERS_NL
+RESULT_BLOCKERS_NL="$(printf '%s\n' "${RESULT_BLOCKERS[@]:-}")"
+export DERIVED_HOSTS_NL RESULT_BLOCKERS_NL
 
 write_issue_result_markdown "$RESULT_FILE"
 write_issue_result_json "$RESULT_JSON_OUTPUT"

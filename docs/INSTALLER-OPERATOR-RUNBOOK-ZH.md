@@ -608,6 +608,9 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
 
 当前 `acme-issue-http01.sh` 即便显式带 `--execute`，也仍只是在保守 contract 下输出 planning / evidence：
 
+- `ISSUE-RESULT.json.final_status` 会明确落成 `blocked`
+- `blockers` 会稳定写出“execute path not implemented / 当前仅为占位语义，不会真实签发证书”的边界说明
+- `next_step` 会明确指向“先设计/实现独立 execute 子路径”，而不是暗示已经尝试签发
 - 不安装 acme client
 - 不真实签发证书
 - 不改 live nginx

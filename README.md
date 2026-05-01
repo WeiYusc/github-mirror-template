@@ -213,7 +213,7 @@ bash tests/installer-doctor-golden.sh
 另外，针对 `tls.mode=acme-http01` 的 run，当前还补了一个保守式 issue helper：
 
 - `./acme-issue-http01.sh --state-json <state.json>`：默认只做 dry-run，只输出 HTTP-01 issue planning / evidence
-- `--execute` 当前也**不会**真实签发；它只会把本次尝试标记为 execute 模式，并产出同一套 planning / evidence 结果
+- `--execute` 当前**不会**真实签发；它会把本次结果明确落成 `blocked`，并写出“execute path not implemented / 当前仅为占位语义”的稳定 blocker + next step，避免被误读为已经尝试签发
 - 关键参数至少包括：
   - `--state-json <path>`
   - `--dry-run`
