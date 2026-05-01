@@ -573,6 +573,7 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
 - 这次 helper 是否仍停留在“不真实签发、不改 live nginx、不写证书文件”的 Phase 2 保守边界
 - 当前 `ISSUE-RESULT.{md,json}` 是否仍保持 planning / evidence-only contract
 - 如果未来真做 execute，是否已经按独立 `ACME-ISSUANCE-RESULT.{md,json}` contract 分叉，而不是偷偷把 planning artifact 改成真实签发结果
+- 如果当前是 `--execute` 占位运行，是否已经额外产出 `ACME-ISSUANCE-RESULT.{md,json}` placeholder，且仍明确保持 `client_invoked=false` / `issued_certificate=false`
 - operator 下一步更像该补前置条件、收口 execute 设计，还是重新审视 challenge 方案
 
 ### `INSTALLER-SUMMARY.json`
@@ -618,6 +619,13 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
   - `ACME-ISSUANCE-RESULT.json`
   - `ACME-ISSUANCE-RESULT.md`
   - `schema_kind=acme-issuance-result`
+- 当前 `--execute` 占位路径也会额外落一个同名 placeholder result，专门把“已进入 execute 容器、但尚未真实调用 client”这件事落盘；它至少应保持：
+  - `mode=execute`
+  - `final_status=blocked`
+  - `execution.client_invoked=false`
+  - `execution.issued_certificate=false`
+  - `deployment_boundary.*=false`
+- 这份 execute placeholder result 仍然**不是**真实签发成功/失败记录，只是 future real execute 容器的保守落地起点
 - 这份 future execute companion result 现在还额外有一个**最小 skeleton 红线**：
   - 只承载真实 execute 尝试、challenge fulfillment、client invocation、artifact pointers、deployment boundary、recoverability
   - 不重复承载当前 planning / evidence helper 的 review 语义

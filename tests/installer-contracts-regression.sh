@@ -508,14 +508,49 @@ check_acme_issue_http01_helper_execute_contract() {
   assert_json_array_contains "$artifact_root/ISSUE-RESULT.json" "blockers" "$execute_blocker" "$run_id execute issue result blockers carry execute placeholder boundary"
   assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "next_step" "$execute_next_step" "$run_id execute issue result next step tightened"
 
+  assert_contract_file "$artifact_root/ACME-ISSUANCE-RESULT.json" "acme-issuance-result"
+  assert_json_paths "$artifact_root/ACME-ISSUANCE-RESULT.json" "$run_id execute placeholder stable paths" \
+    mode final_status context.run_id context.tls_mode request.challenge_mode request.acme_client request.staging \
+    execution.attempted_hosts execution.fulfilled_challenge_strategy execution.client_invoked execution.issued_certificate \
+    artifacts.cert_path artifacts.key_path artifacts.fullchain_path \
+    deployment_boundary.writes_live_tls_paths deployment_boundary.modifies_live_nginx deployment_boundary.reloads_nginx \
+    recovery.recoverable recovery.blocker_summary next_step
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "mode" "execute" "$run_id execute placeholder mode"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "final_status" "blocked" "$run_id execute placeholder final status"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "context.run_id" "$run_id" "$run_id execute placeholder run id"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "context.tls_mode" "acme-http01" "$run_id execute placeholder tls mode"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "request.challenge_mode" "standalone" "$run_id execute placeholder challenge mode"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "request.acme_client" "manual" "$run_id execute placeholder acme client"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "request.staging" bool "$run_id execute placeholder staging bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.fulfilled_challenge_strategy" "not-executed" "$run_id execute placeholder challenge strategy"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.client_invoked" bool "$run_id execute placeholder client_invoked bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.client_invoked" "False" "$run_id execute placeholder client_invoked false"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.issued_certificate" bool "$run_id execute placeholder issued_certificate bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.issued_certificate" "False" "$run_id execute placeholder issued_certificate false"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.writes_live_tls_paths" bool "$run_id execute placeholder writes_live_tls_paths bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.writes_live_tls_paths" "False" "$run_id execute placeholder writes_live_tls_paths false"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.modifies_live_nginx" bool "$run_id execute placeholder modifies_live_nginx bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.modifies_live_nginx" "False" "$run_id execute placeholder modifies_live_nginx false"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.reloads_nginx" bool "$run_id execute placeholder reloads_nginx bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.reloads_nginx" "False" "$run_id execute placeholder reloads_nginx false"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "recovery.recoverable" bool "$run_id execute placeholder recoverable bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "recovery.recoverable" "True" "$run_id execute placeholder recoverable true"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "recovery.blocker_summary" "$execute_blocker" "$run_id execute placeholder blocker summary"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "next_step" "$execute_next_step" "$run_id execute placeholder next step"
+
   assert_json_value_equals "$run_root/state.json" "artifacts.issue_result" "$artifact_root/ISSUE-RESULT.md" "$run_id execute state issue result markdown snapshot"
   assert_json_value_equals "$run_root/state.json" "artifacts.issue_result_json" "$artifact_root/ISSUE-RESULT.json" "$run_id execute state issue result json snapshot"
+  assert_json_value_equals "$run_root/state.json" "artifacts.acme_issuance_result" "$artifact_root/ACME-ISSUANCE-RESULT.md" "$run_id execute state acme issuance result markdown snapshot"
+  assert_json_value_equals "$run_root/state.json" "artifacts.acme_issuance_result_json" "$artifact_root/ACME-ISSUANCE-RESULT.json" "$run_id execute state acme issuance result json snapshot"
   assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.issue_result" "$artifact_root/ISSUE-RESULT.md" "$run_id execute summary issue result markdown snapshot"
   assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.issue_result_json" "$artifact_root/ISSUE-RESULT.json" "$run_id execute summary issue result json snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.acme_issuance_result" "$artifact_root/ACME-ISSUANCE-RESULT.md" "$run_id execute summary acme issuance result markdown snapshot"
+  assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.acme_issuance_result_json" "$artifact_root/ACME-ISSUANCE-RESULT.json" "$run_id execute summary acme issuance result json snapshot"
   assert_json_value_equals "$run_root/state.json" "artifacts.journal_jsonl" "$run_root/journal.jsonl" "$run_id execute state journal snapshot"
   assert_json_value_equals "$artifact_root/INSTALLER-SUMMARY.json" "artifacts.journal_jsonl" "$run_root/journal.jsonl" "$run_id execute summary journal snapshot"
 
   assert_journal_event_path_equals_state_artifact "$run_id" "issue.result.recorded" "issue_result_json" "$run_id execute issue.result.recorded path points to issue_result_json"
+  assert_journal_event_path_equals_state_artifact "$run_id" "acme_issuance.result.recorded" "acme_issuance_result_json" "$run_id execute acme_issuance.result.recorded path points to acme_issuance_result_json"
 }
 
 check_acme_issuance_result_doc_contract_guard() {
@@ -528,8 +563,8 @@ from pathlib import Path
 path = Path(sys.argv[1])
 text = path.read_text(encoding='utf-8')
 required = [
-    "## 2. 当前涉及的 7 类已产出 JSON 产物 + 1 个预留 execute skeleton",
-    "### 7.6 `ACME-ISSUANCE-RESULT.json` 最小 contract skeleton（future real execute 预留）",
+    "## 2. 当前涉及的 7 类已产出 JSON 产物 + 1 个 execute placeholder skeleton",
+    "### 7.6 `ACME-ISSUANCE-RESULT.json` 最小 contract skeleton（当前为 execute placeholder，future real execute 继续沿用）",
     "### 7.6.2 建议锁定的最小稳定字段",
     "- `schema_kind`",
     "- `schema_version`",

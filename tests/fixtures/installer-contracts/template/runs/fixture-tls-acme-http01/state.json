@@ -58,6 +58,8 @@
     "apply_plan_json": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-http01/APPLY-PLAN.json",
     "apply_result": "",
     "apply_result_json": "",
+    "issue_result": "",
+    "issue_result_json": "",
     "repair_result": "",
     "repair_result_json": "",
     "rollback_result": "",

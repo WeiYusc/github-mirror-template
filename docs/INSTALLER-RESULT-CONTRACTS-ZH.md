@@ -2,7 +2,7 @@
 
 > 状态：实现对齐文档
 > 适用分支：`weiyusc/exp/interactive-installer`
-> 适用范围：`state.json`、`INSTALLER-SUMMARY.json`、`ISSUE-RESULT.json`、`APPLY-PLAN.json`、`APPLY-RESULT.json`、`REPAIR-RESULT.json`、`ROLLBACK-RESULT.json`，以及 future real execute 预留的 `ACME-ISSUANCE-RESULT.json` 最小 skeleton
+> 适用范围：`state.json`、`INSTALLER-SUMMARY.json`、`ISSUE-RESULT.json`、`APPLY-PLAN.json`、`APPLY-RESULT.json`、`REPAIR-RESULT.json`、`ROLLBACK-RESULT.json`，以及当前在 `acme-issue-http01.sh --execute` 占位路径落盘的 `ACME-ISSUANCE-RESULT.json` 最小 skeleton
 
 ---
 
@@ -25,7 +25,7 @@
 
 ---
 
-## 2. 当前涉及的 7 类已产出 JSON 产物 + 1 个预留 execute skeleton
+## 2. 当前涉及的 7 类已产出 JSON 产物 + 1 个 execute placeholder skeleton
 
 ### 2.1 主状态账本
 
@@ -55,9 +55,9 @@
 
 - `ROLLBACK-RESULT.json`
 
-### 2.8 future real execute 结果容器 skeleton
+### 2.8 execute placeholder 结果容器 skeleton
 
-- `ACME-ISSUANCE-RESULT.json`（当前只定义最小 contract skeleton，不要求当前 helper 产出）
+- `ACME-ISSUANCE-RESULT.json`（当前由 `acme-issue-http01.sh --execute` 额外产出 execute placeholder skeleton；仍不代表真实 ACME client execute）
 
 ---
 
@@ -567,10 +567,10 @@
 - `ISSUE-RESULT.json`：前置条件、检查、challenge 方案、保守边界、operator review
 - `ACME-ISSUANCE-RESULT.json`：真实签发尝试、challenge fulfillment、client execution、证书产物落盘、部署/回写边界、可恢复执行结果
 
-### 7.6 `ACME-ISSUANCE-RESULT.json` 最小 contract skeleton（future real execute 预留）
+### 7.6 `ACME-ISSUANCE-RESULT.json` 最小 contract skeleton（当前为 execute placeholder，future real execute 继续沿用）
 
-> 这一节定义的是 **future real execute 的最小稳定骨架**，不是当前实现承诺。
-> 当前 helper 不会产出它；这份 skeleton 的作用，是让后续真正实现 execute 子路径的人有一个可直接落地的结果容器下限。
+> 这一节定义的是 **future real execute 仍可沿用的最小稳定骨架**，也是当前 `acme-issue-http01.sh --execute` 已开始落盘的 execute placeholder 下限。
+> 当前 helper 产出的仍只是 `final_status=blocked` / `client_invoked=false` / `issued_certificate=false` 的保守占位结果；这份 skeleton 的作用，是让后续真正实现 execute 子路径的人有一个可直接演进的结果容器下限。
 
 ### 7.6.1 职责边界
 
@@ -672,7 +672,7 @@
 
 所以即便两边都可能出现 `blocked` / `needs-attention`，语义源也不同，不能合并成同一份 artifact。
 
-### 7.6.5 最小 skeleton 示例（仅示意 contract，不代表当前实现）
+### 7.6.5 最小 skeleton 示例（当前 execute placeholder 已对齐这组骨架，仍不代表真实 client execute）
 
 ```json
 {

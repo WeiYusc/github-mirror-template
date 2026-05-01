@@ -617,6 +617,8 @@ payload = {
         "apply_result_json": env("APPLY_RESULT_JSON_PATH"),
         "issue_result": env("ISSUE_RESULT_PATH"),
         "issue_result_json": env("ISSUE_RESULT_JSON_PATH"),
+        "acme_issuance_result": env("ACME_ISSUANCE_RESULT_PATH"),
+        "acme_issuance_result_json": env("ACME_ISSUANCE_RESULT_JSON_PATH"),
         "summary_generated": env("SUMMARY_JSON_RUN_COPY") or env("SUMMARY_JSON_PRIMARY"),
         "summary_output": env("SUMMARY_JSON_SECONDARY"),
         "state_dir": env("STATE_DIR"),
@@ -840,6 +842,8 @@ payload = {
         "apply_result_json": env("APPLY_RESULT_JSON_PATH"),
         "issue_result": env("ISSUE_RESULT_PATH"),
         "issue_result_json": env("ISSUE_RESULT_JSON_PATH"),
+        "acme_issuance_result": env("ACME_ISSUANCE_RESULT_PATH"),
+        "acme_issuance_result_json": env("ACME_ISSUANCE_RESULT_JSON_PATH"),
         "repair_result": env("REPAIR_RESULT_PATH"),
         "repair_result_json": env("REPAIR_RESULT_JSON_PATH"),
         "rollback_result": env("ROLLBACK_RESULT_PATH"),
@@ -862,12 +866,13 @@ state_record_companion_result() {
   local json_path="$3"
   local final_status="${4:-ok}"
   local note="${5:-}"
+  local journal_event_base="${6:-$kind}"
 
   if [[ -z "${STATE_JSON_PATH:-}" || ! -f "$STATE_JSON_PATH" ]]; then
     return 0
   fi
 
-  if [[ "$kind" != "repair" && "$kind" != "rollback" && "$kind" != "issue" ]]; then
+  if [[ "$kind" != "repair" && "$kind" != "rollback" && "$kind" != "issue" && "$kind" != "acme_issuance" ]]; then
     echo "[state] 不支持的 companion result 类型：$kind" >&2
     return 1
   fi
@@ -920,7 +925,7 @@ PY
   done
 
   if [[ -n "${STATE_JOURNAL_PATH:-}" && -f "${STATE_JOURNAL_PATH:-}" && -n "$recorded_run_id" ]]; then
-    RUN_ID="$recorded_run_id" state_append_journal "${kind}.result.recorded" "$final_status" "${note:-recorded $kind result}" "$json_path"
+    RUN_ID="$recorded_run_id" state_append_journal "${journal_event_base}.result.recorded" "$final_status" "${note:-recorded $kind result}" "$json_path"
   fi
 }
 
@@ -936,7 +941,7 @@ state_mark_checkpoint() {
   export RUN_APPLY_DRY_RUN EXECUTE_APPLY BACKUP_DIR RUN_NGINX_TEST_AFTER_EXECUTE NGINX_TEST_CMD ASSUME_YES
   export DEFAULT_ERROR_ROOT DEFAULT_LOG_DIR DEFAULT_OUTPUT_DIR DEFAULT_NGINX_SNIPPETS_TARGET_HINT DEFAULT_NGINX_VHOST_TARGET_HINT
   export INSTALLER_PREFLIGHT_STATUS INSTALLER_GENERATOR_STATUS INSTALLER_APPLY_PLAN_STATUS INSTALLER_DRY_RUN_STATUS INSTALLER_EXECUTE_STATUS INSTALLER_REPAIR_STATUS INSTALLER_ROLLBACK_STATUS INSTALLER_FINAL_STATUS
-  export GENERATED_DIR PREFLIGHT_REPORT_MD PREFLIGHT_REPORT_JSON PREFLIGHT_REPORT_MD_RUN_COPY PREFLIGHT_REPORT_JSON_RUN_COPY TLS_PLAN_MD TLS_PLAN_JSON TLS_PLAN_MD_RUN_COPY TLS_PLAN_JSON_RUN_COPY SUMMARY_JSON_PRIMARY SUMMARY_JSON_RUN_COPY SUMMARY_JSON_SECONDARY CONFIG_PATH CONFIG_PATH_RUN_COPY OUTPUT_DIR_ABS APPLY_PLAN_PATH APPLY_PLAN_JSON_PATH APPLY_RESULT_PATH APPLY_RESULT_JSON_PATH ISSUE_RESULT_PATH ISSUE_RESULT_JSON_PATH REPAIR_RESULT_PATH REPAIR_RESULT_JSON_PATH ROLLBACK_RESULT_PATH ROLLBACK_RESULT_JSON_PATH
+  export GENERATED_DIR PREFLIGHT_REPORT_MD PREFLIGHT_REPORT_JSON PREFLIGHT_REPORT_MD_RUN_COPY PREFLIGHT_REPORT_JSON_RUN_COPY TLS_PLAN_MD TLS_PLAN_JSON TLS_PLAN_MD_RUN_COPY TLS_PLAN_JSON_RUN_COPY SUMMARY_JSON_PRIMARY SUMMARY_JSON_RUN_COPY SUMMARY_JSON_SECONDARY CONFIG_PATH CONFIG_PATH_RUN_COPY OUTPUT_DIR_ABS APPLY_PLAN_PATH APPLY_PLAN_JSON_PATH APPLY_RESULT_PATH APPLY_RESULT_JSON_PATH ISSUE_RESULT_PATH ISSUE_RESULT_JSON_PATH ACME_ISSUANCE_RESULT_PATH ACME_ISSUANCE_RESULT_JSON_PATH REPAIR_RESULT_PATH REPAIR_RESULT_JSON_PATH ROLLBACK_RESULT_PATH ROLLBACK_RESULT_JSON_PATH
 
   state_write_inputs_env
   state_write_json "$checkpoint" "$note"

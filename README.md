@@ -219,10 +219,10 @@ bash tests/installer-doctor-golden.sh
   - `ACME-ISSUANCE-RESULT.json`
   - `ACME-ISSUANCE-RESULT.md`
   - `schema_kind=acme-issuance-result`
-- 目前已在 `docs/INSTALLER-RESULT-CONTRACTS-ZH.md` 中把这个 future companion result 的**最小 skeleton**钉成文档契约：
+- 目前已在 `docs/INSTALLER-RESULT-CONTRACTS-ZH.md` 中把这个 future companion result 的**最小 skeleton**钉成文档契约，并且当前 `--execute` 占位路径会额外落一个同骨架的 placeholder 文件：
   - 最小稳定字段只覆盖 `schema_kind/schema_version`、`mode/final_status`、`context`、`request`、`execution`、`artifacts`、`deployment_boundary`、`recovery`、`next_step`
   - 重点是把“真实 execute 尝试 / challenge fulfillment / artifact outcome / deploy boundary”收进独立结果容器
-  - 仍然**不要求当前 helper 产出该文件**
+  - 当前落出的 placeholder 仍明确保持：`client_invoked=false`、`issued_certificate=false`、deployment boundary 全 false
 - 这样分叉是为了避免 operator / automation / resume logic 混淆：
   - 当前 helper 的前置检查/计划结果
   - `mode=execute` 的占位语义
@@ -237,6 +237,7 @@ bash tests/installer-doctor-golden.sh
   - `--account-email <email>`
   - `--staging`
 - 会输出 `ISSUE-RESULT.md` / `ISSUE-RESULT.json`
+- 当显式带 `--execute` 时，还会额外输出 `ACME-ISSUANCE-RESULT.md` / `ACME-ISSUANCE-RESULT.json` 的 placeholder skeleton
 - 若来源 run 可定位到 `state.json`，helper 会把 `issue_result` / `issue_result_json` 回写到该 run 的 `artifacts`，并同步到 generated summary / output summary / `journal.jsonl`
 - 当前 **不会** 真实签发证书、不会安装 acme client、不会改 live nginx、不会 reload nginx、不会写入证书文件
 - 所以它当前的定位仍是 **planning / evidence helper**，不是完整 ACME lifecycle

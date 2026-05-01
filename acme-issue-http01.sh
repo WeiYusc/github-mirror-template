@@ -189,6 +189,8 @@ if [[ "$RESULT_JSON_OUTPUT" == "$RESULT_FILE" ]]; then
 fi
 ISSUE_RESULT_PATH="$RESULT_FILE"
 ISSUE_RESULT_JSON_PATH="$RESULT_JSON_OUTPUT"
+ACME_ISSUANCE_RESULT_FILE="$(dirname "$RESULT_FILE")/ACME-ISSUANCE-RESULT.md"
+ACME_ISSUANCE_RESULT_JSON_PATH="$(dirname "$RESULT_FILE")/ACME-ISSUANCE-RESULT.json"
 
 mapfile -t DERIVED_HOSTS < <(dns_derive_hosts "$BASE_DOMAIN" "$DOMAIN_MODE")
 MODE_LABEL="dry-run"
@@ -257,9 +259,11 @@ if [[ "$EXECUTE" == "1" ]]; then
   RESULT_BLOCKERS+=("$EXECUTE_PLACEHOLDER_BLOCKER")
   FINAL_STATUS="blocked"
   NEXT_STEP="如需真实签发，请先设计并实现独立 execute 子路径（落成 ACME-ISSUANCE-RESULT.{md,json} companion contract，含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。"
+  FULFILLED_CHALLENGE_STRATEGY="not-executed"
 else
   FINAL_STATUS="needs-attention"
   NEXT_STEP="当前 helper 只输出保守式 issue 计划与契约；请先确认 challenge 路径、acme client 选择与证书落盘/接管边界，并把未来真实签发结果独立收敛到 ACME-ISSUANCE-RESULT.{md,json}，再决定是否实现真实 execute。"
+  FULFILLED_CHALLENGE_STRATEGY=""
   if [[ "$DNS_READY" == "true" && "$PORT_80_READY" == "true" ]]; then
     NEXT_STEP="DNS 与 80 端口基础条件看起来已具备；下一步建议把真实签发执行收敛成显式 execute 子路径，并把执行结果独立落成 ACME-ISSUANCE-RESULT.{md,json}，继续保持不默认 reload nginx。"
   fi
@@ -389,13 +393,112 @@ write_issue_result_markdown() {
   } > "$target_file"
 }
 
-export MODE_LABEL FINAL_STATUS RUN_ID DEPLOYMENT_NAME BASE_DOMAIN DOMAIN_MODE PLATFORM TLS_MODE CHALLENGE_MODE WEBROOT_PATH ACME_CLIENT ACCOUNT_EMAIL USE_STAGING DNS_READY PORT_80_STATUS PORT_80_READY NEEDS_WEBROOT WEBROOT_READY WEBROOT_NOTE NEXT_STEP
+write_acme_issuance_result_json() {
+  local target_json="$1"
+  mkdir -p "$(dirname "$target_json")"
+
+  python3 - "$target_json" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def env(name, default=''):
+    return os.environ.get(name, default)
+
+payload = {
+    'schema_kind': 'acme-issuance-result',
+    'schema_version': 1,
+    'mode': 'execute',
+    'final_status': env('FINAL_STATUS'),
+    'context': {
+        'run_id': env('RUN_ID'),
+        'deployment_name': env('DEPLOYMENT_NAME'),
+        'base_domain': env('BASE_DOMAIN'),
+        'domain_mode': env('DOMAIN_MODE'),
+        'platform': env('PLATFORM'),
+        'tls_mode': env('TLS_MODE'),
+    },
+    'request': {
+        'challenge_mode': env('CHALLENGE_MODE'),
+        'acme_client': env('ACME_CLIENT'),
+        'account_email': env('ACCOUNT_EMAIL'),
+        'staging': env('USE_STAGING') == '1',
+    },
+    'execution': {
+        'attempted_hosts': [h for h in env('DERIVED_HOSTS_NL').split('\n') if h],
+        'fulfilled_challenge_strategy': env('FULFILLED_CHALLENGE_STRATEGY'),
+        'client_invoked': False,
+        'issued_certificate': False,
+    },
+    'artifacts': {
+        'cert_path': '',
+        'key_path': '',
+        'fullchain_path': '',
+    },
+    'deployment_boundary': {
+        'writes_live_tls_paths': False,
+        'modifies_live_nginx': False,
+        'reloads_nginx': False,
+    },
+    'recovery': {
+        'recoverable': True,
+        'blocker_summary': env('EXECUTE_PLACEHOLDER_BLOCKER'),
+    },
+    'next_step': env('NEXT_STEP'),
+}
+
+Path(sys.argv[1]).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+}
+
+write_acme_issuance_result_markdown() {
+  local target_file="$1"
+  mkdir -p "$(dirname "$target_file")"
+  {
+    echo '# ACME ISSUANCE RESULT'
+    echo
+    echo '## 执行概览'
+    echo
+    echo '- 当前文件为 execute placeholder result，不代表已真实签发'
+    echo '- schema_kind：acme-issuance-result'
+    echo '- mode：execute'
+    echo "- final_status：$FINAL_STATUS"
+    echo "- run_id：$RUN_ID"
+    echo "- challenge_mode：$CHALLENGE_MODE"
+    echo "- acme_client：$ACME_CLIENT"
+    echo
+    echo '## 真实执行边界'
+    echo
+    echo '- client_invoked：false'
+    echo '- issued_certificate：false'
+    echo '- writes_live_tls_paths：false'
+    echo '- modifies_live_nginx：false'
+    echo '- reloads_nginx：false'
+    echo
+    echo '## Placeholder blocker'
+    echo
+    echo "- $EXECUTE_PLACEHOLDER_BLOCKER"
+    echo
+    echo '## 下一步建议'
+    echo
+    echo "- $NEXT_STEP"
+  } > "$target_file"
+}
+
+export MODE_LABEL FINAL_STATUS RUN_ID DEPLOYMENT_NAME BASE_DOMAIN DOMAIN_MODE PLATFORM TLS_MODE CHALLENGE_MODE WEBROOT_PATH ACME_CLIENT ACCOUNT_EMAIL USE_STAGING DNS_READY PORT_80_STATUS PORT_80_READY NEEDS_WEBROOT WEBROOT_READY WEBROOT_NOTE NEXT_STEP EXECUTE_PLACEHOLDER_BLOCKER FULFILLED_CHALLENGE_STRATEGY
 DERIVED_HOSTS_NL="$(printf '%s\n' "${DERIVED_HOSTS[@]}")"
 RESULT_BLOCKERS_NL="$(printf '%s\n' "${RESULT_BLOCKERS[@]:-}")"
 export DERIVED_HOSTS_NL RESULT_BLOCKERS_NL
 
 write_issue_result_markdown "$RESULT_FILE"
 write_issue_result_json "$RESULT_JSON_OUTPUT"
+if [[ "$EXECUTE" == "1" ]]; then
+  write_acme_issuance_result_markdown "$ACME_ISSUANCE_RESULT_FILE"
+  write_acme_issuance_result_json "$ACME_ISSUANCE_RESULT_JSON_PATH"
+  state_record_companion_result "acme_issuance" "$ACME_ISSUANCE_RESULT_FILE" "$ACME_ISSUANCE_RESULT_JSON_PATH" "$FINAL_STATUS" "acme issuance execute placeholder recorded" "acme_issuance"
+fi
 state_record_companion_result "issue" "$RESULT_FILE" "$RESULT_JSON_OUTPUT" "$FINAL_STATUS" "issue result recorded"
 
 cat <<EOF
@@ -403,7 +506,7 @@ cat <<EOF
 [issue-http01] 来源 state.json：$STATE_JSON
 [issue-http01] 结果摘要文件：$RESULT_FILE
 [issue-http01] 结果 JSON 文件：$RESULT_JSON_OUTPUT
-[issue-http01] DNS ready：$DNS_READY
+$(if [[ "$EXECUTE" == "1" ]]; then printf '%s\n%s\n' "[issue-http01] execute placeholder：$ACME_ISSUANCE_RESULT_FILE" "[issue-http01] execute placeholder JSON：$ACME_ISSUANCE_RESULT_JSON_PATH"; fi)[issue-http01] DNS ready：$DNS_READY
 [issue-http01] port 80 status：$PORT_80_STATUS
 [issue-http01] 最终状态：$FINAL_STATUS
 [issue-http01] 下一步：$NEXT_STEP
