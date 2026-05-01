@@ -214,6 +214,15 @@ bash tests/installer-doctor-golden.sh
 
 - `./acme-issue-http01.sh --state-json <state.json>`：默认只做 dry-run，只输出 HTTP-01 issue planning / evidence
 - `--execute` 当前**不会**真实签发；它会把本次结果明确落成 `blocked`，并写出“execute path not implemented / 当前仅为占位语义”的稳定 blocker + next step，避免被误读为已经尝试签发
+- `ISSUE-RESULT.{md,json}` 当前被刻意保留为 **planning / evidence-only contract**，后续真实签发结果不得复用它
+- 为 future real execute 预留的 companion contract 名称是：
+  - `ACME-ISSUANCE-RESULT.json`
+  - `ACME-ISSUANCE-RESULT.md`
+  - `schema_kind=acme-issuance-result`
+- 这样分叉是为了避免 operator / automation / resume logic 混淆：
+  - 当前 helper 的前置检查/计划结果
+  - `mode=execute` 的占位语义
+  - 未来真实 ACME issue 成功/失败/部分完成的执行结果
 - 关键参数至少包括：
   - `--state-json <path>`
   - `--dry-run`

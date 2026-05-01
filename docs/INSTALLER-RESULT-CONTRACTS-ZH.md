@@ -428,6 +428,8 @@
 
 `ISSUE-RESULT.json` 是 **`tls.mode=acme-http01` conservative issue helper 的 planning / evidence result**。
 
+> 这份 contract 是刻意收窄的：**永远只承载 planning / evidence / conservative helper 语义，不升级成真实签发执行结果。**
+
 它回答：
 
 - 这次 helper 是以 `dry-run` 还是 `execute` 标记运行
@@ -435,6 +437,7 @@
 - 当前打算采用什么 challenge 模式与 acme client
 - 当前阶段边界是否仍停留在“只出计划、不真实签发”
 - operator 下一步更像该补哪些前置条件，而不是把它误解成证书已签发
+- 如果未来要接通真实签发，应该把执行结果分叉到独立 companion contract，而不是复用这份文件
 
 ### 7.2 当前应稳定依赖的字段
 
@@ -442,6 +445,11 @@
 
 - `schema_kind`
 - `schema_version`
+- `contract_scope`
+- `reserved_execute_result.schema_kind`
+- `reserved_execute_result.artifact_json`
+- `reserved_execute_result.artifact_markdown`
+- `reserved_execute_result.status`
 - `mode`
 - `final_status`
 - `next_step`
@@ -486,8 +494,13 @@
 
 ### 7.3 当前最关键的机器/操作语义
 
-当前最该被读者抓住的不是 `execute` 这个词，而是 `phase_boundary.*` 这一组布尔字段：
+当前最该被读者抓住的不是 `execute` 这个词，而是 `phase_boundary.*` 这一组布尔字段，以及 contract 本身显式暴露的 fork 护栏：
 
+- `contract_scope=planning-evidence-only`
+- `reserved_execute_result.schema_kind=acme-issuance-result`
+- `reserved_execute_result.artifact_json=ACME-ISSUANCE-RESULT.json`
+- `reserved_execute_result.artifact_markdown=ACME-ISSUANCE-RESULT.md`
+- `reserved_execute_result.status=reserved-not-implemented`
 - `issues_certificate=false`
 - `installs_acme_client=false`
 - `modifies_live_nginx=false`
@@ -496,15 +509,21 @@
 
 也就是说：
 
-> `ISSUE-RESULT.json` 当前不是“签发成功记录”，而是“保守式 issue planning / evidence contract”。
+> `ISSUE-RESULT.json` 当前不是“签发成功记录”，而是“保守式 issue planning / evidence contract”；未来真实 execute 结果也**不得**继续复用它，而应独立落成 `ACME-ISSUANCE-RESULT.{md,json}` / `schema_kind=acme-issuance-result`。
 
 即便 helper 以 `--execute` 运行，当前也不会真实签发；相反，它应稳定表现为：
 
 - `final_status=blocked`
 - `blockers[]` 含清晰的 execute 占位边界说明（例如 `execute path not implemented: 当前 --execute 仅为占位语义，不会真实签发证书`）
-- `next_step` 明确指向“先设计/实现独立 execute 子路径”
+- `next_step` 明确指向“先设计/实现独立 execute 子路径，并把真实结果单独落成 `ACME-ISSUANCE-RESULT.{md,json}` companion contract”
 
-这样做是为了让 operator / 自动化 不会把 `mode=execute` 误读成“已经尝试签发”或“只差收尾”。
+这样做是为了让 operator / 自动化 / resume logic 不会把：
+
+- `mode=execute`
+- planning helper 的检查结果
+- 未来真实 ACME issue 成败
+
+混成同一个双义 artifact。
 
 ### 7.4 与 `state.json` / `INSTALLER-SUMMARY.json` / journal 的关系
 
@@ -529,7 +548,19 @@
 
 - 当前 `ISSUE-RESULT.json` 不参与 `resume` 的策略优先级判定
 - 当前也不应该被外部自动化当成“证书已签发 / 可直接部署”的依据
-- 真正的 ACME execute / renew / deploy lifecycle 若后续落地，建议新增更明确的执行结果字段或 companion result，而不是静默改写这份 Phase 2 first-cut contract 的含义
+- 为避免 operator / automation / resume logic 混淆“计划结果”和“真实签发结果”，未来真实 ACME execute / renew / deploy lifecycle **必须**走独立 companion contract：
+  - `schema_kind=acme-issuance-result`
+  - `ACME-ISSUANCE-RESULT.json`
+  - `ACME-ISSUANCE-RESULT.md`
+- 也就是说，后续若真正落地 execute：
+  - 可以新增 state/summary artifact 指针
+  - 可以新增 execute-specific 字段与结果状态
+  - **但不能静默把 `ISSUE-RESULT.json` 扩成同时表示 planning + real issuance 的双义契约**
+
+推荐这样分工：
+
+- `ISSUE-RESULT.json`：前置条件、检查、challenge 方案、保守边界、operator review
+- `ACME-ISSUANCE-RESULT.json`：真实签发尝试、challenge fulfillment、client execution、证书产物落盘、部署/回写边界、可恢复执行结果
 
 ---
 

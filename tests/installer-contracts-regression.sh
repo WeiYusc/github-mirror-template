@@ -252,6 +252,29 @@ if expected not in [str(item) for item in value]:
 PY
 }
 
+assert_json_path_missing() {
+  local path="$1"
+  local dotted="$2"
+  local label="$3"
+  python3 - "$path" "$dotted" "$label" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+dotted = sys.argv[2]
+label = sys.argv[3]
+obj = json.loads(path.read_text(encoding='utf-8'))
+value = obj
+parts = dotted.split('.')
+for idx, part in enumerate(parts):
+    if not isinstance(value, dict) or part not in value:
+        raise SystemExit(0)
+    value = value[part]
+raise SystemExit(f"[FAIL] {label}: unexpected path present: {dotted}")
+PY
+}
+
 assert_json_value_in_contract() {
   local path="$1"
   local dotted="$2"
@@ -420,10 +443,16 @@ check_acme_issue_http01_helper_contract() {
 
   assert_contract_file "$artifact_root/ISSUE-RESULT.json" "issue-result"
   assert_json_paths "$artifact_root/ISSUE-RESULT.json" "$run_id issue result stable paths" \
+    contract_scope reserved_execute_result.schema_kind reserved_execute_result.artifact_json reserved_execute_result.artifact_markdown reserved_execute_result.status \
     mode final_status context.run_id context.tls_mode request.challenge_mode request.acme_client request.staging \
     checks.derived_hosts checks.dns_points_to_local_ready checks.port_80_status checks.port_80_ready checks.needs_webroot \
     phase_boundary.issues_certificate phase_boundary.installs_acme_client phase_boundary.modifies_live_nginx phase_boundary.reloads_nginx phase_boundary.writes_tls_files \
     blockers next_step
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "contract_scope" "planning-evidence-only" "$run_id issue result contract scope"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "reserved_execute_result.schema_kind" "acme-issuance-result" "$run_id issue result reserved execute schema kind"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "reserved_execute_result.artifact_json" "ACME-ISSUANCE-RESULT.json" "$run_id issue result reserved execute artifact json"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "reserved_execute_result.artifact_markdown" "ACME-ISSUANCE-RESULT.md" "$run_id issue result reserved execute artifact markdown"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "reserved_execute_result.status" "reserved-not-implemented" "$run_id issue result reserved execute status"
   assert_json_value_in "$artifact_root/ISSUE-RESULT.json" "mode" "$run_id issue result mode enum" dry-run execute
   assert_json_value_in "$artifact_root/ISSUE-RESULT.json" "final_status" "$run_id issue result final status enum" needs-attention blocked ok
   assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "context.run_id" "$run_id" "$run_id issue result context run id"
@@ -456,7 +485,7 @@ check_acme_issue_http01_helper_execute_contract() {
   local run_root="$WORKDIR/runs/$run_id"
   local artifact_root="$WORKDIR/artifacts/$run_id"
   local execute_blocker="execute path not implemented: 当前 --execute 仅为占位语义，不会真实签发证书"
-  local execute_next_step="如需真实签发，请先设计并实现独立 execute 子路径（含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。"
+  local execute_next_step="如需真实签发，请先设计并实现独立 execute 子路径（落成 ACME-ISSUANCE-RESULT.{md,json} companion contract，含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。"
 
   bash "$ROOT_DIR/acme-issue-http01.sh" \
     --state-json "$run_root/state.json" \
@@ -466,6 +495,14 @@ check_acme_issue_http01_helper_execute_contract() {
     --staging >/dev/null
 
   assert_contract_file "$artifact_root/ISSUE-RESULT.json" "issue-result"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "contract_scope" "planning-evidence-only" "$run_id execute issue result contract scope stays planning only"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "reserved_execute_result.schema_kind" "acme-issuance-result" "$run_id execute issue result reserved execute schema kind"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "reserved_execute_result.artifact_json" "ACME-ISSUANCE-RESULT.json" "$run_id execute issue result reserved execute artifact json"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "reserved_execute_result.artifact_markdown" "ACME-ISSUANCE-RESULT.md" "$run_id execute issue result reserved execute artifact markdown"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "reserved_execute_result.status" "reserved-not-implemented" "$run_id execute issue result reserved execute status"
+  assert_json_path_missing "$artifact_root/ISSUE-RESULT.json" "issuance" "$run_id execute issue result must not drift into issuance payload"
+  assert_json_path_missing "$artifact_root/ISSUE-RESULT.json" "certificate" "$run_id execute issue result must not pretend certificate payload exists"
+  assert_json_path_missing "$artifact_root/ISSUE-RESULT.json" "deploy" "$run_id execute issue result must not pretend deploy payload exists"
   assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "mode" "execute" "$run_id execute issue result mode"
   assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "final_status" "blocked" "$run_id execute issue result final status"
   assert_json_array_contains "$artifact_root/ISSUE-RESULT.json" "blockers" "$execute_blocker" "$run_id execute issue result blockers carry execute placeholder boundary"

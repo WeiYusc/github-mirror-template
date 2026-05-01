@@ -571,6 +571,8 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
 - 派生域名、DNS 指向本机、80 端口、webroot 条件是否具备
 - 当前选定的 `challenge_mode` / `acme_client` / `staging` 参数是什么
 - 这次 helper 是否仍停留在“不真实签发、不改 live nginx、不写证书文件”的 Phase 2 保守边界
+- 当前 `ISSUE-RESULT.{md,json}` 是否仍保持 planning / evidence-only contract
+- 如果未来真做 execute，是否已经按独立 `ACME-ISSUANCE-RESULT.{md,json}` contract 分叉，而不是偷偷把 planning artifact 改成真实签发结果
 - operator 下一步更像该补前置条件、收口 execute 设计，还是重新审视 challenge 方案
 
 ### `INSTALLER-SUMMARY.json`
@@ -611,6 +613,11 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
 - `ISSUE-RESULT.json.final_status` 会明确落成 `blocked`
 - `blockers` 会稳定写出“execute path not implemented / 当前仅为占位语义，不会真实签发证书”的边界说明
 - `next_step` 会明确指向“先设计/实现独立 execute 子路径”，而不是暗示已经尝试签发
+- `ISSUE-RESULT.{md,json}` 会继续只表示 planning / evidence helper 结果，不承载未来真实签发成败
+- 真正的 future real execute 结果必须独立落成：
+  - `ACME-ISSUANCE-RESULT.json`
+  - `ACME-ISSUANCE-RESULT.md`
+  - `schema_kind=acme-issuance-result`
 - 不安装 acme client
 - 不真实签发证书
 - 不改 live nginx
@@ -618,6 +625,12 @@ cat scripts/generated/runs/<run_id>/journal.jsonl
 - 不写证书文件
 
 所以它当前解决的是“把 issue helper 的输入/检查/边界说清楚”，不是“把 ACME lifecycle 做完”。
+
+把 planning result 和 future execution result 拆开，主要是为了避免：
+
+- operator 把占位 `mode=execute` 误判成真实签发尝试
+- 自动化把 planning artifact 当成 deploy-ready 证据
+- 后续 resume / review 逻辑同时消费两类语义，导致双义 contract 漂移
 
 ### 误区 4：只看 `final` 就够了
 

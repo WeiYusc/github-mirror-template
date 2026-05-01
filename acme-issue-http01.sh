@@ -18,6 +18,8 @@ Usage:
 Current stage:
   - Default is dry-run
   - Conservative Phase 2 first cut for ACME HTTP-01 issue planning
+  - ISSUE-RESULT.{md,json} is reserved for planning / evidence only
+  - Future real execute result must use ACME-ISSUANCE-RESULT.{md,json}
   - Does NOT issue certificates yet
   - Does NOT install acme client
   - Does NOT modify live nginx
@@ -254,12 +256,12 @@ if [[ "$EXECUTE" == "1" ]]; then
   EXECUTE_PLACEHOLDER_BLOCKER="execute path not implemented: 当前 --execute 仅为占位语义，不会真实签发证书"
   RESULT_BLOCKERS+=("$EXECUTE_PLACEHOLDER_BLOCKER")
   FINAL_STATUS="blocked"
-  NEXT_STEP="如需真实签发，请先设计并实现独立 execute 子路径（含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。"
+  NEXT_STEP="如需真实签发，请先设计并实现独立 execute 子路径（落成 ACME-ISSUANCE-RESULT.{md,json} companion contract，含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。"
 else
   FINAL_STATUS="needs-attention"
-  NEXT_STEP="当前 helper 只输出保守式 issue 计划与契约；请先确认 challenge 路径、acme client 选择与证书落盘/接管边界，再决定是否实现真实 execute。"
+  NEXT_STEP="当前 helper 只输出保守式 issue 计划与契约；请先确认 challenge 路径、acme client 选择与证书落盘/接管边界，并把未来真实签发结果独立收敛到 ACME-ISSUANCE-RESULT.{md,json}，再决定是否实现真实 execute。"
   if [[ "$DNS_READY" == "true" && "$PORT_80_READY" == "true" ]]; then
-    NEXT_STEP="DNS 与 80 端口基础条件看起来已具备；下一步建议把真实签发执行收敛成显式 execute 子路径，并继续保持不默认 reload nginx。"
+    NEXT_STEP="DNS 与 80 端口基础条件看起来已具备；下一步建议把真实签发执行收敛成显式 execute 子路径，并把执行结果独立落成 ACME-ISSUANCE-RESULT.{md,json}，继续保持不默认 reload nginx。"
   fi
 fi
 
@@ -280,6 +282,13 @@ def env(name, default=''):
 payload = {
     'schema_kind': 'issue-result',
     'schema_version': 1,
+    'contract_scope': 'planning-evidence-only',
+    'reserved_execute_result': {
+        'schema_kind': 'acme-issuance-result',
+        'artifact_json': 'ACME-ISSUANCE-RESULT.json',
+        'artifact_markdown': 'ACME-ISSUANCE-RESULT.md',
+        'status': 'reserved-not-implemented',
+    },
     'mode': env('MODE_LABEL'),
     'final_status': env('FINAL_STATUS'),
     'context': {
@@ -355,6 +364,8 @@ write_issue_result_markdown() {
     echo
     echo '## 当前阶段边界'
     echo
+    echo '- ISSUE-RESULT.{md,json} 永远只承载 planning / evidence 语义'
+    echo '- 未来真实签发结果应独立落在 ACME-ISSUANCE-RESULT.{md,json}'
     echo '- 不真正申请证书'
     echo '- 不安装 acme client'
     echo '- 不改动 live nginx'
