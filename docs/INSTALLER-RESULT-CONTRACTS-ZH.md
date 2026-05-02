@@ -58,6 +58,8 @@
 ### 2.8 execute placeholder 结果容器 skeleton
 
 - `ACME-ISSUANCE-RESULT.json`（当前由 `acme-issue-http01.sh --execute` 额外产出 execute placeholder skeleton；仍不代表真实 ACME client execute）
+- `tests/fixtures/installer-contracts/template/artifacts/fixture-tls-acme-http01/ACME-ISSUANCE-RESULT.{json,md}`：固定的 placeholder 样本
+- `tests/fixtures/installer-contracts/template/artifacts/fixture-tls-acme-real-execute-attempt/ACME-ISSUANCE-RESULT.{json,md}`：固定的 synthetic non-placeholder future real execute attempt 样本，仅用于守住 contract / doctor / resume 边界，仍不代表真实签发已接通
 
 ---
 
@@ -83,6 +85,12 @@
 - `REPAIR-RESULT.json` → `repair-result`
 - `ROLLBACK-RESULT.json` → `rollback-result`
 - `ACME-ISSUANCE-RESULT.json` → `acme-issuance-result`（当前为 future execute 预留 skeleton kind）
+
+补充约定：
+
+- placeholder 样本必须显式带 `placeholder.is_placeholder=true`、`placeholder.placeholder_kind=conservative-execute-skeleton`、`intent.result_role=execute-placeholder`
+- synthetic future real execute attempt 样本必须显式带 `placeholder.is_placeholder=false`、`placeholder.placeholder_kind=future-real-execute`、`intent.result_role=real-execute-attempt`、`intent.real_execution_performed=true`、`execution.client_invoked=true`
+- `doctor` / `resume` 当前依赖这组显式字段区分“保守 placeholder”与“future real execute attempt”，而不是仅凭 `final_status=blocked` 之类宽条件推断
 
 ### 3.1 兼容原则
 
@@ -613,6 +621,13 @@
 - `final_status`
 - `next_step`
 
+`placeholder`：
+
+- `is_placeholder`
+- `placeholder_kind`
+- `review_required`
+- `source_of_truth`
+
 `planning_reference`：
 
 - `issue_result_json`
@@ -691,6 +706,7 @@
 - `schema_kind/schema_version`：让未来 companion result 能独立演进
 - `mode`：至少区分 `execute` 与未来可能存在的只读 replay / inspect 语义
 - `final_status`：表达真实 execute 结果，而不是 planning helper 的 `blocked` 占位含义
+- `placeholder.*`：显式钉住“当前文件是否仍只是 conservative execute placeholder”；未来 real execute 即使结果是 `blocked/failed/needs-attention`，也不应再靠状态值被误判回 placeholder
 - `planning_reference.*`：把 planning/evidence 的事实来源显式钉回 `ISSUE-RESULT.{md,json}`，避免后续实现把 review 语义偷偷塞回 execute result
 - `intent.*`：明确“用户请求的是 execute / issue-certificate”，但当前文件仍只是 placeholder，而不是已经发生过 client execution 的既成事实
 - `pending_execution_plan.*`：用机器可读字段表达这次 execute placeholder 准备采用的 host / challenge / client / directory / artifact/deploy handoff 意图，给未来真实 execute 子路径留下稳定扩展点
@@ -727,6 +743,12 @@
   "schema_version": 1,
   "mode": "execute",
   "final_status": "blocked",
+  "placeholder": {
+    "is_placeholder": true,
+    "placeholder_kind": "conservative-execute-skeleton",
+    "review_required": true,
+    "source_of_truth": "explicit-placeholder-marker"
+  },
   "planning_reference": {
     "issue_result_json": "ISSUE-RESULT.json",
     "issue_result_markdown": "ISSUE-RESULT.md",
@@ -799,6 +821,7 @@
 1. `ISSUE-RESULT.json` 继续只表示 planning / evidence / conservative boundary
 2. `ACME-ISSUANCE-RESULT.json` 才表示真实 execute / challenge fulfillment / artifact outcome
 3. 后续实现可以让两份结果互相引用，但**不能**把真实 execute 字段直接塞回 `ISSUE-RESULT.json`
+4. `inspect-after-acme-placeholder` 这类 review-first 语义，后续应优先由显式 `placeholder.is_placeholder=true` 一类 marker 驱动，而不是仅靠 `final_status=blocked` 之类宽条件猜测
 
 只要这三条不倒退，后续就还能在 execute / renew / deploy 方向安全扩展，而不会把 operator 语义、自动化输入和恢复逻辑搅成一团。
 

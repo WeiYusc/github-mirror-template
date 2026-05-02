@@ -4,7 +4,24 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATE_DIR="$ROOT_DIR/tests/fixtures/installer-contracts/template"
 WORKDIR="$(mktemp -d)"
+GENERATED_RUNS_BACKUP_DIR=""
 trap 'rm -rf "$WORKDIR"' EXIT
+
+swap_generated_runs() {
+  local src_runs="$1"
+  GENERATED_RUNS_BACKUP_DIR="$(mktemp -d "$ROOT_DIR/scripts/generated/runs.test-backup.XXXXXX")"
+  mv "$ROOT_DIR/scripts/generated/runs" "$GENERATED_RUNS_BACKUP_DIR/runs"
+  cp -a "$src_runs" "$ROOT_DIR/scripts/generated/runs"
+}
+
+restore_generated_runs() {
+  if [[ -n "$GENERATED_RUNS_BACKUP_DIR" && -d "$GENERATED_RUNS_BACKUP_DIR/runs" ]]; then
+    rm -rf "$ROOT_DIR/scripts/generated/runs"
+    mv "$GENERATED_RUNS_BACKUP_DIR/runs" "$ROOT_DIR/scripts/generated/runs"
+    rmdir "$GENERATED_RUNS_BACKUP_DIR" 2>/dev/null || true
+    GENERATED_RUNS_BACKUP_DIR=""
+  fi
+}
 
 materialize_fixtures() {
   python3 - "$TEMPLATE_DIR" "$WORKDIR" <<'PY'
@@ -511,6 +528,7 @@ check_acme_issue_http01_helper_execute_contract() {
   assert_contract_file "$artifact_root/ACME-ISSUANCE-RESULT.json" "acme-issuance-result"
   assert_json_paths "$artifact_root/ACME-ISSUANCE-RESULT.json" "$run_id execute placeholder stable paths" \
     mode final_status \
+    placeholder.is_placeholder placeholder.placeholder_kind placeholder.review_required placeholder.source_of_truth \
     planning_reference.issue_result_json planning_reference.issue_result_markdown planning_reference.contract_scope \
     intent.result_role intent.requested_operation intent.requested_mode intent.real_execution_performed \
     context.run_id context.tls_mode request.challenge_mode request.acme_client request.staging \
@@ -522,6 +540,12 @@ check_acme_issue_http01_helper_execute_contract() {
     recovery.recoverable recovery.blocker_summary next_step
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "mode" "execute" "$run_id execute placeholder mode"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "final_status" "blocked" "$run_id execute placeholder final status"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.is_placeholder" bool "$run_id execute placeholder marker bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.is_placeholder" "True" "$run_id execute placeholder marker true"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.placeholder_kind" "conservative-execute-skeleton" "$run_id execute placeholder kind"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.review_required" bool "$run_id execute placeholder review_required bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.review_required" "True" "$run_id execute placeholder review_required true"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.source_of_truth" "explicit-placeholder-marker" "$run_id execute placeholder source_of_truth"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "planning_reference.issue_result_json" "ISSUE-RESULT.json" "$run_id execute placeholder planning reference json"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "planning_reference.issue_result_markdown" "ISSUE-RESULT.md" "$run_id execute placeholder planning reference markdown"
   assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "planning_reference.contract_scope" "planning-evidence-only" "$run_id execute placeholder planning reference scope"
@@ -583,6 +607,53 @@ check_acme_issue_http01_helper_execute_contract() {
   assert_journal_event_path_equals_state_artifact "$run_id" "acme_issuance.result.recorded" "acme_issuance_result_json" "$run_id execute acme_issuance.result.recorded path points to acme_issuance_result_json"
 }
 
+check_fixture_tls_acme_real_execute_attempt_contract() {
+  local run_id="fixture-tls-acme-real-execute-attempt"
+  local run_root="$WORKDIR/runs/$run_id"
+  local artifact_root="$WORKDIR/artifacts/$run_id"
+  local next_step="当前样本仅用于守住 non-placeholder future real execute attempt 与 placeholder 的边界；后续若要真实签发，仍需独立实现 execute 子路径与更完整 strategy。"
+
+  assert_contract_file "$run_root/state.json" "installer-state"
+  assert_contract_file "$artifact_root/INSTALLER-SUMMARY.json" "installer-summary"
+  assert_contract_file "$artifact_root/ISSUE-RESULT.json" "issue-result"
+  assert_contract_file "$artifact_root/ACME-ISSUANCE-RESULT.json" "acme-issuance-result"
+
+  assert_json_value_equals "$run_root/state.json" "lineage.resume_strategy" "fresh" "$run_id state resume strategy stays fresh"
+  assert_json_value_equals "$run_root/state.json" "status.final" "needs-attention" "$run_id state final status"
+  assert_json_value_equals "$run_root/state.json" "artifacts.issue_result_json" "$artifact_root/ISSUE-RESULT.json" "$run_id state issue result snapshot"
+  assert_json_value_equals "$run_root/state.json" "artifacts.acme_issuance_result_json" "$artifact_root/ACME-ISSUANCE-RESULT.json" "$run_id state acme issuance snapshot"
+
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "contract_scope" "planning-evidence-only" "$run_id issue result remains planning-only"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "reserved_execute_result.artifact_json" "ACME-ISSUANCE-RESULT.json" "$run_id issue result reserved companion json"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "mode" "execute" "$run_id issue result mode"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "final_status" "blocked" "$run_id issue result final status"
+  assert_json_array_contains "$artifact_root/ISSUE-RESULT.json" "blockers" "execute path not implemented: 当前 --execute 仅为占位语义，不会真实签发证书" "$run_id issue result keeps execute-path-not-implemented blocker"
+  assert_json_value_equals "$artifact_root/ISSUE-RESULT.json" "next_step" "当前 run 附带 synthetic non-placeholder ACME companion result，仅用于验证 future real execute attempt 不会被误判为 placeholder。" "$run_id issue result next_step documents synthetic boundary"
+
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "mode" "execute" "$run_id acme issuance mode"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "final_status" "blocked" "$run_id acme issuance final status"
+  assert_json_value_type "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.is_placeholder" bool "$run_id placeholder marker bool"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.is_placeholder" "False" "$run_id placeholder marker false"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.placeholder_kind" "future-real-execute" "$run_id placeholder kind"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.review_required" "False" "$run_id placeholder review_required false"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "placeholder.source_of_truth" "synthetic-real-execute-attempt" "$run_id placeholder source_of_truth"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "intent.result_role" "real-execute-attempt" "$run_id intent result_role"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "intent.real_execution_performed" "True" "$run_id intent real execution performed"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.client_invoked" "True" "$run_id execution client_invoked"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.issued_certificate" "False" "$run_id execution issued_certificate false"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.fulfilled_challenge_strategy" "standalone-synthetic-attempt" "$run_id execution challenge strategy"
+  assert_json_array_contains "$artifact_root/ACME-ISSUANCE-RESULT.json" "pending_execution_plan.planned_target_hosts" "github.example.com" "$run_id planned target hosts include github.example.com"
+  assert_json_array_contains "$artifact_root/ACME-ISSUANCE-RESULT.json" "execution.attempted_hosts" "github.example.com" "$run_id attempted hosts include github.example.com"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.writes_live_tls_paths" "False" "$run_id tls boundary false"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.modifies_live_nginx" "False" "$run_id nginx boundary false"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "deployment_boundary.reloads_nginx" "False" "$run_id reload boundary false"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "recovery.recoverable" "True" "$run_id recovery recoverable"
+  assert_json_value_equals "$artifact_root/ACME-ISSUANCE-RESULT.json" "next_step" "$next_step" "$run_id acme issuance next_step"
+
+  assert_journal_event_path_equals_state_artifact "$run_id" "issue.result.recorded" "issue_result_json" "$run_id issue.result.recorded path points to issue_result_json"
+  assert_journal_event_path_equals_state_artifact "$run_id" "acme_issuance.result.recorded" "acme_issuance_result_json" "$run_id acme_issuance.result.recorded path points to acme_issuance_result_json"
+}
+
 check_acme_issuance_result_doc_contract_guard() {
   local contracts_doc="$ROOT_DIR/docs/INSTALLER-RESULT-CONTRACTS-ZH.md"
 
@@ -600,6 +671,11 @@ required = [
     "- `schema_version`",
     "- `mode`",
     "- `final_status`",
+    "`placeholder`：",
+    "- `is_placeholder`",
+    "- `placeholder_kind`",
+    "- `review_required`",
+    "- `source_of_truth`",
     "`planning_reference`：",
     "- `issue_result_json`",
     "- `issue_result_markdown`",
@@ -838,6 +914,7 @@ check_tls_plan_artifact_contract "fixture-tls-acme-http01" "acme-http01"
 check_tls_plan_artifact_contract "fixture-tls-acme-dns-cloudflare" "acme-dns-cloudflare"
 check_acme_issue_http01_helper_contract
 check_acme_issue_http01_helper_execute_contract
+check_fixture_tls_acme_real_execute_attempt_contract
 check_acme_issuance_result_doc_contract_guard
 
 check_fixture_journal_path_contract "fixture-legacy-fallback"
@@ -1158,6 +1235,9 @@ assert_contains "$doctor_acme_placeholder_output" "- mode: execute" "acme placeh
 assert_contains "$doctor_acme_placeholder_output" "- final_status: blocked" "acme placeholder doctor prints blocked final status"
 assert_contains "$doctor_acme_placeholder_output" "- intent.result_role: execute-placeholder" "acme placeholder doctor prints result role"
 assert_contains "$doctor_acme_placeholder_output" "- intent.real_execution_performed: False" "acme placeholder doctor prints real execution false"
+assert_contains "$doctor_acme_placeholder_output" "- placeholder.is_placeholder: True" "acme placeholder doctor prints placeholder marker"
+assert_contains "$doctor_acme_placeholder_output" "- placeholder.placeholder_kind: conservative-execute-skeleton" "acme placeholder doctor prints placeholder kind"
+assert_contains "$doctor_acme_placeholder_output" "- placeholder.review_required: True" "acme placeholder doctor prints placeholder review_required"
 assert_contains "$doctor_acme_placeholder_output" "- request.challenge_mode: standalone" "acme placeholder doctor prints challenge mode"
 assert_contains "$doctor_acme_placeholder_output" "- request.acme_client: manual" "acme placeholder doctor prints acme client"
 assert_contains "$doctor_acme_placeholder_output" "- request.staging: True" "acme placeholder doctor prints staging flag"
@@ -1357,9 +1437,8 @@ state_load_resume_context "fixture-inspect-after-apply-attention"
 INSPECT_AFTER_APPLY_RESUME_RECOMMENDED_BOOL="$(bool_01_to_python_bool_text "$RESUME_SOURCE_APPLY_RESUME_RECOMMENDED")"
 INSPECT_AFTER_APPLY_RECOVERY_STATUS="$RESUME_SOURCE_APPLY_RECOVERY_STATUS"
 
-mv "$ROOT_DIR/scripts/generated/runs" "$ROOT_DIR/scripts/generated/runs.test-backup"
-cp -a "$WORKDIR/runs" "$ROOT_DIR/scripts/generated/runs"
-trap 'rm -rf "$ROOT_DIR/scripts/generated/runs"; mv "$ROOT_DIR/scripts/generated/runs.test-backup" "$ROOT_DIR/scripts/generated/runs"; rm -rf "$WORKDIR"' EXIT
+swap_generated_runs "$WORKDIR/runs"
+trap 'restore_generated_runs; rm -rf "$WORKDIR"' EXIT
 set +e
 inspect_after_apply_execute_output="$(bash "$ROOT_DIR/install-interactive.sh" --resume fixture-inspect-after-apply-attention --execute-apply --yes 2>&1)"
 inspect_after_apply_execute_rc=$?
@@ -1367,13 +1446,11 @@ set -e
 assert_equals "$inspect_after_apply_execute_rc" "2" "inspect-after-apply attention resume rejects explicit execute apply"
 assert_contains "$inspect_after_apply_execute_output" "当前 resume 策略 inspect-after-apply-attention 不允许直接执行真实 apply" "inspect-after-apply attention execute refusal prints strategy-specific block"
 assert_contains "$inspect_after_apply_execute_output" "这类 inspection-first 续接（包括 inspect-after-apply-attention / inspect-after-acme-placeholder / repair-review-first / post-repair-verification / post-rollback-inspection）必须先按 doctor / repair / rollback 结论完成复查。" "inspect-after-apply attention execute refusal explains inspection-first strategy family"
-rm -rf "$ROOT_DIR/scripts/generated/runs"
-mv "$ROOT_DIR/scripts/generated/runs.test-backup" "$ROOT_DIR/scripts/generated/runs"
+restore_generated_runs
 trap 'rm -rf "$WORKDIR"' EXIT
 
-mv "$ROOT_DIR/scripts/generated/runs" "$ROOT_DIR/scripts/generated/runs.test-backup"
-cp -a "$WORKDIR/runs" "$ROOT_DIR/scripts/generated/runs"
-trap 'rm -rf "$ROOT_DIR/scripts/generated/runs"; mv "$ROOT_DIR/scripts/generated/runs.test-backup" "$ROOT_DIR/scripts/generated/runs"; rm -rf "$WORKDIR"' EXIT
+swap_generated_runs "$WORKDIR/runs"
+trap 'restore_generated_runs; rm -rf "$WORKDIR"' EXIT
 set +e
 inspect_after_acme_execute_output="$(bash "$ROOT_DIR/install-interactive.sh" --resume fixture-tls-acme-http01 --execute-apply --yes 2>&1)"
 inspect_after_acme_execute_rc=$?
@@ -1382,8 +1459,13 @@ assert_equals "$inspect_after_acme_execute_rc" "2" "inspect-after-acme placehold
 assert_contains "$inspect_after_acme_execute_output" "当前 resume 策略 inspect-after-acme-placeholder 不允许直接执行真实 apply" "inspect-after-acme placeholder execute refusal prints strategy-specific block"
 assert_contains "$inspect_after_acme_execute_output" "这类 inspection-first 续接（包括 inspect-after-apply-attention / inspect-after-acme-placeholder / repair-review-first / post-repair-verification / post-rollback-inspection）必须先按 doctor / repair / rollback 结论完成复查。" "inspect-after-acme placeholder execute refusal explains inspection-first strategy family"
 assert_contains "$inspect_after_acme_execute_output" "源运行的 ACME companion result 仍是 execute-placeholder / blocked 保守边界；当前会进入 inspect-after-acme-placeholder / review-first 续接，不会继承真实签发 / 证书落盘 / nginx 部署执行意图。" "inspect-after-acme placeholder resume warning is explicit"
-rm -rf "$ROOT_DIR/scripts/generated/runs"
-mv "$ROOT_DIR/scripts/generated/runs.test-backup" "$ROOT_DIR/scripts/generated/runs"
+
+swap_generated_runs "$WORKDIR/runs"
+trap 'restore_generated_runs; rm -rf "$WORKDIR"' EXIT
+non_placeholder_blocked_resume_output="$(bash "$ROOT_DIR/install-interactive.sh" --resume fixture-tls-acme-real-execute-attempt --yes 2>&1)"
+assert_not_contains "$non_placeholder_blocked_resume_output" "当前 resume 策略：inspect-after-acme-placeholder。" "future real execute blocked fixture must not be reclassified as acme placeholder strategy"
+assert_not_contains "$non_placeholder_blocked_resume_output" "源运行的 ACME companion result 仍是 execute-placeholder / blocked 保守边界；当前会进入 inspect-after-acme-placeholder / review-first 续接，不会继承真实签发 / 证书落盘 / nginx 部署执行意图。" "future real execute blocked fixture must not print placeholder warning"
+restore_generated_runs
 trap 'rm -rf "$WORKDIR"' EXIT
 
 doctor_missing_source_output="$(state_doctor "fixture-missing-source-state")"

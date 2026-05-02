@@ -413,6 +413,12 @@ payload = {
     'schema_version': 1,
     'mode': 'execute',
     'final_status': env('FINAL_STATUS'),
+    'placeholder': {
+        'is_placeholder': True,
+        'placeholder_kind': 'conservative-execute-skeleton',
+        'review_required': True,
+        'source_of_truth': 'explicit-placeholder-marker',
+    },
     'planning_reference': {
         'issue_result_json': 'ISSUE-RESULT.json',
         'issue_result_markdown': 'ISSUE-RESULT.md',
@@ -490,6 +496,10 @@ write_acme_issuance_result_markdown() {
     echo '## 执行概览'
     echo
     echo '- 当前文件为 execute placeholder result，不代表已真实签发'
+    echo '- placeholder.is_placeholder：true'
+    echo '- placeholder.placeholder_kind：conservative-execute-skeleton'
+    echo '- placeholder.review_required：true'
+    echo '- placeholder.source_of_truth：explicit-placeholder-marker'
     echo '- schema_kind：acme-issuance-result'
     echo '- mode：execute'
     echo "- final_status：$FINAL_STATUS"

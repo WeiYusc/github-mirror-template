@@ -402,11 +402,19 @@ acme_execution = ensure_dict(acme_issuance_result.get("execution"))
 
 
 def acme_placeholder_requires_review(result: dict, intent: dict, execution: dict) -> bool:
-    return bool(result) and (
-        intent.get("result_role", "") == "execute-placeholder"
-        or not jsonish_bool(intent.get("real_execution_performed", True))
-        or result.get("final_status", "") == "blocked"
-        or not jsonish_bool(execution.get("client_invoked", True))
+    result = ensure_dict(result)
+    placeholder = ensure_dict(result.get("placeholder"))
+    intent = ensure_dict(intent)
+    execution = ensure_dict(execution)
+    if not result:
+        return False
+    return (
+        jsonish_bool(placeholder.get("is_placeholder", False))
+        and placeholder.get("placeholder_kind", "") == "conservative-execute-skeleton"
+        and jsonish_bool(placeholder.get("review_required", True))
+        and intent.get("result_role", "") == "execute-placeholder"
+        and not jsonish_bool(intent.get("real_execution_performed", True))
+        and not jsonish_bool(execution.get("client_invoked", True))
     )
 
 
@@ -1252,11 +1260,14 @@ def acme_placeholder_requires_review(result: dict, intent: dict, execution: dict
     result = ensure_dict(result)
     intent = ensure_dict(intent)
     execution = ensure_dict(execution)
+    placeholder = ensure_dict(result.get("placeholder"))
     return bool(result) and (
-        intent.get("result_role", "") == "execute-placeholder"
-        or not jsonish_bool(intent.get("real_execution_performed", True))
-        or result.get("final_status", "") == "blocked"
-        or not jsonish_bool(execution.get("client_invoked", True))
+        jsonish_bool(placeholder.get("is_placeholder", False))
+        and placeholder.get("placeholder_kind", "") == "conservative-execute-skeleton"
+        and jsonish_bool(placeholder.get("review_required", True))
+        and intent.get("result_role", "") == "execute-placeholder"
+        and not jsonish_bool(intent.get("real_execution_performed", True))
+        and not jsonish_bool(execution.get("client_invoked", True))
     )
 
 
@@ -1693,9 +1704,14 @@ def print_acme_issuance_result_summary(acme_issuance_result: dict, acme_issuance
     print(f"- mode: {acme_issuance_result.get('mode', '')}")
     print(f"- final_status: {acme_issuance_result.get('final_status', '')}")
     intent = ensure_dict(acme_issuance_result.get("intent"))
+    placeholder = ensure_dict(acme_issuance_result.get("placeholder"))
     if intent:
         print(f"- intent.result_role: {intent.get('result_role', '')}")
         print(f"- intent.real_execution_performed: {intent.get('real_execution_performed', False)}")
+    if placeholder:
+        print(f"- placeholder.is_placeholder: {placeholder.get('is_placeholder', False)}")
+        print(f"- placeholder.placeholder_kind: {placeholder.get('placeholder_kind', '')}")
+        print(f"- placeholder.review_required: {placeholder.get('review_required', False)}")
     request = ensure_dict(acme_issuance_result.get("request"))
     if request:
         print(f"- request.challenge_mode: {request.get('challenge_mode', '')}")

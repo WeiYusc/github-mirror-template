@@ -16,6 +16,7 @@ RUN_IDS=(
   fixture-inspect-after-apply-attention
   fixture-missing-source-state
   fixture-tls-acme-http01
+  fixture-tls-acme-real-execute-attempt
 )
 
 materialize_fixtures() {
@@ -91,6 +92,9 @@ keep_prefixes = (
     "- recovery.operator_action:",
     "- intent.result_role:",
     "- intent.real_execution_performed:",
+    "- placeholder.is_placeholder:",
+    "- placeholder.placeholder_kind:",
+    "- placeholder.review_required:",
     "- request.challenge_mode:",
     "- request.acme_client:",
     "- request.staging:",

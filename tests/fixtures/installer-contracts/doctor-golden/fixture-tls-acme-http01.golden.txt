@@ -22,6 +22,9 @@
 - final_status: blocked
 - intent.result_role: execute-placeholder
 - intent.real_execution_performed: False
+- placeholder.is_placeholder: True
+- placeholder.placeholder_kind: conservative-execute-skeleton
+- placeholder.review_required: True
 - request.challenge_mode: standalone
 - request.acme_client: manual
 - request.staging: True

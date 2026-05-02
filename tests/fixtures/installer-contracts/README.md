@@ -240,6 +240,35 @@
 - inspection-first fixture 的 companion result recorded 事件仍明确回到 companion result，而不是漂到 generic summary 或祖先产物
 - `run.initialized → state_dir`、`run.complete → summary_output`、阶段 recorded/execute 事件 → 对应 result json 的关系，始终与 `docs/INSTALLER-STATE-MODEL-ZH.md` 保持一致
 
+### 14. `fixture-tls-acme-http01` vs `fixture-tls-acme-real-execute-attempt`
+
+这两个样本专门一起钉住 ACME execute companion result 的边界，但语义完全不同：
+
+- `fixture-tls-acme-http01`
+  - 来自当前 helper `--execute` 的**显式 placeholder** 结果
+  - `placeholder.is_placeholder=true`
+  - `placeholder.placeholder_kind=conservative-execute-skeleton`
+  - `placeholder.review_required=true`
+  - `intent.result_role=execute-placeholder`
+  - `intent.real_execution_performed=false`
+  - `execution.client_invoked=false`
+  - resume / doctor 可以进入 `inspect-after-acme-placeholder` 这一套 review-first 语义
+- `fixture-tls-acme-real-execute-attempt`
+  - 是仓库内正式维护的 **synthetic non-placeholder future real execute attempt** 样本
+  - `placeholder.is_placeholder=false`
+  - `placeholder.placeholder_kind=future-real-execute`
+  - `placeholder.review_required=false`
+  - `intent.result_role=real-execute-attempt`
+  - `intent.real_execution_performed=true`
+  - `execution.client_invoked=true`
+  - 仅用于守住「future real execute attempt 不会被误判成 placeholder」的 contract / doctor / resume 边界；**不代表真实 ACME client 已接通**
+
+用于验证：
+
+- doctor 读取正式 non-placeholder 样本时，不会落回 `inspect-after-acme-placeholder` / `review-first` 那套语义
+- regression 不再依赖临时 python mutation 改写 `ACME-ISSUANCE-RESULT.json`，而是直接消费正式 fixture
+- placeholder 与 future real execute attempt 的区分继续只由 companion result 的显式字段决定，而不是由文件名或 `final_status=blocked` 之类外围现象猜测
+
 ### 15. JSON 合法但路径/产物漂移（path drift / artifact drift）的保守降级
 
 这组场景里，JSON 结构、字段类型和值域都可能是合法的，但**artifact 路径本身漂了**，或只剩半套结果文件：

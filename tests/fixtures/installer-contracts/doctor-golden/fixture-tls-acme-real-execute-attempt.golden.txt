@@ -1,0 +1,56 @@
+[doctor] 运行摘要
+- run_id: fixture-tls-acme-real-execute-attempt
+- checkpoint: completed
+- resumed_from: 无
+- current_run_alerts: final=needs-attention
+- current_run_priority_artifact: __FIXTURE_ROOT__/artifacts/fixture-tls-acme-real-execute-attempt/APPLY-PLAN.json [generic-artifact]
+- current_run_priority_note: 已为最近异常祖先选出一个最相关的现有产物。
+- lineage.mode: new
+- lineage.is_resumed_run: False
+- lineage.source_run_id: 无
+- lineage.source_checkpoint: 无
+- lineage.source_resumed_from: 无
+- lineage.resume_strategy: fresh
+- lineage.resume_strategy_reason: new-run
+[doctor] lineage 摘要
+- 这不是 resumed run；当前运行没有接续历史 run 的 lineage。
+[doctor] 当前 run 异常摘要
+- 当前 run 存在异常状态：final=needs-attention
+- 优先查看产物：__FIXTURE_ROOT__/artifacts/fixture-tls-acme-real-execute-attempt/APPLY-PLAN.json [generic-artifact]
+- 说明：已为最近异常祖先选出一个最相关的现有产物。
+[doctor] 状态
+- apply_execute: skipped
+- repair:
+- rollback:
+- final: needs-attention
+[doctor] acme issuance result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-tls-acme-real-execute-attempt/ACME-ISSUANCE-RESULT.json
+- mode: execute
+- final_status: blocked
+- intent.result_role: real-execute-attempt
+- intent.real_execution_performed: True
+- placeholder.is_placeholder: False
+- placeholder.placeholder_kind: future-real-execute
+- placeholder.review_required: False
+- request.challenge_mode: standalone
+- request.acme_client: manual
+- request.staging: True
+- pending_execution_plan.planned_target_hosts: github.example.com, raw.example.com, gist.example.com, assets.example.com, archive.example.com, download.example.com
+- pending_execution_plan.planned_challenge_mode: standalone
+- pending_execution_plan.planned_challenge_fulfillment: standalone
+- pending_execution_plan.planned_acme_client: manual
+- pending_execution_plan.planned_acme_directory: staging
+- execution.client_invoked: True
+- execution.issued_certificate: False
+- deployment_boundary.writes_live_tls_paths: False
+- deployment_boundary.modifies_live_nginx: False
+- deployment_boundary.reloads_nginx: False
+- operator_prerequisites.pending: review_issue_result_before_execute, implement_real_execute_path, confirm_challenge_fulfillment_path, confirm_certificate_write_target, confirm_deployment_boundary
+- next_step: 当前样本仅用于守住 non-placeholder future real execute attempt 与 placeholder 的边界；后续若要真实签发，仍需独立实现 execute 子路径与更完整 strategy。
+[doctor] journal
+- entries: 4
+- last_event: run.complete [needs-attention]
+- last_message: synthetic future real execute attempt fixture completed
+[doctor] 下一步建议
+- 当前样本仅用于守住 non-placeholder future real execute attempt 与 placeholder 的边界；后续若要真实签发，仍需独立实现 execute 子路径与更完整 strategy。
+- 输入快照可用于 resume：__FIXTURE_ROOT__/runs/fixture-tls-acme-real-execute-attempt/inputs.env
