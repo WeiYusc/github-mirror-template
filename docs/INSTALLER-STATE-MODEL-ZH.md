@@ -691,14 +691,15 @@ APPLY-RESULT.json.recovery.installer_status
 
 当前策略选择顺序大致是：
 
-1. 若源 run 已执行 rollback 且成功 → `post-rollback-inspection`
-2. 若源 run 的 repair 已重跑 `nginx -t` 且通过 → `post-repair-verification`
-3. 若源 run repair 仍是 `needs-attention` / `blocked` → `repair-review-first`
-4. 若源 run apply 明确 `resume_recommended != 1` → `inspect-after-apply-attention`
-5. 若可复用 apply plan → `reuse-apply-plan`
-6. 若可复用 generator 输出 → `reuse-generated-output`
-7. 若可复用 preflight/config → `reuse-preflight`
-8. 否则 → `re-enter-from-inputs`
+1. 若源 run 的 `ACME-ISSUANCE-RESULT.json` 明确仍停在 `execute-placeholder / blocked` 保守边界 → `inspect-after-acme-placeholder`
+2. 若源 run 已执行 rollback 且成功 → `post-rollback-inspection`
+3. 若源 run 的 repair 已重跑 `nginx -t` 且通过 → `post-repair-verification`
+4. 若源 run repair 仍是 `needs-attention` / `blocked` → `repair-review-first`
+5. 若源 run apply 明确 `resume_recommended != 1` → `inspect-after-apply-attention`
+6. 若可复用 apply plan → `reuse-apply-plan`
+7. 若可复用 generator 输出 → `reuse-generated-output`
+8. 若可复用 preflight/config → `reuse-preflight`
+9. 否则 → `re-enter-from-inputs`
 
 这也是 `lineage.resume_strategy` 和 `lineage.resume_strategy_reason` 的来源。
 
@@ -706,8 +707,9 @@ APPLY-RESULT.json.recovery.installer_status
 
 ### 8.4 当前哪些 strategy 禁止直接 execute
 
-`resume_strategy_allows_execute()` 当前明确禁止这 4 类策略直接进入真实 apply：
+`resume_strategy_allows_execute()` 当前明确禁止这 5 类策略直接进入真实 apply：
 
+- `inspect-after-acme-placeholder`
 - `post-rollback-inspection`
 - `post-repair-verification`
 - `repair-review-first`
@@ -735,6 +737,7 @@ installer 会直接拒绝，而不是默默降级。
 
 | strategy | 触发来源 | 默认动作 | 是否允许 `--run-apply-dry-run` | 是否允许 `--execute-apply` | 预期当前 run-local artifacts | 可继续复用的 artifacts / 上下文 |
 | --- | --- | --- | --- | --- | --- | --- |
+| `inspect-after-acme-placeholder` | `ACME-ISSUANCE-RESULT.json` 仍是 `execute-placeholder / blocked`，且未发生真实签发 / 证书落盘 / 部署执行 | 进入 ACME placeholder 复查；优先看 ACME companion result / issue result / doctor，不把 resume 当真实签发或真实 apply 续跑 | 允许 | 不允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | `ACME-ISSUANCE-RESULT.json`、`ISSUE-RESULT.json`、必要时 `APPLY-RESULT.json` / `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` |
 | `inspect-after-apply-attention` | `APPLY-RESULT.json.recovery.resume_recommended != 1` | 进入 apply attention 复查；优先看 apply result / doctor，不把 resume 当 execute 重放 | 允许 | 不允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | `APPLY-RESULT.json`、`INSTALLER-SUMMARY.json`、必要时 `REPAIR-RESULT.json` / `ROLLBACK-RESULT.json` |
 | `repair-review-first` | repair 结果仍是 `needs-attention` / `blocked` | 先复核 repair 诊断是否收口，再决定人工处理或新开 run | 允许 | 不允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | `REPAIR-RESULT.json`、相关 `APPLY-RESULT.json`、必要时 rollback 结果 |
 | `post-repair-verification` | repair 已重跑 `nginx -t` 且通过 | 先验证“修好后的现场”是否稳定，而不是继续 apply | 允许 | 不允许 | `inputs.env`、`deploy.generated.yaml`、`preflight.generated.*`、`INSTALLER-SUMMARY.generated.json` | `REPAIR-RESULT.json`、相关 `APPLY-RESULT.json`、已有 output 内 plan/result |
@@ -751,7 +754,7 @@ installer 会直接拒绝，而不是默默降级。
 
 这也解释了为什么 inspection-first / review-first 看上去“复用了很多东西”，但当前 run 仍然会有自己独立的 state/journal/config/preflight/generated summary 快照。
 
-可以把 inspection-first 那 4 类再统一记成：
+可以把 inspection-first 那 5 类再统一记成：
 
 > 先 doctor / 看 companion result / 做人工复查；可 dry-run，但不默认继续真实 apply。
 

@@ -127,16 +127,26 @@
 - `ROLLBACK-RESULT.json.mode`
 - `ROLLBACK-RESULT.json.flags.execute`
 - `ROLLBACK-RESULT.json.next_step`
+- `ACME-ISSUANCE-RESULT.json.mode`
+- `ACME-ISSUANCE-RESULT.json.final_status`
+- `ACME-ISSUANCE-RESULT.json.intent.*`
+- `ACME-ISSUANCE-RESULT.json.execution.*`
+- `ACME-ISSUANCE-RESULT.json.next_step`
 
-当前 `ISSUE-RESULT.json` **不会**驱动 `resume` 策略决策。它的职责更窄：
+当前 `ISSUE-RESULT.json` **不会直接**驱动 `resume` 策略决策。它的职责更窄：
 
 - 为 `tls.mode=acme-http01` 的 conservative helper 提供独立的 planning / evidence contract
 - 把 HTTP-01 issue 尝试的模式、检查结果、阶段边界与 operator 下一步建议落成 companion result
 - 让 `state.json` / `INSTALLER-SUMMARY.json` / `journal.jsonl` 能稳定回指这份结果
 
-所以当前结论很明确：
+但与此同时，当前实现已经开始消费 `ACME-ISSUANCE-RESULT.json` 这份 future execute companion result 的 placeholder / intent / execution 事实，用来推导：
 
-> `resume` 不是只看 `state.json`，而是已经把 apply/repair/rollback companion result 视为正式输入的一部分；而 `ISSUE-RESULT.json` 当前主要服务于 operator review / contract 对齐，不代表已经接通真实 ACME lifecycle。
+- 当前是否仍应停在 `inspect-after-acme-placeholder`
+- 是否必须保持 inspection-first / review-first 续接，而不能直接继承真实签发 / 真实 apply 意图
+
+所以当前结论更准确地说是：
+
+> `resume` 不是只看 `state.json`，而是已经把 apply/repair/rollback companion result 视为正式输入的一部分；同时对 ACME execute placeholder，也会消费 `ACME-ISSUANCE-RESULT.json` 的稳定事实字段来推导保守恢复语义。`ISSUE-RESULT.json` 当前仍主要服务于 operator review / planning evidence，不直接承担 resume strategy 真相源角色。
 
 ### 4.3 `doctor` 当前的主消费面
 
@@ -153,9 +163,10 @@
 
 ### 4.4 inspection-first 策略的字段消费顺序
 
-当 `resume` / `doctor` 面对 inspection-first 四类策略时，当前更可靠的消费顺序不是“只看某一个 final/status 字段”，而是：
+当 `resume` / `doctor` 面对 inspection-first 五类策略时，当前更可靠的消费顺序不是“只看某一个 final/status 字段”，而是：
 
 1. 先看 **当前可解析到的 companion/apply 结果** 是否已经足以重新推导 effective strategy
+   - `ACME-ISSUANCE-RESULT.json.mode=execute && final_status=blocked && intent.result_role=execute-placeholder && intent.real_execution_performed=false` → `inspect-after-acme-placeholder`
    - `ROLLBACK-RESULT.json.mode=execute && final_status=ok` → `post-rollback-inspection`
    - `REPAIR-RESULT.json.execution.nginx_test_rerun_status=passed` → `post-repair-verification`
    - `REPAIR-RESULT.json.final_status in {needs-attention, blocked}` → `repair-review-first`
@@ -164,7 +175,8 @@
 3. 然后再看 `APPLY-RESULT.json.recovery.resume_strategy` / `resume_recommended` / `operator_action`
 4. 若已有 repair 结果，则优先看 `REPAIR-RESULT.json.final_status` 与 `execution.nginx_test_rerun_status`
 5. 若已有 rollback 结果，则优先看 `ROLLBACK-RESULT.json.final_status`、`mode`、`flags.execute`
-6. 最后才把 `next_step` 当成人类说明补充，而不是唯一机器判定来源
+6. 若已有 ACME execute placeholder 结果，则优先看 `ACME-ISSUANCE-RESULT.json.intent.*`、`execution.*`、`next_step`
+7. 最后才把 `next_step` 当成人类说明补充，而不是唯一机器判定来源
 
 也就是说：
 
@@ -1185,7 +1197,7 @@
 
 ### 11.4 inspection-first 场景下不要过度绑定的内容
 
-对 inspection-first 四类策略，当前尤其不要把下面这些内容当成唯一真相源：
+对 inspection-first 五类策略，当前尤其不要把下面这些内容当成唯一真相源：
 
 - 只看 `state.status.final`
 - 只看 `state.status.repair` / `state.status.rollback`

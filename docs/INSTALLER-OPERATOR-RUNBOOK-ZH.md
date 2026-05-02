@@ -36,6 +36,12 @@
 - 不要跳过检查直接继续生产动作
 - 先基于 run 产物做判断，再决定是否 `--resume`、人工修复、或重新跑一轮
 
+另外，从 resume / doctor 的恢复策略视角看，当前还需要额外记住一件事：
+
+- inspection-first / review-first 续接不再只有原来的 4 类；现在还多了一类 `inspect-after-acme-placeholder`
+- 它不是新的 `status.final`，而是针对 ACME execute placeholder companion result 的**保守恢复语义**
+- 也就是说，当前 run 可能仍是 `blocked` / `needs-attention` 等主流程状态，但 resume planner / doctor 会额外把它归到“先复查 ACME placeholder，再决定是否继续”的策略族里
+
 ---
 
 ## 2. 先记住当前 installer **不会**替你做什么
@@ -294,14 +300,18 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
 - 如果已经有 `ROLLBACK-RESULT.json` 且 rollback 已执行成功：
   - 会优先进入 **`post-rollback-inspection`** 语义
   - 默认继续保持不继承真实 apply 意图
+- 如果已经有 `ACME-ISSUANCE-RESULT.json`，且当前仍停在 execute-placeholder / blocked 保守边界：
+  - 会优先进入 **`inspect-after-acme-placeholder`** 语义
+  - 默认继续保持不继承真实签发 / 证书落盘 / nginx 部署执行意图
 - 在这些 inspection-first 语义下：
   - 可以显式带 `--run-apply-dry-run` 再做一次只读预演
   - 但若显式带 `--execute-apply`，当前实现会直接拒绝，要求先完成人工复查
 
-### inspection-first 四类策略的处理矩阵
+### inspection-first 五类策略的处理矩阵
 
 | strategy | 典型来源 | 默认先看什么 | 允许什么 | 不允许什么 |
 | --- | --- | --- | --- | --- |
+| `inspect-after-acme-placeholder` | `ACME-ISSUANCE-RESULT.json` 仍是 execute-placeholder / blocked，且未发生真实签发 / 证书落盘 / 部署执行 | `ACME-ISSUANCE-RESULT.json`、`ISSUE-RESULT.json`、`--doctor` 摘要 | 复用输入/产物；显式 `--run-apply-dry-run`；人工复查 ACME companion result 与后续前提 | 把 `--resume` 当成真实 ACME issue / 真实 apply 续跑；显式 `--execute-apply` |
 | `inspect-after-apply-attention` | apply 已经要求 operator 先复核，且 `resume_recommended != 1` | `APPLY-RESULT.json` + `--doctor` 摘要 | 复用输入/产物；显式 `--run-apply-dry-run`；人工复查现场 | 把 `--resume` 当成真实 apply 重放；显式 `--execute-apply` |
 | `repair-review-first` | repair 结果仍为 `needs-attention` / `blocked` | `REPAIR-RESULT.json`、repair diagnosis、`--doctor` | 继续人工排查；必要时再次 repair；显式 dry-run | 把未收口 repair run 当成普通 resume；跳过复查直接真实 apply |
 | `post-repair-verification` | repair 已重跑 `nginx -t` 且通过 | `REPAIR-RESULT.json`、手工 `nginx -t` / 现场复核 | 复用可用产物；显式 dry-run；人工确认后决定下一步 | 因为 repair passed 就默认继续 execute；显式 `--execute-apply` |
