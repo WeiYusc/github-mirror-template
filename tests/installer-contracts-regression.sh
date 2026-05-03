@@ -1085,12 +1085,12 @@ resume_runtime_banner_output="$(bash -c '
   state_load_resume_context "$RESUME_RUN_ID"
   state_plan_resume_runtime
   if resume_strategy_prefers_review_boundary "$RESUME_STRATEGY"; then
-    printf "%s\n" "当前以 resume 模式启动：这轮属于 inspection-first 续接；会优先复查可复用产物，不把继续真实 apply 当默认动作。"
+    printf "%s\n" "当前以 resume 模式启动：这轮属于 review-first 续接；会优先复查可复用产物，不把继续真实 apply 当默认动作。"
   else
     printf "%s\n" "当前以 resume 模式启动：将复用历史输入并尽量跳过已完成阶段。"
   fi
 ' _ "$ROOT_DIR" "$WORKDIR")"
-assert_contains "$resume_runtime_banner_output" "当前以 resume 模式启动：这轮属于 inspection-first 续接；会优先复查可复用产物，不把继续真实 apply 当默认动作。" "inspection-first runtime banner is explicit about review-first semantics"
+assert_contains "$resume_runtime_banner_output" "当前以 resume 模式启动：这轮属于 review-first 续接；会优先复查可复用产物，不把继续真实 apply 当默认动作。" "inspection-first runtime banner is explicit about review-first semantics"
 
 plan_resume_runtime_for_run "fixture-inspect-after-apply-attention"
 assert_equals "$RESUME_STRATEGY" "inspect-after-apply-attention" "inspect-after-apply planner falls back to apply recovery when companion results do not demand review boundary override"
@@ -1471,8 +1471,17 @@ assert_contains "$inspect_after_acme_execute_output" "源运行的 ACME companio
 swap_generated_runs "$WORKDIR/runs"
 trap 'restore_generated_runs; rm -rf "$WORKDIR"' EXIT
 non_placeholder_blocked_resume_output="$(bash "$ROOT_DIR/install-interactive.sh" --resume fixture-tls-acme-real-execute-attempt --yes 2>&1)"
+assert_contains "$non_placeholder_blocked_resume_output" "当前以 resume 模式启动：这轮属于 review-first 续接；会优先复查可复用产物，不把继续真实 apply 当默认动作。" "future real execute blocked fixture is surfaced as review-first continuation"
+assert_contains "$non_placeholder_blocked_resume_output" "源运行已带有 non-placeholder ACME real-execute-attempt companion result；当前虽然复用的是既有 apply-plan / generated-output 边界，但默认仍先复核 ACME / ISSUE result 与 operator prerequisites，不把 resume 当成真实签发或真实 apply 的续跑入口。" "future real execute blocked fixture prints dedicated non-placeholder resume warning"
 assert_not_contains "$non_placeholder_blocked_resume_output" "当前 resume 策略：inspect-after-acme-placeholder。" "future real execute blocked fixture must not be reclassified as acme placeholder strategy"
 assert_not_contains "$non_placeholder_blocked_resume_output" "源运行的 ACME companion result 仍是 execute-placeholder / blocked 保守边界；当前会进入 inspect-after-acme-placeholder / review-first 续接，不会继承真实签发 / 证书落盘 / nginx 部署执行意图。" "future real execute blocked fixture must not print placeholder warning"
+set +e
+non_placeholder_blocked_execute_output="$(bash "$ROOT_DIR/install-interactive.sh" --resume fixture-tls-acme-real-execute-attempt --execute-apply --yes 2>&1)"
+non_placeholder_blocked_execute_rc=$?
+set -e
+assert_equals "$non_placeholder_blocked_execute_rc" "2" "future real execute blocked fixture rejects explicit execute apply"
+assert_contains "$non_placeholder_blocked_execute_output" "源运行已带有 non-placeholder ACME real-execute-attempt companion result；当前虽然复用的是既有 apply-plan / generated-output 边界，但仍应先复核 ACME / ISSUE result 与 operator prerequisites，不把 resume 当成真实签发 / 真实 apply 的续跑入口。" "future real execute blocked fixture execute refusal prints dedicated non-placeholder warning"
+assert_contains "$non_placeholder_blocked_execute_output" "当前 resume 策略 reuse-apply-plan 不允许直接执行真实 apply" "future real execute blocked fixture execute refusal keeps strategy-specific block"
 restore_generated_runs
 trap 'rm -rf "$WORKDIR"' EXIT
 

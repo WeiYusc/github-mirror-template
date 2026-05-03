@@ -418,7 +418,26 @@ def acme_placeholder_requires_review(result: dict, intent: dict, execution: dict
     )
 
 
+def acme_non_placeholder_real_execute_attempt(result: dict, intent: dict, execution: dict) -> bool:
+    result = ensure_dict(result)
+    placeholder = ensure_dict(result.get("placeholder"))
+    intent = ensure_dict(intent)
+    execution = ensure_dict(execution)
+    if not result:
+        return False
+    return (
+        result.get("final_status", "") in {"blocked", "needs-attention"}
+        and not jsonish_bool(placeholder.get("is_placeholder", False))
+        and (
+            intent.get("result_role", "") == "real-execute-attempt"
+            or jsonish_bool(intent.get("real_execution_performed", False))
+            or jsonish_bool(execution.get("client_invoked", False))
+        )
+    )
+
+
 acme_review_required = acme_placeholder_requires_review(acme_issuance_result, acme_intent, acme_execution)
+acme_real_execute_attempt = acme_non_placeholder_real_execute_attempt(acme_issuance_result, acme_intent, acme_execution)
 
 values = {
     "RESUME_SOURCE_RUN_ID": state.get("run_id", ""),
@@ -470,6 +489,7 @@ values = {
     "RESUME_SOURCE_ACME_REAL_EXECUTION_PERFORMED": "1" if jsonish_bool(acme_intent.get("real_execution_performed", False)) else "0",
     "RESUME_SOURCE_ACME_EXECUTION_CLIENT_INVOKED": "1" if jsonish_bool(acme_execution.get("client_invoked", False)) else "0",
     "RESUME_SOURCE_ACME_REVIEW_REQUIRED": "1" if acme_review_required else "0",
+    "RESUME_SOURCE_ACME_REAL_EXECUTE_ATTEMPT": "1" if acme_real_execute_attempt else "0",
     "RESUME_SOURCE_ACME_NEXT_STEP": acme_issuance_result.get("next_step", ""),
     "RESUME_SOURCE_SUMMARY_JSON_PRIMARY": artifacts.get("summary_generated", ""),
     "RESUME_SOURCE_SUMMARY_JSON_SECONDARY": artifacts.get("summary_output", ""),
@@ -491,6 +511,18 @@ resume_strategy_prefers_review_boundary() {
       return 1
       ;;
   esac
+}
+
+resume_requires_review_boundary() {
+  if resume_strategy_prefers_review_boundary "${1:-}"; then
+    return 0
+  fi
+
+  if [[ "${RESUME_SOURCE_ACME_REAL_EXECUTE_ATTEMPT:-0}" == "1" ]]; then
+    return 0
+  fi
+
+  return 1
 }
 
 resume_source_effective_repair_status() {
@@ -574,7 +606,7 @@ state_plan_resume_runtime() {
     RESUME_STRATEGY_REASON="resume can only continue from stored inputs"
   fi
 
-  if resume_strategy_prefers_review_boundary "$RESUME_STRATEGY"; then
+  if resume_requires_review_boundary "$RESUME_STRATEGY"; then
     resume_force_reuse_from_available_artifacts
   fi
 }
@@ -1229,14 +1261,7 @@ def summarize_artifact_priority(item: dict):
                 acme_result_path,
                 "当前 run 的 ACME execute 结果仍是保守占位边界；应先看 ACME companion result / issue result，再决定是否设计真实 execute 子路径。",
             )
-        if (
-            acme_result.get("final_status", "") in {"blocked", "needs-attention"}
-            and (
-                acme_intent.get("result_role", "") == "real-execute-attempt"
-                or jsonish_bool(acme_intent.get("real_execution_performed", False))
-                or jsonish_bool(acme_execution.get("client_invoked", False))
-            )
-        ):
+        if acme_non_placeholder_real_execute_attempt(acme_result, acme_intent, acme_execution):
             return (
                 "acme-issuance-result",
                 acme_result_path,
@@ -1300,6 +1325,22 @@ def acme_placeholder_requires_review(result: dict, intent: dict, execution: dict
         and intent.get("result_role", "") == "execute-placeholder"
         and not jsonish_bool(intent.get("real_execution_performed", True))
         and not jsonish_bool(execution.get("client_invoked", True))
+    )
+
+
+def acme_non_placeholder_real_execute_attempt(result: dict, intent: dict, execution: dict) -> bool:
+    result = ensure_dict(result)
+    intent = ensure_dict(intent)
+    execution = ensure_dict(execution)
+    placeholder = ensure_dict(result.get("placeholder"))
+    return bool(result) and (
+        result.get("final_status", "") in {"blocked", "needs-attention"}
+        and not jsonish_bool(placeholder.get("is_placeholder", False))
+        and (
+            intent.get("result_role", "") == "real-execute-attempt"
+            or jsonish_bool(intent.get("real_execution_performed", False))
+            or jsonish_bool(execution.get("client_invoked", False))
+        )
     )
 
 
@@ -1383,6 +1424,18 @@ def choose_resume_strategy_priority_artifact(state: dict, lineage: dict):
         path = first_existing_artifact(artifacts, "acme_issuance_result_json", "acme_issuance_result", "issue_result_json", "issue_result")
         if path:
             return ("acme-issuance-result", path, "当前 run 的 ACME execute 结果仍是保守占位边界；应先看 ACME companion result / issue result，再决定是否设计真实 execute 子路径。")
+
+    acme_result_path = first_existing_artifact(artifacts, "acme_issuance_result_json", "acme_issuance_result")
+    if acme_result_path:
+        acme_result = ensure_dict(load_json_if_exists_quiet(acme_result_path))
+        acme_intent = ensure_dict(acme_result.get("intent"))
+        acme_execution = ensure_dict(acme_result.get("execution"))
+        if acme_non_placeholder_real_execute_attempt(acme_result, acme_intent, acme_execution):
+            return (
+                "acme-issuance-result",
+                acme_result_path,
+                "源运行带有 non-placeholder ACME real-execute-attempt companion result；当前虽复用既有产物边界，也应先复核 ACME / ISSUE result 与 operator prerequisites，不把 resume 当成真实签发或真实 apply 续跑。",
+            )
 
     if resume_strategy == "repair-review-first":
         path = first_existing_artifact(artifacts, "repair_result_json", "repair_result", "apply_result_json")
@@ -2046,20 +2099,25 @@ if suggestion is None and suggestion_focus == "acme" and acme_issuance_result:
             acme_issuance_result.get("next_step")
             or "当前 ACME execute 结果仍是占位语义；请先核对 ISSUE/ACME companion result，再决定是否设计真实 execute 子路径。"
         )
+    elif acme_non_placeholder_real_execute_attempt(acme_issuance_result, acme_intent, acme_execution):
+        suggestion = (
+            acme_issuance_result.get("next_step")
+            or "当前 ACME companion result 已进入 non-placeholder real execute attempt；建议先复核 ACME / ISSUE result 与 operator prerequisites，不把 resume 当成真实 execute 续跑。"
+        )
 
 if suggestion is None and acme_issuance_result:
     acme_issuance_result = ensure_dict(acme_issuance_result)
     acme_intent = ensure_dict(acme_issuance_result.get("intent"))
     acme_execution = ensure_dict(acme_issuance_result.get("execution"))
-    if (
-        acme_intent.get("result_role", "") == "execute-placeholder"
-        or not jsonish_bool(acme_intent.get("real_execution_performed", True))
-        or acme_issuance_result.get("final_status", "") == "blocked"
-        or not jsonish_bool(acme_execution.get("client_invoked", True))
-    ):
+    if acme_placeholder_requires_review(acme_issuance_result, acme_intent, acme_execution):
         suggestion = (
             acme_issuance_result.get("next_step")
             or "当前 ACME execute 结果仍是占位语义；请先核对 ISSUE/ACME companion result，再决定是否设计真实 execute 子路径。"
+        )
+    elif acme_non_placeholder_real_execute_attempt(acme_issuance_result, acme_intent, acme_execution):
+        suggestion = (
+            acme_issuance_result.get("next_step")
+            or "当前 ACME companion result 已进入 non-placeholder real execute attempt；建议先复核 ACME / ISSUE result 与 operator prerequisites，不把 resume 当成真实 execute 续跑。"
         )
     elif issue_result:
         issue_result = ensure_dict(issue_result)

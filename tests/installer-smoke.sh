@@ -696,7 +696,7 @@ assert journal[-2]["event"] == "run.complete", journal
 assert journal[-1]["event"] == "run.exit", journal
 assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
 assert "本次 resume 策略：inspect-after-apply-attention" in stdout_text, stdout_text
-assert "inspection-first 续接" in stdout_text, stdout_text
+assert "review-first 续接" in stdout_text, stdout_text
 assert "inspect-after-apply-attention / review-first 续接" in stderr_text, stderr_text
 assert "默认不会继承上次的真实 apply / nginx test 执行意图" in stderr_text, stderr_text
 PY
@@ -820,7 +820,7 @@ assert Path(journal[-1]["path"]) == state_path, journal[-1]
 assert journal[-1]["event"] == "run.exit", journal
 assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
 assert "本次 resume 策略：post-repair-verification" in stdout_text, stdout_text
-assert "inspection-first 续接" in stdout_text, stdout_text
+assert "review-first 续接" in stdout_text, stdout_text
 assert "源运行已存在 repair 结果，且 nginx -t 重跑通过；当前默认先复查，不直接重放 apply。" in stderr_text, stderr_text
 PY
 
@@ -940,7 +940,7 @@ assert Path(journal[-1]["path"]) == state_path, journal[-1]
 assert journal[-1]["event"] == "run.exit", journal
 assert journal[-1]["status"] == state["status"]["final"], (journal[-1], state)
 assert "本次 resume 策略：post-rollback-inspection" in stdout_text, stdout_text
-assert "inspection-first 续接" in stdout_text, stdout_text
+assert "review-first 续接" in stdout_text, stdout_text
 assert "源运行已执行 selective rollback；当前默认只做复查/续接，不会继承真实 apply 意图。" in stderr_text, stderr_text
 PY
 

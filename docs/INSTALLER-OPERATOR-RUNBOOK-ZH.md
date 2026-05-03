@@ -304,9 +304,13 @@ python3 -m json.tool scripts/generated/runs/<run_id>/APPLY-RESULT.json
   - 会优先进入 **`inspect-after-acme-placeholder`** 语义
   - 默认继续保持不继承真实签发 / 证书落盘 / nginx 部署执行意图
   - 这里后续应优先依赖显式 placeholder marker 判断，而不是只靠 `final_status=blocked` 这类宽条件猜测
-- 在这些 inspection-first 语义下：
+- 在这些 inspection-first / review-first 语义下：
   - 可以显式带 `--run-apply-dry-run` 再做一次只读预演
   - 但若显式带 `--execute-apply`，当前实现会直接拒绝，要求先完成人工复查
+  - 即使 nominal strategy 仍显示为 `reuse-apply-plan`，只要源运行已经带有 **non-placeholder ACME real-execute-attempt companion result**，当前也应按 review-first 口径理解：
+    - 先复核 `ACME-ISSUANCE-RESULT.json` / `ISSUE-RESULT.json` / operator prerequisites
+    - 不把这类 resume 当成真实签发或真实 apply 的续跑入口
+    - 显式 `--execute-apply` 也会被直接拒绝
 
 ### inspection-first 五类策略的处理矩阵
 

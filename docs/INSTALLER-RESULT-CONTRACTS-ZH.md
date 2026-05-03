@@ -822,6 +822,10 @@
 2. `ACME-ISSUANCE-RESULT.json` 才表示真实 execute / challenge fulfillment / artifact outcome
 3. 后续实现可以让两份结果互相引用，但**不能**把真实 execute 字段直接塞回 `ISSUE-RESULT.json`
 4. `inspect-after-acme-placeholder` 这类 review-first 语义，后续应优先由显式 `placeholder.is_placeholder=true` 一类 marker 驱动，而不是仅靠 `final_status=blocked` 之类宽条件猜测
+5. 若 `ACME-ISSUANCE-RESULT.json` 已进入 **non-placeholder real-execute-attempt**（例如 `intent.result_role=real-execute-attempt`、`intent.real_execution_performed=true`、或 `execution.client_invoked=true`，且未标记 placeholder），当前也应保持 review-first 恢复边界：
+   - 可以继续复用既有 `apply-plan / generated-output` 产物
+   - 但不能把 resume 当成真实签发 / 真实 apply 的续跑入口
+   - 显式 `--execute-apply` 也应直接拒绝，先要求 operator 复核 `ACME-ISSUANCE-RESULT.json` / `ISSUE-RESULT.json` 与 prerequisites
 
 只要这三条不倒退，后续就还能在 execute / renew / deploy 方向安全扩展，而不会把 operator 语义、自动化输入和恢复逻辑搅成一团。
 
