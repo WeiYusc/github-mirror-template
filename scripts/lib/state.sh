@@ -1217,6 +1217,38 @@ def summarize_artifact_priority(item: dict):
         path = first_existing_artifact(artifacts, "config", "summary_output", "summary_generated")
         if path:
             return ("generator-context", path, "最近异常更像 generator 阶段问题，建议先看配置或 summary 产物。")
+
+    acme_result_path = first_existing_artifact(artifacts, "acme_issuance_result_json", "acme_issuance_result")
+    if acme_result_path:
+        acme_result = ensure_dict(load_json_if_exists_quiet(acme_result_path))
+        acme_intent = ensure_dict(acme_result.get("intent"))
+        acme_execution = ensure_dict(acme_result.get("execution"))
+        if acme_placeholder_requires_review(acme_result, acme_intent, acme_execution):
+            return (
+                "acme-issuance-result",
+                acme_result_path,
+                "当前 run 的 ACME execute 结果仍是保守占位边界；应先看 ACME companion result / issue result，再决定是否设计真实 execute 子路径。",
+            )
+        if (
+            acme_result.get("final_status", "") in {"blocked", "needs-attention"}
+            and (
+                acme_intent.get("result_role", "") == "real-execute-attempt"
+                or jsonish_bool(acme_intent.get("real_execution_performed", False))
+                or jsonish_bool(acme_execution.get("client_invoked", False))
+            )
+        ):
+            return (
+                "acme-issuance-result",
+                acme_result_path,
+                "当前 run 已产出 non-placeholder ACME companion result；应先看 ACME execute 结果与 next_step，而不是回退到通用 apply plan 提示。",
+            )
+        if acme_result.get("final_status", "") in {"blocked", "needs-attention"}:
+            return (
+                "acme-issuance-result",
+                acme_result_path,
+                "当前 run 已产出 ACME companion result；应先看 ACME execute 结果与 next_step，再决定后续动作。",
+            )
+
     path = first_existing_artifact(
         artifacts,
         "repair_result_json",
@@ -1228,7 +1260,7 @@ def summarize_artifact_priority(item: dict):
         "summary_generated",
     )
     if path:
-        return ("generic-artifact", path, "已为最近异常祖先选出一个最相关的现有产物。")
+        return ("generic-artifact", path, "已为当前异常 run 选出一个最相关的现有产物。")
     return None
 
 

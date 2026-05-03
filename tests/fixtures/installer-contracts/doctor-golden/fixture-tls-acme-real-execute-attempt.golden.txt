@@ -3,8 +3,8 @@
 - checkpoint: completed
 - resumed_from: 无
 - current_run_alerts: final=needs-attention
-- current_run_priority_artifact: __FIXTURE_ROOT__/artifacts/fixture-tls-acme-real-execute-attempt/APPLY-PLAN.json [generic-artifact]
-- current_run_priority_note: 已为最近异常祖先选出一个最相关的现有产物。
+- current_run_priority_artifact: __FIXTURE_ROOT__/artifacts/fixture-tls-acme-real-execute-attempt/ACME-ISSUANCE-RESULT.json [acme-issuance-result]
+- current_run_priority_note: 当前 run 已产出 non-placeholder ACME companion result；应先看 ACME execute 结果与 next_step，而不是回退到通用 apply plan 提示。
 - lineage.mode: new
 - lineage.is_resumed_run: False
 - lineage.source_run_id: 无
@@ -16,8 +16,8 @@
 - 这不是 resumed run；当前运行没有接续历史 run 的 lineage。
 [doctor] 当前 run 异常摘要
 - 当前 run 存在异常状态：final=needs-attention
-- 优先查看产物：__FIXTURE_ROOT__/artifacts/fixture-tls-acme-real-execute-attempt/APPLY-PLAN.json [generic-artifact]
-- 说明：已为最近异常祖先选出一个最相关的现有产物。
+- 优先查看产物：__FIXTURE_ROOT__/artifacts/fixture-tls-acme-real-execute-attempt/ACME-ISSUANCE-RESULT.json [acme-issuance-result]
+- 说明：当前 run 已产出 non-placeholder ACME companion result；应先看 ACME execute 结果与 next_step，而不是回退到通用 apply plan 提示。
 [doctor] 状态
 - apply_execute: skipped
 - repair:

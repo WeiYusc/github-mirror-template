@@ -1255,6 +1255,14 @@ assert_contains "$doctor_acme_placeholder_output" "- operator_prerequisites.pend
 assert_contains "$doctor_acme_placeholder_output" "[doctor] 下一步建议" "acme placeholder doctor prints next step section"
 assert_contains "$doctor_acme_placeholder_output" "如需真实签发，请先设计并实现独立 execute 子路径（落成 ACME-ISSUANCE-RESULT.{md,json} companion contract，含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。" "acme placeholder doctor prefers execute placeholder next step"
 
+doctor_non_placeholder_acme_output="$(state_doctor "fixture-tls-acme-real-execute-attempt")"
+assert_contains "$doctor_non_placeholder_acme_output" "- current_run_priority_artifact: $WORKDIR/artifacts/fixture-tls-acme-real-execute-attempt/ACME-ISSUANCE-RESULT.json [acme-issuance-result]" "future real execute blocked doctor prefers acme issuance result in machine summary"
+assert_contains "$doctor_non_placeholder_acme_output" "- current_run_priority_note: 当前 run 已产出 non-placeholder ACME companion result；应先看 ACME execute 结果与 next_step，而不是回退到通用 apply plan 提示。" "future real execute blocked doctor prints non-placeholder acme priority note"
+assert_contains "$doctor_non_placeholder_acme_output" "[doctor] 当前 run 异常摘要" "future real execute blocked doctor prints current run abnormal summary"
+assert_contains "$doctor_non_placeholder_acme_output" "- 优先查看产物：$WORKDIR/artifacts/fixture-tls-acme-real-execute-attempt/ACME-ISSUANCE-RESULT.json [acme-issuance-result]" "future real execute blocked doctor points current abnormal summary to acme issuance result"
+assert_contains "$doctor_non_placeholder_acme_output" "- 说明：当前 run 已产出 non-placeholder ACME companion result；应先看 ACME execute 结果与 next_step，而不是回退到通用 apply plan 提示。" "future real execute blocked doctor explains acme-first priority"
+assert_contains "$doctor_non_placeholder_acme_output" "- next_step: 当前样本仅用于守住 non-placeholder future real execute attempt 与 placeholder 的边界；后续若要真实签发，仍需独立实现 execute 子路径与更完整 strategy。" "future real execute blocked doctor keeps dedicated acme next step"
+
 doctor_post_rollback_output="$(state_doctor "fixture-post-rollback-inspection")"
 assert_contains "$doctor_post_rollback_output" "- final_status: $POST_ROLLBACK_REPAIR_FINAL_STATUS" "post rollback doctor repair final status stays consistent with resume context"
 assert_contains "$doctor_post_rollback_output" "- flags.execute: $POST_ROLLBACK_EXECUTE_BOOL" "post rollback doctor rollback execute flag stays consistent with resume context"
