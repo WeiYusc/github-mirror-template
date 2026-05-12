@@ -147,6 +147,21 @@ copy_file_if_needed() {
   esac
 }
 
+bt_ssl_marker_present() {
+  local target_file="$1"
+  python3 - "$target_file" <<'PY'
+from pathlib import Path
+import sys
+
+text = Path(sys.argv[1]).read_text(encoding='utf-8')
+needles = [
+    '#SSL-START',
+    '#error_page 404/404.html;',
+]
+print('1' if all(needle in text for needle in needles) else '0')
+PY
+}
+
 insert_http_include() {
   local nginx_conf="$1"
   local include_path="$2"
@@ -425,6 +440,14 @@ classify_plan_item() {
       add_plan_row "$category" "$source_path" "$target_path" "NEW" "target file does not exist and will be created"
     fi
     return 0
+  fi
+
+  if [[ "$category" == vhost:* ]]; then
+    marker_flag="$(bt_ssl_marker_present "$source_path")"
+    if [[ "$marker_flag" != "1" ]]; then
+      add_plan_row "$category" "$source_path" "$target_path" "BLOCK" "rendered BaoTa vhost is missing required SSL marker anchors (#SSL-START / #error_page 404/404.html;)"
+      return 0
+    fi
   fi
 
   if cmp -s "$source_path" "$target_path"; then

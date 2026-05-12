@@ -111,6 +111,33 @@ DOMAIN_MODE=flat-siblings
 
 ---
 
+## 5.1 BaoTa SSL 绑定注意事项（当前主线很重要）
+
+如果你要把渲染结果落到 **BaoTa 已识别站点**，当前推荐做法不是继续依赖公共 TLS snippet 来承载站点证书，而是：
+
+- 让每个 BaoTa 站点自己的 vhost conf 保留 BaoTa 可识别的 SSL 锚点
+- 由 BaoTa 把证书实际绑定到 `/www/server/panel/vhost/cert/<site>/`
+- 然后在站点 conf 中写入该站点自己的 `ssl_certificate` / `ssl_certificate_key`
+
+当前仓库模板已经按这个思路保留了下面两个锚点：
+
+- `#SSL-START`
+- `#error_page 404/404.html;`
+
+为什么这样做：
+
+- 如果站点 conf 只写公共 TLS snippet，HTTPS 虽然可能能工作，但 BaoTa 不一定会把它视为“该站点已正确绑定 SSL”
+- 更关键的是，一旦后续再通过 BaoTa 给站点启用或改绑 SSL，BaoTa 会向站点 conf 注入自己的 `ssl_certificate` / `ssl_protocols` / `ssl_ciphers`
+- 这时如果原 conf 还保留公共 TLS snippet，常见结果就是 nginx 配置出现重复 SSL 指令，导致 `nginx -t` 失败
+
+因此，对 **BaoTa 主线** 来说，推荐理解为：
+
+- 渲染包里的 vhost 模板负责保留 BaoTa SSL 锚点和业务代理规则
+- 实际证书文件路径由 BaoTa 站点级绑定来决定
+- 公共 `snippets/tls-common.conf` 不应再作为 BaoTa 站点 vhost 的长期 SSL 主承载方式
+
+---
+
 ## 6. 最小 happy path：generator -> helper apply
 
 ### Step 1：准备 deploy.yaml
