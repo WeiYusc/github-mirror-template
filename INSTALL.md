@@ -122,6 +122,7 @@ LOG_DIR=/www/wwwlogs
 - 以 SSH / 命令行为主：`docs/DEPLOY-BT-PANEL-CLI-ZH.md`
 - 上线前后验收：`docs/BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`
 - 常见问题排查：`docs/BT-PANEL-TROUBLESHOOTING-ZH.md`
+- 本机线上巡检：`scripts/check-live-mirror.sh`
 
 > 当前 flat-siblings 主线默认是 **6 个域名完整部署**：`github / raw / gist / assets / archive / download`。其中 `assets` 必须保留。
 > 当前 repo 默认也已内置 BaoTa 建站客户端；如需替换，可在 helper 路线显式传 `--bt-create-script <path>`。
