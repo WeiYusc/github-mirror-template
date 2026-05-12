@@ -98,6 +98,38 @@ BASE_DOMAIN=github.example.com
 
 ---
 
+## 4.5 用半自动部署脚本预演（推荐）
+
+运行：
+
+```bash
+./deploy-rendered-to-bt-panel.sh \
+  --rendered-dir <OUTPUT_DIR>
+```
+
+如需实际落盘但先不 reload：
+
+```bash
+./deploy-rendered-to-bt-panel.sh \
+  --rendered-dir <OUTPUT_DIR> \
+  --apply
+```
+
+说明：
+
+- [ ] 默认是 dry-run，只打印计划、不改文件
+- [ ] 会先复用 `validate-rendered-config.sh` 做结构校验
+- [ ] 会按 `RENDERED-VALUES.env` 推导 6 个 BaoTa vhost conf 目标文件名
+- [ ] 会校验 `RENDERED-VALUES.env` 的关键 hostname 值是否安全
+- [ ] 会在覆盖前备份已存在文件
+- [ ] 会保守检查 `http-redirect-whitelist-map.conf` 是否已接入 `nginx.conf` 的 `http {}`
+- [ ] 当前脚本假定 snippets 目录就是 `nginx.conf` 同级 `snippets/`
+- [ ] 如需改 `ERROR_ROOT`，应先重新 render，而不是在 deploy 阶段临时覆盖
+- [ ] 只有 `--apply` 时才真实复制文件
+- [ ] 只有 `--apply --reload` 且 `nginx -t` 通过时才 reload
+
+---
+
 ## 5. 配 DNS
 
 - [ ] hub 域名已解析到目标服务器

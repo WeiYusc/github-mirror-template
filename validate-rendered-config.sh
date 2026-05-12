@@ -59,6 +59,44 @@ pass() {
   echo "[OK] $*"
 }
 
+safe_source_rendered_env() {
+  local env_file="$1"
+  python3 - "$env_file" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+allowed_keys = {
+    'BASE_DOMAIN', 'DOMAIN_MODE', 'TLS_MODE', 'LOG_DIR',
+    'HUB_DOMAIN', 'RAW_DOMAIN', 'GIST_DOMAIN', 'ASSETS_DOMAIN', 'ARCHIVE_DOMAIN', 'DOWNLOAD_DOMAIN',
+    'HUB_URL', 'RAW_URL', 'GIST_URL', 'ASSETS_URL', 'ARCHIVE_URL', 'DOWNLOAD_URL',
+    'SSL_CERT', 'SSL_KEY', 'ERROR_ROOT',
+}
+forbidden = re.compile(r'[`$()<>;&|]')
+for lineno, raw in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+    if not raw.strip():
+        continue
+    if '=' not in raw:
+        raise SystemExit(f"unsafe rendered env line {lineno}: missing '='")
+    key, value = raw.split('=', 1)
+    if key not in allowed_keys:
+        raise SystemExit(f"unsafe rendered env line {lineno}: unexpected key {key}")
+    if forbidden.search(value):
+        raise SystemExit(f"unsafe rendered env line {lineno}: forbidden shell metacharacter in {key}")
+PY
+  # shellcheck disable=SC1090
+  source "$env_file"
+}
+
+validate_hostname_value() {
+  local label="$1"
+  local value="$2"
+  [[ "$value" =~ ^[A-Za-z0-9.-]+$ ]] || fail "invalid hostname for $label: $value"
+  [[ "$value" == *.* ]] || fail "hostname for $label must contain at least one dot: $value"
+  [[ "$value" != .* && "$value" != *..* && "$value" != *. ]] || fail "invalid hostname shape for $label: $value"
+}
+
 [[ -d "$RENDERED_DIR" ]] || fail "rendered dir not found: $RENDERED_DIR"
 [[ -d "$RENDERED_DIR/conf.d" ]] || fail "missing conf.d directory"
 [[ -d "$RENDERED_DIR/snippets" ]] || fail "missing snippets directory"
@@ -82,6 +120,7 @@ required_files=(
   "$RENDERED_DIR/snippets/mirror-subfilter-gist-html.conf"
   "$RENDERED_DIR/snippets/mirror-download-common.conf"
   "$RENDERED_DIR/snippets/mirror-cache-static.conf"
+  "$RENDERED_DIR/snippets/http-redirect-whitelist-map.conf"
   "$RENDERED_DIR/html/errors/403-readonly.html"
   "$RENDERED_DIR/html/errors/403-login-disabled.html"
   "$RENDERED_DIR/html/errors/404.html"
@@ -104,7 +143,7 @@ else
 fi
 
 # shellcheck disable=SC1090
-source "$RENDERED_DIR/RENDERED-VALUES.env"
+safe_source_rendered_env "$RENDERED_DIR/RENDERED-VALUES.env"
 
 required_env_keys=(
   BASE_DOMAIN
@@ -131,6 +170,15 @@ for key in "${required_env_keys[@]}"; do
   [[ -n "${!key:-}" ]] || fail "missing or empty key in RENDERED-VALUES.env: $key"
 done
 pass "RENDERED-VALUES.env contains all required keys"
+
+validate_hostname_value "BASE_DOMAIN" "$BASE_DOMAIN"
+validate_hostname_value "HUB_DOMAIN" "$HUB_DOMAIN"
+validate_hostname_value "RAW_DOMAIN" "$RAW_DOMAIN"
+validate_hostname_value "GIST_DOMAIN" "$GIST_DOMAIN"
+validate_hostname_value "ASSETS_DOMAIN" "$ASSETS_DOMAIN"
+validate_hostname_value "ARCHIVE_DOMAIN" "$ARCHIVE_DOMAIN"
+validate_hostname_value "DOWNLOAD_DOMAIN" "$DOWNLOAD_DOMAIN"
+pass "rendered hostname values look structurally safe"
 
 check_contains() {
   local file="$1"
