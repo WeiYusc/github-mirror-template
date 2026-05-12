@@ -43,21 +43,21 @@ Defaults:
 Examples:
   # Dry-run against an existing flat-siblings deployment
   ./ensure-bt-panel-mirror-stack.sh \
-    --base-domain github.weiyusc.top \
+    --base-domain github.example.com \
     --domain-mode flat-siblings \
-    --ssl-cert /www/server/panel/vhost/cert/su.weiyusc.top/fullchain.pem \
-    --ssl-key /www/server/panel/vhost/cert/su.weiyusc.top/privkey.pem \
+    --ssl-cert /etc/ssl/example/fullchain.pem \
+    --ssl-key /etc/ssl/example/privkey.pem \
     --error-root /www/wwwroot/github-mirror-errors
 
   # Create missing BaoTa sites, deploy rendered files, and reload after nginx -t passes
   ./ensure-bt-panel-mirror-stack.sh \
-    --base-domain github.weiyusc.top \
+    --base-domain github.example.com \
     --domain-mode flat-siblings \
-    --ssl-cert /www/server/panel/vhost/cert/su.weiyusc.top/fullchain.pem \
-    --ssl-key /www/server/panel/vhost/cert/su.weiyusc.top/privkey.pem \
+    --ssl-cert /etc/ssl/example/fullchain.pem \
+    --ssl-key /etc/ssl/example/privkey.pem \
     --error-root /www/wwwroot/github-mirror-errors \
-    --panel https://su.weiyusc.top:37913 \
-    --entry /b274fe00 \
+    --panel https://panel.example.com:37913 \
+    --entry /bt-entry \
     --username <panel-user> \
     --password-env BT_PANEL_PASSWORD \
     --apply --reload --insecure
