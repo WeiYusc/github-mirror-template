@@ -125,6 +125,7 @@ BASE_DOMAIN=github.example.com
 - [ ] 会保守检查 `http-redirect-whitelist-map.conf` 是否已接入 `nginx.conf` 的 `http {}`
 - [ ] 当前脚本假定 snippets 目录就是 `nginx.conf` 同级 `snippets/`
 - [ ] 如需改 `ERROR_ROOT`，应先重新 render，而不是在 deploy 阶段临时覆盖
+- [ ] 如需一条链路完成“检查/建站/部署”，可使用 `ensure-bt-panel-mirror-stack.sh`
 - [ ] 只有 `--apply` 时才真实复制文件
 - [ ] 只有 `--apply --reload` 且 `nginx -t` 通过时才 reload
 
