@@ -227,6 +227,71 @@ assert output_summary["deployment_name"] == expected_name, output_summary
 assert output_summary["status"]["final"] == state["status"]["final"], (output_summary, state)
 PY
 
+helper_rendered_dir="$TMP_DIR/helper-rendered"
+cp -a "$ROOT_DIR/rendered-test" "$helper_rendered_dir"
+helper_dry_run="$TMP_DIR/helper-dry-run.txt"
+helper_snippets_target="$TMP_DIR/helper-snippets"
+helper_vhost_target="$TMP_DIR/helper-vhosts"
+helper_backup_dir="$TMP_DIR/helper-backups"
+helper_error_root="/www/wwwroot/github-mirror-errors"
+mkdir -p "$helper_snippets_target" "$helper_vhost_target"
+cat > "$TMP_DIR/helper-deploy-stub.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" > "$STUB_OUTPUT"
+EOF
+chmod 700 "$TMP_DIR/helper-deploy-stub.sh"
+
+STUB_OUTPUT="$helper_dry_run" "$ROOT_DIR/ensure-bt-panel-mirror-stack.sh" \
+  --base-domain github.example.com \
+  --domain-mode nested \
+  --rendered-dir "$helper_rendered_dir" \
+  --deploy-script "$TMP_DIR/helper-deploy-stub.sh" \
+  --snippets-target "$helper_snippets_target" \
+  --vhost-target "$helper_vhost_target" \
+  --backup-dir "$helper_backup_dir" \
+  --error-root "$helper_error_root" \
+  --nginx-conf /www/server/nginx/conf/nginx.conf \
+  --nginx-test-cmd 'nginx -t' \
+  --nginx-reload-cmd 'nginx -s reload' \
+  --skip-create \
+  --allow-bootstrap-vhosts \
+  --skip-http-include \
+  >/dev/null 2>"$TMP_DIR/helper-dry-run.stderr"
+
+python3 - "$helper_dry_run" "$helper_rendered_dir" "$helper_snippets_target" "$helper_vhost_target" "$helper_backup_dir" "$helper_error_root" <<'PY'
+import sys
+from pathlib import Path
+
+dry_run = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+rendered_dir = sys.argv[2]
+snippets_target = sys.argv[3]
+vhost_target = sys.argv[4]
+backup_dir = sys.argv[5]
+error_root = sys.argv[6]
+
+assert dry_run[0] == "--rendered-dir", dry_run
+assert dry_run[1] == rendered_dir, dry_run
+assert "--snippets-target" in dry_run, dry_run
+assert dry_run[dry_run.index("--snippets-target") + 1] == snippets_target, dry_run
+assert "--vhost-target" in dry_run, dry_run
+assert dry_run[dry_run.index("--vhost-target") + 1] == vhost_target, dry_run
+assert "--backup-dir" in dry_run, dry_run
+assert dry_run[dry_run.index("--backup-dir") + 1] == backup_dir, dry_run
+assert "--error-root" in dry_run, dry_run
+assert dry_run[dry_run.index("--error-root") + 1] == error_root, dry_run
+assert "--nginx-conf" in dry_run, dry_run
+assert dry_run[dry_run.index("--nginx-conf") + 1] == "/www/server/nginx/conf/nginx.conf", dry_run
+assert "--nginx-test-cmd" in dry_run, dry_run
+assert dry_run[dry_run.index("--nginx-test-cmd") + 1] == "nginx -t", dry_run
+assert "--nginx-reload-cmd" in dry_run, dry_run
+assert dry_run[dry_run.index("--nginx-reload-cmd") + 1] == "nginx -s reload", dry_run
+assert "--allow-bootstrap-vhosts" in dry_run, dry_run
+assert "--skip-http-include" in dry_run, dry_run
+assert "--apply" not in dry_run, dry_run
+assert "--reload" not in dry_run, dry_run
+PY
+
 execute_name="smoke-exec-$(date +%s)-$$"
 execute_workspace="$TMP_DIR/execute"
 mkdir -p "$execute_workspace/errors-src" "$execute_workspace/logs" "$execute_workspace/output" "$execute_workspace/snippets-target" "$execute_workspace/conf-target" "$execute_workspace/error-target"

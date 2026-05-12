@@ -17,6 +17,9 @@ Usage:
     [--bt-create-script <path>] \
     [--render-script <path>] \
     [--deploy-script <path>] \
+    [--snippets-target <path>] \
+    [--vhost-target <path>] \
+    [--backup-dir <path>] \
     [--nginx-conf <path>] \
     [--nginx-test-cmd <cmd>] \
     [--nginx-reload-cmd <cmd>] \
@@ -142,6 +145,9 @@ BT_CREATE_SCRIPT="/usr/local/lib/hermes-agent/scripts/bt_create_site.py"
 BT_CREATE_WRAPPER=""
 RENDER_SCRIPT="$SCRIPT_DIR/render-from-base-domain.sh"
 DEPLOY_SCRIPT="$SCRIPT_DIR/deploy-rendered-to-bt-panel.sh"
+SNIPPETS_TARGET=""
+VHOST_TARGET=""
+BACKUP_DIR=""
 NGINX_CONF=""
 NGINX_TEST_CMD=""
 NGINX_RELOAD_CMD=""
@@ -203,6 +209,15 @@ while [[ $# -gt 0 ]]; do
     --deploy-script)
       require_value "$1" "${2-}"
       DEPLOY_SCRIPT="$2"; shift 2 ;;
+    --snippets-target)
+      require_value "$1" "${2-}"
+      SNIPPETS_TARGET="$2"; shift 2 ;;
+    --vhost-target)
+      require_value "$1" "${2-}"
+      VHOST_TARGET="$2"; shift 2 ;;
+    --backup-dir)
+      require_value "$1" "${2-}"
+      BACKUP_DIR="$2"; shift 2 ;;
     --nginx-conf)
       require_value "$1" "${2-}"
       NGINX_CONF="$2"; shift 2 ;;
@@ -423,6 +438,18 @@ deploy_cmd=(
   bash "$DEPLOY_SCRIPT"
   --rendered-dir "$RENDERED_DIR"
 )
+if [[ -n "$SNIPPETS_TARGET" ]]; then
+  deploy_cmd+=(--snippets-target "$SNIPPETS_TARGET")
+fi
+if [[ -n "$VHOST_TARGET" ]]; then
+  deploy_cmd+=(--vhost-target "$VHOST_TARGET")
+fi
+if [[ -n "$ERROR_ROOT" ]]; then
+  deploy_cmd+=(--error-root "$ERROR_ROOT")
+fi
+if [[ -n "$BACKUP_DIR" ]]; then
+  deploy_cmd+=(--backup-dir "$BACKUP_DIR")
+fi
 if [[ -n "$NGINX_CONF" ]]; then
   deploy_cmd+=(--nginx-conf "$NGINX_CONF")
 fi
