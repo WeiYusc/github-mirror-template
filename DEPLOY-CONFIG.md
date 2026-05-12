@@ -59,6 +59,7 @@ domain:
   mode: flat-siblings
 
 tls:
+  mode: existing
   cert: /etc/ssl/example/fullchain.pem
   key: /etc/ssl/example/privkey.pem
 
@@ -91,14 +92,14 @@ docs:
 
 - `deployment_name`
 - `domain.base_domain`
-- `tls.cert`
-- `tls.key`
 - `paths.error_root`
 - `paths.output_dir`
+- 当 `tls.mode=existing` 时：`tls.cert`、`tls.key`
 
 此外这些字段虽然目前有默认值或不强校验，但在真实部署里通常也应明确填写：
 
 - `domain.mode`
+- `tls.mode`
 - `paths.log_dir`
 - `deployment.platform`
 
@@ -194,7 +195,31 @@ domain:
 
 ---
 
-## 4.4 `tls.cert` / `tls.key`
+## 4.4 `tls.mode`
+
+当前支持：
+
+- `existing`
+- `acme-http01`
+- `acme-dns-cloudflare`
+
+示例：
+
+```yaml
+tls:
+  mode: existing
+```
+
+说明：
+
+- `existing`：表示你已经有真实证书文件，当前需要同时提供 `tls.cert` / `tls.key`
+- `acme-http01` / `acme-dns-cloudflare`：当前仍是 **Phase 1 review-first scaffolding**，重点是让 renderer / generator / installer / state artifacts 的输入与输出契约一致
+- 非 `existing` 模式下，生成器会额外产出 `TLS-PLAN.md` / `TLS-PLAN.json`
+- 这些非 `existing` 模式当前**不会自动申请证书**，也不应把 review-only / placeholder TLS 输出直接用于生产 apply
+
+---
+
+## 4.5 `tls.cert` / `tls.key`
 
 作用：
 
@@ -204,6 +229,7 @@ domain:
 
 ```yaml
 tls:
+  mode: existing
   cert: /etc/ssl/example/fullchain.pem
   key: /etc/ssl/example/privkey.pem
 ```
@@ -212,10 +238,11 @@ tls:
 
 - 这里写的是目标环境里真实可用的路径
 - 生成器不会帮你猜证书位置
+- 当前仅 `tls.mode=existing` 时要求它们作为真实必填项
 
 ---
 
-## 4.5 `paths.error_root`
+## 4.6 `paths.error_root`
 
 作用：
 
@@ -231,7 +258,7 @@ paths:
 
 ---
 
-## 4.6 `paths.log_dir`
+## 4.7 `paths.log_dir`
 
 作用：
 
@@ -250,7 +277,7 @@ paths:
 
 ---
 
-## 4.7 `paths.output_dir`
+## 4.8 `paths.output_dir`
 
 作用：
 
@@ -273,7 +300,7 @@ paths:
 
 ---
 
-## 4.8 `deployment.platform`
+## 4.9 `deployment.platform`
 
 当前支持：
 
@@ -299,7 +326,7 @@ deployment:
 
 ---
 
-## 4.9 `nginx.*_hint`
+## 4.10 `nginx.*_hint`
 
 当前字段：
 
@@ -321,7 +348,7 @@ deployment:
 
 ---
 
-## 4.10 `docs.*`
+## 4.11 `docs.*`
 
 当前字段：
 
@@ -355,6 +382,7 @@ domain:
   mode: flat-siblings
 
 tls:
+  mode: existing
   cert: /etc/ssl/example/fullchain.pem
   key: /etc/ssl/example/privkey.pem
 
@@ -368,6 +396,8 @@ deployment:
 ```
 
 这是当前最稳的起点。
+
+如果你只是想先评审 TLS 自动签发方向，也可以把 `tls.mode` 切到 `acme-http01` 或 `acme-dns-cloudflare`，先生成 `TLS-PLAN.md` / `TLS-PLAN.json` 和其余部署包工件；但当前仍应把它视为 Phase 1 review-first scaffolding，而不是可直接生产执行的自动签发能力。
 
 ---
 

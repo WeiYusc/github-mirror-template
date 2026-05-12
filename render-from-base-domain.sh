@@ -15,6 +15,7 @@ Usage:
     --ssl-cert <path> \
     --ssl-key <path> \
     --error-root <path> \
+    [--tls-mode <existing|acme-http01|acme-dns-cloudflare>] \
     [--domain-mode <nested|flat-siblings>] \
     [--log-dir <path>] \
     [--template-dir <path>] \
@@ -50,6 +51,7 @@ SSL_CERT=""
 SSL_KEY=""
 ERROR_ROOT=""
 DOMAIN_MODE="nested"
+TLS_MODE="existing"
 LOG_DIR="/www/wwwlogs"
 TEMPLATE_DIR=""
 OUTPUT_DIR=""
@@ -68,6 +70,8 @@ while [[ $# -gt 0 ]]; do
       TEMPLATE_DIR="$2"; shift 2 ;;
     --domain-mode)
       DOMAIN_MODE="$2"; shift 2 ;;
+    --tls-mode)
+      TLS_MODE="$2"; shift 2 ;;
     --log-dir)
       LOG_DIR="$2"; shift 2 ;;
     --output-dir)
@@ -89,6 +93,11 @@ fi
 
 if [[ "$DOMAIN_MODE" != "nested" && "$DOMAIN_MODE" != "flat-siblings" ]]; then
   echo "Error: --domain-mode must be one of: nested, flat-siblings" >&2
+  exit 1
+fi
+
+if [[ "$TLS_MODE" != "existing" && "$TLS_MODE" != "acme-http01" && "$TLS_MODE" != "acme-dns-cloudflare" ]]; then
+  echo "Error: --tls-mode must be one of: existing, acme-http01, acme-dns-cloudflare" >&2
   exit 1
 fi
 
@@ -172,24 +181,25 @@ while IFS= read -r -d '' f; do
 done < <(find "$TEMPLATE_DIR" -type f -print0)
 
 cat > "$OUTPUT_DIR/RENDERED-VALUES.env" <<EOF
-BASE_DOMAIN=$BASE_DOMAIN
-DOMAIN_MODE=$DOMAIN_MODE
-LOG_DIR=$LOG_DIR
-HUB_DOMAIN=$HUB_DOMAIN
-RAW_DOMAIN=$RAW_DOMAIN
-GIST_DOMAIN=$GIST_DOMAIN
-ASSETS_DOMAIN=$ASSETS_DOMAIN
-ARCHIVE_DOMAIN=$ARCHIVE_DOMAIN
-DOWNLOAD_DOMAIN=$DOWNLOAD_DOMAIN
-HUB_URL=$HUB_URL
-RAW_URL=$RAW_URL
-GIST_URL=$GIST_URL
-ASSETS_URL=$ASSETS_URL
-ARCHIVE_URL=$ARCHIVE_URL
-DOWNLOAD_URL=$DOWNLOAD_URL
-SSL_CERT=$SSL_CERT
-SSL_KEY=$SSL_KEY
-ERROR_ROOT=$ERROR_ROOT
+BASE_DOMAIN=$(printf '%q' "$BASE_DOMAIN")
+DOMAIN_MODE=$(printf '%q' "$DOMAIN_MODE")
+TLS_MODE=$(printf '%q' "$TLS_MODE")
+LOG_DIR=$(printf '%q' "$LOG_DIR")
+HUB_DOMAIN=$(printf '%q' "$HUB_DOMAIN")
+RAW_DOMAIN=$(printf '%q' "$RAW_DOMAIN")
+GIST_DOMAIN=$(printf '%q' "$GIST_DOMAIN")
+ASSETS_DOMAIN=$(printf '%q' "$ASSETS_DOMAIN")
+ARCHIVE_DOMAIN=$(printf '%q' "$ARCHIVE_DOMAIN")
+DOWNLOAD_DOMAIN=$(printf '%q' "$DOWNLOAD_DOMAIN")
+HUB_URL=$(printf '%q' "$HUB_URL")
+RAW_URL=$(printf '%q' "$RAW_URL")
+GIST_URL=$(printf '%q' "$GIST_URL")
+ASSETS_URL=$(printf '%q' "$ASSETS_URL")
+ARCHIVE_URL=$(printf '%q' "$ARCHIVE_URL")
+DOWNLOAD_URL=$(printf '%q' "$DOWNLOAD_URL")
+SSL_CERT=$(printf '%q' "$SSL_CERT")
+SSL_KEY=$(printf '%q' "$SSL_KEY")
+ERROR_ROOT=$(printf '%q' "$ERROR_ROOT")
 EOF
 
 cat <<EOF

@@ -1,0 +1,88 @@
+{
+  "schema_kind": "acme-issuance-result",
+  "schema_version": 1,
+  "mode": "execute",
+  "final_status": "blocked",
+  "placeholder": {
+    "is_placeholder": true,
+    "placeholder_kind": "conservative-execute-skeleton",
+    "review_required": true,
+    "source_of_truth": "explicit-placeholder-marker"
+  },
+  "planning_reference": {
+    "issue_result_json": "ISSUE-RESULT.json",
+    "issue_result_markdown": "ISSUE-RESULT.md",
+    "contract_scope": "planning-evidence-only"
+  },
+  "intent": {
+    "result_role": "execute-placeholder",
+    "requested_operation": "issue-certificate",
+    "requested_mode": "execute",
+    "real_execution_performed": false
+  },
+  "context": {
+    "run_id": "fixture-tls-acme-http01",
+    "deployment_name": "fixture-tls-acme-http01",
+    "base_domain": "github.example.com",
+    "domain_mode": "flat-siblings",
+    "platform": "plain-nginx",
+    "tls_mode": "acme-http01"
+  },
+  "request": {
+    "challenge_mode": "standalone",
+    "acme_client": "manual",
+    "account_email": "",
+    "staging": true
+  },
+  "pending_execution_plan": {
+    "planned_target_hosts": [
+      "github.example.com",
+      "raw.example.com",
+      "gist.example.com",
+      "assets.example.com",
+      "archive.example.com",
+      "download.example.com"
+    ],
+    "planned_challenge_mode": "standalone",
+    "planned_challenge_fulfillment": "standalone",
+    "planned_acme_client": "manual",
+    "planned_acme_directory": "staging",
+    "planned_artifact_write": "deferred-until-real-execute",
+    "planned_deployment_handoff": "separate-after-issuance"
+  },
+  "execution": {
+    "attempted_hosts": [
+      "github.example.com",
+      "raw.example.com",
+      "gist.example.com",
+      "assets.example.com",
+      "archive.example.com",
+      "download.example.com"
+    ],
+    "fulfilled_challenge_strategy": "not-executed",
+    "client_invoked": false,
+    "issued_certificate": false
+  },
+  "artifacts": {
+    "cert_path": "",
+    "key_path": "",
+    "fullchain_path": ""
+  },
+  "deployment_boundary": {
+    "writes_live_tls_paths": false,
+    "modifies_live_nginx": false,
+    "reloads_nginx": false
+  },
+  "operator_prerequisites": {
+    "review_issue_result_before_execute": true,
+    "implement_real_execute_path": true,
+    "confirm_challenge_fulfillment_path": true,
+    "confirm_certificate_write_target": true,
+    "confirm_deployment_boundary": true
+  },
+  "recovery": {
+    "recoverable": true,
+    "blocker_summary": "execute path not implemented: 当前 --execute 仅为占位语义，不会真实签发证书"
+  },
+  "next_step": "如需真实签发，请先设计并实现独立 execute 子路径（落成 ACME-ISSUANCE-RESULT.{md,json} companion contract，含 ACME client / challenge fulfillment / 证书落盘 / 可控部署边界），而不是复用当前占位 helper。"
+}

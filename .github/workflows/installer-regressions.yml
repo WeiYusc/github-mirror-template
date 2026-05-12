@@ -1,0 +1,38 @@
+name: installer-regressions
+
+"on":
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  installer-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install PyYAML
+        run: python3 -m pip install --upgrade pip pyyaml
+
+      - name: Run deploy config YAML regression
+        run: bash tests/deploy-config-yaml-regression.sh
+
+      - name: Run installer smoke regression
+        run: bash tests/installer-smoke.sh
+
+      - name: Run installer summary isolation regression
+        run: bash tests/installer-summary-isolation.sh
+
+      - name: Run installer contract regression
+        run: bash tests/installer-contracts-regression.sh
+
+      - name: Run installer doctor golden regression
+        run: bash tests/installer-doctor-golden.sh

@@ -1,0 +1,15 @@
+deployment_name: fixture-tls-acme-dns-cloudflare
+domain:
+  base_domain: github.example.com
+  mode: flat-siblings
+deployment:
+  platform: plain-nginx
+tls:
+  mode: acme-dns-cloudflare
+paths:
+  error_root: /tmp/errors
+  log_dir: /tmp/logs
+  output_dir: ./dist/fixture-tls-acme-dns-cloudflare
+nginx:
+  snippets_target_hint: /tmp/snippets
+  vhost_target_hint: /tmp/conf.d

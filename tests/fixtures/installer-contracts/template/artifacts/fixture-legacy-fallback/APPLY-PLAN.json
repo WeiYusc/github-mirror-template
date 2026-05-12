@@ -1,0 +1,37 @@
+{
+  "schema_kind": "apply-plan",
+  "schema_version": 1,
+  "mode": "execute",
+  "platform": "plain-nginx",
+  "summary": {
+    "new": 1,
+    "replace": 1,
+    "same": 18,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0,
+    "has_blockers": false
+  },
+  "paths": {
+    "from": "./dist/fixture-legacy-fallback",
+    "snippets_target": "/tmp/snippets",
+    "vhost_target": "/tmp/conf.d",
+    "error_root": "/tmp/errors"
+  },
+  "items": [
+    {
+      "category": "snippet",
+      "source": "snippets/a.conf",
+      "dest": "/tmp/snippets/a.conf",
+      "status": "REPLACE",
+      "note": "fixture replace"
+    },
+    {
+      "category": "vhost",
+      "source": "conf.d/b.conf",
+      "dest": "/tmp/conf.d/b.conf",
+      "status": "NEW",
+      "note": "fixture new"
+    }
+  ]
+}

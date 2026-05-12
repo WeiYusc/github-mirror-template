@@ -1,0 +1,60 @@
+{
+  "schema_kind": "issue-result",
+  "schema_version": 1,
+  "contract_scope": "planning-evidence-only",
+  "reserved_execute_result": {
+    "schema_kind": "acme-issuance-result",
+    "artifact_json": "ACME-ISSUANCE-RESULT.json",
+    "artifact_markdown": "ACME-ISSUANCE-RESULT.md",
+    "status": "reserved-not-implemented"
+  },
+  "mode": "execute",
+  "final_status": "blocked",
+  "context": {
+    "run_id": "fixture-tls-acme-real-execute-attempt",
+    "deployment_name": "fixture-tls-acme-real-execute-attempt",
+    "base_domain": "github.example.com",
+    "domain_mode": "flat-siblings",
+    "platform": "plain-nginx",
+    "tls_mode": "acme-http01"
+  },
+  "request": {
+    "challenge_mode": "standalone",
+    "webroot": "",
+    "acme_client": "manual",
+    "account_email": "",
+    "staging": true
+  },
+  "checks": {
+    "derived_hosts": [
+      "github.example.com",
+      "raw.example.com",
+      "gist.example.com",
+      "assets.example.com",
+      "archive.example.com",
+      "download.example.com"
+    ],
+    "dns_points_to_local_ready": false,
+    "port_80_status": "listening",
+    "port_80_ready": true,
+    "needs_webroot": false,
+    "webroot_ready": null
+  },
+  "phase_boundary": {
+    "issues_certificate": false,
+    "installs_acme_client": false,
+    "modifies_live_nginx": false,
+    "reloads_nginx": false,
+    "writes_tls_files": false
+  },
+  "blockers": [
+    "域名当前无法解析到 A/AAAA：github.example.com",
+    "域名当前无法解析到 A/AAAA：raw.example.com",
+    "域名当前无法解析到 A/AAAA：gist.example.com",
+    "域名当前无法解析到 A/AAAA：assets.example.com",
+    "域名当前无法解析到 A/AAAA：archive.example.com",
+    "域名当前无法解析到 A/AAAA：download.example.com",
+    "execute path not implemented: 当前 --execute 仅为占位语义，不会真实签发证书"
+  ],
+  "next_step": "当前 run 附带 synthetic non-placeholder ACME companion result，仅用于验证 future real execute attempt 不会被误判为 placeholder。"
+}

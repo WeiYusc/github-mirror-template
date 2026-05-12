@@ -1,0 +1,92 @@
+{
+  "schema_kind": "acme-issuance-result",
+  "schema_version": 1,
+  "mode": "execute",
+  "final_status": "blocked",
+  "placeholder": {
+    "is_placeholder": false,
+    "placeholder_kind": "future-real-execute",
+    "review_required": false,
+    "source_of_truth": "synthetic-real-execute-attempt"
+  },
+  "planning_reference": {
+    "issue_result_json": "ISSUE-RESULT.json",
+    "issue_result_markdown": "ISSUE-RESULT.md",
+    "contract_scope": "planning-evidence-only"
+  },
+  "intent": {
+    "result_role": "real-execute-attempt",
+    "requested_operation": "issue-certificate",
+    "requested_mode": "execute",
+    "real_execution_performed": true
+  },
+  "context": {
+    "run_id": "fixture-tls-acme-real-execute-attempt",
+    "deployment_name": "fixture-tls-acme-real-execute-attempt",
+    "base_domain": "github.example.com",
+    "domain_mode": "flat-siblings",
+    "platform": "plain-nginx",
+    "tls_mode": "acme-http01"
+  },
+  "request": {
+    "challenge_mode": "standalone",
+    "acme_client": "manual",
+    "account_email": "",
+    "staging": true
+  },
+  "pending_execution_plan": {
+    "planned_target_hosts": [
+      "github.example.com",
+      "raw.example.com",
+      "gist.example.com",
+      "assets.example.com",
+      "archive.example.com",
+      "download.example.com"
+    ],
+    "planned_challenge_mode": "standalone",
+    "planned_challenge_fulfillment": "standalone",
+    "planned_acme_client": "manual",
+    "planned_acme_directory": "staging",
+    "planned_artifact_write": "deferred-until-real-execute",
+    "planned_deployment_handoff": "separate-after-issuance"
+  },
+  "execution": {
+    "attempted_hosts": [
+      "github.example.com",
+      "raw.example.com",
+      "gist.example.com",
+      "assets.example.com",
+      "archive.example.com",
+      "download.example.com"
+    ],
+    "challenge_strategy": "standalone",
+    "client_adapter": "manual",
+    "materialization": "deferred-until-real-execute",
+    "fulfilled_challenge_strategy": "standalone-synthetic-attempt",
+    "client_invoked": true,
+    "issued_certificate": false
+  },
+  "artifacts": {
+    "materialization": "not-materialized",
+    "cert_path": "",
+    "key_path": "",
+    "fullchain_path": ""
+  },
+  "deployment_boundary": {
+    "writes_live_tls_paths": false,
+    "modifies_live_nginx": false,
+    "reloads_nginx": false
+  },
+  "operator_prerequisites": {
+    "review_issue_result_before_execute": true,
+    "implement_real_execute_path": true,
+    "confirm_challenge_fulfillment_path": true,
+    "confirm_certificate_write_target": true,
+    "confirm_deployment_boundary": true
+  },
+  "recovery": {
+    "recoverable": true,
+    "blocker_summary": "synthetic real execute attempt blocked before certificate issuance"
+  },
+  "next_step": "当前样本仅用于守住 non-placeholder future real execute attempt 与 placeholder 的边界；后续若要真实签发，仍需独立实现 execute 子路径与更完整 strategy。"
+}

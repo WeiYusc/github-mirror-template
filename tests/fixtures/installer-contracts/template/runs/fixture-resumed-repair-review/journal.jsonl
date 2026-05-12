@@ -1,0 +1,2 @@
+{"ts": "2026-04-21T01:31:00Z", "run_id": "fixture-resumed-repair-review", "event": "run.initialized", "status": "ok", "message": "mode=resume", "path": "__FIXTURE_ROOT__/runs/fixture-resumed-repair-review"}
+{"ts": "2026-04-21T01:31:01Z", "run_id": "fixture-resumed-repair-review", "event": "run.complete", "status": "success", "message": "installer completed", "path": "__FIXTURE_ROOT__/artifacts/fixture-resumed-repair-review/INSTALLER-SUMMARY.json"}

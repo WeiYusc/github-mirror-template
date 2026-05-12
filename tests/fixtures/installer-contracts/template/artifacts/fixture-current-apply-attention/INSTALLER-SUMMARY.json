@@ -1,0 +1,42 @@
+{
+  "schema_kind": "installer-summary",
+  "schema_version": 1,
+  "deployment_name": "fixture-current-apply-attention",
+  "base_domain": "github.example.com",
+  "domain_mode": "flat-siblings",
+  "platform": "plain-nginx",
+  "input_mode": "advanced",
+  "flags": {
+    "assume_yes": true,
+    "run_apply_dry_run": true,
+    "execute_apply": true,
+    "run_nginx_test_after_execute": true
+  },
+  "status": {
+    "preflight": "warn",
+    "generator": "success",
+    "apply_plan": "generated",
+    "apply_dry_run": "skipped",
+    "apply_execute": "needs-attention",
+    "final": "needs-attention",
+    "exit_code": 1
+  },
+  "artifacts": {
+    "preflight_markdown": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/preflight.generated.md",
+    "preflight_json": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/preflight.generated.json",
+    "config": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/deploy.generated.yaml",
+    "output_dir": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention",
+    "apply_plan_markdown": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/APPLY-PLAN.md",
+    "apply_plan_json": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/APPLY-PLAN.json",
+    "apply_result": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/APPLY-RESULT.md",
+    "apply_result_json": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/APPLY-RESULT.json",
+    "summary_generated": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/INSTALLER-SUMMARY.generated.json",
+    "summary_output": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/INSTALLER-SUMMARY.json",
+    "state_dir": "__FIXTURE_ROOT__/runs/fixture-current-apply-attention",
+    "state_json": "__FIXTURE_ROOT__/runs/fixture-current-apply-attention/state.json",
+    "journal_jsonl": "__FIXTURE_ROOT__/runs/fixture-current-apply-attention/journal.jsonl",
+    "run_id": "fixture-current-apply-attention",
+    "apply_result_exists": true,
+    "apply_result_json_exists": true
+  }
+}

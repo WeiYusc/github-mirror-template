@@ -1,0 +1,53 @@
+{
+  "schema_kind": "apply-result",
+  "schema_version": 1,
+  "mode": "execute",
+  "platform": "plain-nginx",
+  "final_status": "ok",
+  "backup_dir": "/tmp/backup",
+  "next_step": "建议先人工复核，再决定是否继续后续操作。",
+  "execution": {
+    "backup_status": "completed",
+    "copy_status": "completed",
+    "reload_performed": false
+  },
+  "nginx_test": {
+    "requested": true,
+    "status": "0"
+  },
+  "recovery": {
+    "installer_status": "success",
+    "resume_strategy": "post-apply-review",
+    "resume_recommended": true,
+    "operator_action": "manual-review"
+  },
+  "targets": {
+    "snippets": "/tmp/snippets",
+    "vhost": "/tmp/conf.d",
+    "error_root": "/tmp/errors"
+  },
+  "summary": {
+    "new": 1,
+    "replace": 1,
+    "same": 18,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0
+  },
+  "items": [
+    {
+      "category": "snippet",
+      "source": "snippets/a.conf",
+      "dest": "/tmp/snippets/a.conf",
+      "status": "REPLACE",
+      "note": "fixture replace"
+    },
+    {
+      "category": "vhost",
+      "source": "conf.d/b.conf",
+      "dest": "/tmp/conf.d/b.conf",
+      "status": "NEW",
+      "note": "fixture new"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "schema_kind": "apply-result",
+  "schema_version": 1,
+  "mode": "execute",
+  "platform": "plain-nginx",
+  "final_status": "needs-attention",
+  "backup_dir": "/tmp/backup",
+  "next_step": "apply 已明确要求先人工复核；建议先检查当前 run 的 apply result 与 recovery 字段，再决定是否只做 dry-run 或人工处理。",
+  "execution": {
+    "backup_status": "ok",
+    "copy_status": "ok",
+    "reload_performed": false
+  },
+  "nginx_test": {
+    "requested": true,
+    "status": "failed"
+  },
+  "recovery": {
+    "installer_status": "needs-attention",
+    "resume_strategy": "post-apply-review",
+    "resume_recommended": false,
+    "operator_action": "manual-review"
+  },
+  "targets": {
+    "snippets": "/tmp/snippets",
+    "vhost": "/tmp/conf.d",
+    "error_root": "/tmp/errors"
+  },
+  "summary": {
+    "new": 0,
+    "replace": 2,
+    "same": 18,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0
+  },
+  "items": []
+}

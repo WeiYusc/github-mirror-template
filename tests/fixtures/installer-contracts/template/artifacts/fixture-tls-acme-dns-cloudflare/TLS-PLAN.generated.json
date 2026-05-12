@@ -1,0 +1,37 @@
+{
+  "schema_kind": "tls-plan",
+  "schema_version": 1,
+  "status": "warn",
+  "mode": "acme-dns-cloudflare",
+  "context": {
+    "deployment_name": "fixture-tls-acme-dns-cloudflare",
+    "base_domain": "github.example.com",
+    "domain_mode": "flat-siblings",
+    "platform": "plain-nginx",
+    "output_dir": "./dist/fixture-tls-acme-dns-cloudflare",
+    "tls_cert": "",
+    "tls_key": ""
+  },
+  "derived_hosts": [
+    "github.example.com",
+    "raw.example.com",
+    "gist.example.com",
+    "assets.example.com",
+    "archive.example.com",
+    "download.example.com"
+  ],
+  "checks": {
+    "dns_points_to_local_ready": false,
+    "port_80_status": "unknown"
+  },
+  "warnings": [
+    "tls.mode=acme-dns-cloudflare 当前仍是 Phase 1 scaffolding：只生成 TLS plan / preflight 结论，不会调用 Cloudflare API 或申请证书"
+  ],
+  "blockers": [],
+  "phase_boundary": {
+    "issues_certificate": false,
+    "installs_acme_client": false,
+    "modifies_dns": false,
+    "modifies_live_nginx": false
+  }
+}

@@ -1,0 +1,4 @@
+{"ts": "2026-05-02T04:40:00Z", "run_id": "fixture-tls-acme-real-execute-attempt", "event": "run.start", "status": "running", "message": "synthetic future real execute attempt fixture started"}
+{"ts": "2026-05-02T04:40:01Z", "run_id": "fixture-tls-acme-real-execute-attempt", "event": "issue.result.recorded", "status": "blocked", "message": "issue result recorded", "path": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-real-execute-attempt/ISSUE-RESULT.json"}
+{"ts": "2026-05-02T04:40:02Z", "run_id": "fixture-tls-acme-real-execute-attempt", "event": "acme_issuance.result.recorded", "status": "blocked", "message": "synthetic real execute attempt result recorded", "path": "__FIXTURE_ROOT__/artifacts/fixture-tls-acme-real-execute-attempt/ACME-ISSUANCE-RESULT.json"}
+{"ts": "2026-05-02T04:40:03Z", "run_id": "fixture-tls-acme-real-execute-attempt", "event": "run.complete", "status": "needs-attention", "message": "synthetic future real execute attempt fixture completed"}

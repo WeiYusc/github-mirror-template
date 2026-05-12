@@ -1,0 +1,55 @@
+{
+  "schema_kind": "rollback-result",
+  "schema_version": 1,
+  "mode": "execute",
+  "final_status": "ok",
+  "source_apply_result": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/APPLY-RESULT.json",
+  "source_mode": "execute",
+  "source_final_status": "needs-attention",
+  "platform": "plain-nginx",
+  "backup_dir": "/tmp/backup",
+  "next_step": "已执行 selective rollback；建议先做现场复查，再决定是否重新 dry-run / apply。",
+  "flags": {
+    "delete_new": true,
+    "execute": true
+  },
+  "source_summary": {
+    "new": 0,
+    "replace": 2,
+    "same": 18,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0
+  },
+  "summary": {
+    "restore": 2,
+    "delete": 0,
+    "skip": 0,
+    "blocked": 0,
+    "pending": 0,
+    "restored": 2,
+    "deleted": 0
+  },
+  "items": [
+    {
+      "category": "snippet",
+      "source": "snippets/a.conf",
+      "dest": "/tmp/snippets/a.conf",
+      "original_status": "REPLACE",
+      "action": "restore",
+      "outcome": "restored",
+      "note": "fixture restored",
+      "backup_path": "/tmp/backup/a.conf"
+    },
+    {
+      "category": "vhost",
+      "source": "conf.d/b.conf",
+      "dest": "/tmp/conf.d/b.conf",
+      "original_status": "REPLACE",
+      "action": "restore",
+      "outcome": "restored",
+      "note": "fixture restored",
+      "backup_path": "/tmp/backup/b.conf"
+    }
+  ]
+}

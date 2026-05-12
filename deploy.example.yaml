@@ -5,6 +5,10 @@ domain:
   mode: flat-siblings
 
 tls:
+  # existing | acme-http01 | acme-dns-cloudflare
+  # 非 existing 模式当前仅生成 Phase 1 review-first TLS plan，不会自动签发证书
+  mode: existing
+  # 仅 tls.mode=existing 时需要填写真实可用证书路径
   cert: /etc/ssl/example/fullchain.pem
   key: /etc/ssl/example/privkey.pem
 

@@ -1,0 +1,42 @@
+{
+  "schema_kind": "installer-summary",
+  "schema_version": 1,
+  "deployment_name": "fixture-post-rollback-inspection",
+  "base_domain": "github.example.com",
+  "domain_mode": "flat-siblings",
+  "platform": "plain-nginx",
+  "input_mode": "advanced",
+  "flags": {
+    "assume_yes": true,
+    "run_apply_dry_run": true,
+    "execute_apply": false,
+    "run_nginx_test_after_execute": false
+  },
+  "status": {
+    "preflight": "warn",
+    "generator": "success",
+    "apply_plan": "generated",
+    "apply_dry_run": "skipped",
+    "apply_execute": "skipped",
+    "final": "success",
+    "exit_code": 0
+  },
+  "artifacts": {
+    "preflight_markdown": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/preflight.generated.md",
+    "preflight_json": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/preflight.generated.json",
+    "config": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/deploy.generated.yaml",
+    "output_dir": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection",
+    "apply_plan_markdown": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/APPLY-PLAN.md",
+    "apply_plan_json": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/APPLY-PLAN.json",
+    "apply_result": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/APPLY-RESULT.md",
+    "apply_result_json": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/APPLY-RESULT.json",
+    "summary_generated": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/INSTALLER-SUMMARY.generated.json",
+    "summary_output": "__FIXTURE_ROOT__/artifacts/fixture-post-rollback-inspection/INSTALLER-SUMMARY.json",
+    "state_dir": "__FIXTURE_ROOT__/runs/fixture-post-rollback-inspection",
+    "state_json": "__FIXTURE_ROOT__/runs/fixture-post-rollback-inspection/state.json",
+    "journal_jsonl": "__FIXTURE_ROOT__/runs/fixture-post-rollback-inspection/journal.jsonl",
+    "run_id": "fixture-post-rollback-inspection",
+    "apply_result_exists": true,
+    "apply_result_json_exists": true
+  }
+}

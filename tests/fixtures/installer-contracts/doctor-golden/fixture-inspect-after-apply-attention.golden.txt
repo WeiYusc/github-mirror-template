@@ -1,0 +1,62 @@
+[doctor] 运行摘要
+- run_id: fixture-inspect-after-apply-attention
+- checkpoint: completed
+- resumed_from: fixture-legacy-fallback
+- lineage.mode: resume
+- lineage.is_resumed_run: True
+- lineage.source_run_id: fixture-legacy-fallback
+- lineage.source_checkpoint: completed
+- lineage.source_resumed_from: 无
+- lineage.resume_strategy: inspect-after-apply-attention
+- lineage.resume_strategy_reason: source apply recovery marked resume as not recommended
+- 这是一轮 resumed run：当前运行继承自 fixture-legacy-fallback（source checkpoint: completed）。
+- 源运行本身不是已记录的 resumed run，当前链路到此为止。
+- 当前已解析到 2 段 lineage 链。
+- 允许动作：复用输入/产物；显式 --run-apply-dry-run；先人工复查 apply result / recovery。
+- 禁止动作：不要把 --resume 当成真实 apply 重放；不要直接带 --execute-apply。
+- 说明：当前 run 已明确进入 inspect-after-apply-attention；应先看 apply result / recovery 字段，再决定后续动作。
+- 最近的异常祖先节点：fixture-legacy-fallback （repair=needs-attention）。
+- 祖先参考产物：__FIXTURE_ROOT__/artifacts/fixture-legacy-fallback/REPAIR-RESULT.json [repair-result]
+- 说明：最近异常更偏向 repair 结论，建议先看这个结果文件。
+[doctor] lineage chain
+- depth: 2
+- 1. [current] fixture-inspect-after-apply-attention (checkpoint=completed, final=success; strategy=inspect-after-apply-attention; reason=source apply recovery marked resume as not recommended)
+- 2. [ancestor-1] fixture-legacy-fallback (checkpoint=completed, final=success; strategy=fresh; reason=new-run; alerts=repair=needs-attention)
+[doctor] 状态
+- apply_execute: skipped
+- repair: ok
+- rollback: ok
+- final: success
+[doctor] apply result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-inspect-after-apply-attention/APPLY-RESULT.json
+- mode: execute
+- final_status: needs-attention
+- nginx_test.requested: True
+- nginx_test.status: failed
+- recovery.installer_status: needs-attention
+- recovery.resume_strategy: post-apply-review
+- recovery.resume_recommended: False
+- recovery.operator_action: manual-review
+- next_step: apply 已明确要求先人工复核；建议先检查当前 run 的 apply result 与 recovery 字段，再决定是否只做 dry-run 或人工处理。
+[doctor] repair result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-inspect-after-apply-attention/REPAIR-RESULT.json
+- mode: execute
+- final_status: ok
+- source_recovery.installer_status: needs-attention
+- source_recovery.resume_recommended: False
+- source_recovery.operator_action: rollback-or-fix
+- execution.nginx_test_rerun_status: not-run
+- next_step: repair 结果当前仅供参考；本场景主语义仍以 apply recovery 的人工复核建议为准。
+[doctor] rollback result json
+- path: __FIXTURE_ROOT__/artifacts/fixture-inspect-after-apply-attention/ROLLBACK-RESULT.json
+- mode: dry-run
+- final_status: ok
+- flags.execute: False
+- next_step: rollback 当前未真实执行；只作为辅助参考结果保留。
+[doctor] journal
+- entries: 3
+- last_event: run.complete [success]
+- last_message: installer completed
+[doctor] 下一步建议
+- apply 已明确要求先人工复核；建议先检查当前 run 的 apply result 与 recovery 字段，再决定是否只做 dry-run 或人工处理。 当前不建议把 resume 当作默认下一步。
+- 输入快照可用于 resume：__FIXTURE_ROOT__/runs/fixture-inspect-after-apply-attention/inputs.env

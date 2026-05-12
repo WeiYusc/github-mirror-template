@@ -112,8 +112,53 @@ BASE_DOMAIN=github.example.com
 
 ## 3.3 工具脚本
 
+- `generate-from-config.sh`
+- `install-interactive.sh`
+- `apply-generated-package.sh`
 - `render-from-base-domain.sh`
 - `validate-rendered-config.sh`
+
+## 3.4 这份宝塔部署文档该怎么配合不同入口使用
+
+你可能是从 3 条不同入口来到这份文档：
+
+### 路线 A：`generate-from-config.sh`
+
+如果你是通过：
+
+- `deploy.example.yaml`
+- `generate-from-config.sh`
+
+生成的部署包进入后续部署，那么这份文档的作用是：
+
+- 帮你把 `dist/<deployment_name>/` 里的输出映射到宝塔/Nginx 实际目录
+- 帮你理解 snippets、错误页、vhost conf、`http {}` 白名单 map 应该怎么落地
+- 帮你按宝塔环境做上线前检查、验证和回滚
+
+### 路线 B：`install-interactive.sh`
+
+如果你是通过：
+
+- `install-interactive.sh`
+- `apply-generated-package.sh`
+
+进入流程，那么要把它理解成：
+
+- 建立在 generator 之上的**实验性中文交互编排层**
+- 不是替代人工审查的一键黑盒安装器
+
+这份文档对你仍然有用，因为它解释了宝塔环境里真正要落地的目录、文件类型、验证顺序与回滚边界。
+
+需要特别注意：当前 installer 路线**不会自动改 DNS、不会自动 reload nginx**，你仍然应该结合本文件完成最后的宝塔侧核对。
+
+### 路线 C：`render-from-base-domain.sh`
+
+如果你是直接使用：
+
+- `render-from-base-domain.sh`
+- `validate-rendered-config.sh`
+
+那么这份文档就是你后续的主要落地说明：渲染完成后，继续按本文档把输出接到宝塔/Nginx。
 
 ---
 
@@ -317,6 +362,8 @@ snippets/http-redirect-whitelist-map.conf
 ## Step 4：先渲染模板副本
 
 运行渲染脚本，生成一份可审查的实际域名版配置副本。
+
+如果你前面已经通过 `generate-from-config.sh` 或 `install-interactive.sh` 生成了 `dist/<deployment_name>/` 部署包，那么这里可以理解为：先审查那份输出包，而不是再额外手工跑一遍底层渲染脚本。
 
 ## Step 5：运行自检脚本
 

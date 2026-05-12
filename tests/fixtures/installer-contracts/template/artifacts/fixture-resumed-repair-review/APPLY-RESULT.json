@@ -1,0 +1,38 @@
+{
+  "schema_kind": "apply-result",
+  "schema_version": 1,
+  "mode": "dry-run",
+  "platform": "plain-nginx",
+  "final_status": "ok",
+  "backup_dir": "/tmp/backup",
+  "next_step": "当前未进入真实执行。",
+  "execution": {
+    "backup_status": "not-started",
+    "copy_status": "not-started",
+    "reload_performed": false
+  },
+  "nginx_test": {
+    "requested": false,
+    "status": "not-run"
+  },
+  "recovery": {
+    "installer_status": "success",
+    "resume_strategy": "dry-run-ok",
+    "resume_recommended": true,
+    "operator_action": "review-plan"
+  },
+  "targets": {
+    "snippets": "/tmp/snippets",
+    "vhost": "/tmp/conf.d",
+    "error_root": "/tmp/errors"
+  },
+  "summary": {
+    "new": 0,
+    "replace": 0,
+    "same": 20,
+    "conflict": 0,
+    "target_block": 0,
+    "missing_source": 0
+  },
+  "items": []
+}

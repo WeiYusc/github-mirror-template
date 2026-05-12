@@ -1,0 +1,3 @@
+{"ts": "2026-04-21T02:40:00Z", "run_id": "fixture-current-apply-attention", "event": "run.initialized", "status": "ok", "message": "mode=new", "path": "__FIXTURE_ROOT__/runs/fixture-current-apply-attention"}
+{"ts": "2026-04-21T02:40:01Z", "run_id": "fixture-current-apply-attention", "event": "apply-execute.complete", "status": "needs-attention", "message": "real apply status=needs-attention", "path": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/APPLY-RESULT.json"}
+{"ts": "2026-04-21T02:40:02Z", "run_id": "fixture-current-apply-attention", "event": "run.complete", "status": "needs-attention", "message": "installer completed with attention required", "path": "__FIXTURE_ROOT__/artifacts/fixture-current-apply-attention/INSTALLER-SUMMARY.json"}
