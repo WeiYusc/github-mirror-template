@@ -200,6 +200,12 @@ check_contains "$RENDERED_DIR/conf.d/archive.example.com.conf" "$ARCHIVE_DOMAIN"
 check_contains "$RENDERED_DIR/conf.d/download.example.com.conf" "$DOWNLOAD_DOMAIN" "download domain"
 pass "expected domains appear in rendered conf files"
 
+for conf in   "$RENDERED_DIR/conf.d/hub.example.com.conf"   "$RENDERED_DIR/conf.d/raw.example.com.conf"   "$RENDERED_DIR/conf.d/gist.example.com.conf"   "$RENDERED_DIR/conf.d/assets.example.com.conf"   "$RENDERED_DIR/conf.d/archive.example.com.conf"   "$RENDERED_DIR/conf.d/download.example.com.conf"; do
+  check_contains "$conf" '#SSL-START' "BaoTa SSL anchor (#SSL-START)"
+  check_contains "$conf" '#error_page 404/404.html;' "BaoTa SSL anchor (#error_page 404/404.html;)"
+done
+pass "BaoTa SSL anchors exist in all rendered vhost conf files"
+
 if grep -R -n 'TODO:' "$RENDERED_DIR/conf.d" "$RENDERED_DIR/snippets" >/tmp/github-mirror-todos.txt 2>/dev/null; then
   warn "TODO markers still exist in rendered config (review before production):"
   cat /tmp/github-mirror-todos.txt >&2

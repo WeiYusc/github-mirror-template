@@ -3,7 +3,6 @@ set -euo pipefail
 
 BASE_DOMAIN="github.weiyusc.top"
 NGINX_CONF="/www/server/nginx/conf/nginx.conf"
-TLS_SNIPPET="/www/server/nginx/conf/snippets/tls-common.conf"
 LOG_LINES=120
 TIMEOUT=20
 
@@ -15,7 +14,7 @@ Usage:
 What it checks:
   - 6 live mirror URLs (hub/raw/gist/gist-raw/archive/download/assets)
   - nginx http include for http-redirect-whitelist-map.conf
-  - TLS snippet certificate path + expiry + SANs
+  - live vhost certificate source + expiry + SANs
   - recent site error logs for high-signal keywords
 
 Exit codes:
@@ -86,11 +85,19 @@ if [[ "$root_suffix" == "$BASE_DOMAIN" || -z "$root_suffix" ]]; then
 fi
 
 HUB_DOMAIN="$BASE_DOMAIN"
-RAW_DOMAIN="raw.${root_suffix}"
-GIST_DOMAIN="gist.${root_suffix}"
-ASSETS_DOMAIN="assets.${root_suffix}"
-ARCHIVE_DOMAIN="archive.${root_suffix}"
-DOWNLOAD_DOMAIN="download.${root_suffix}"
+if [[ "$BASE_DOMAIN" == *.*.* ]]; then
+  RAW_DOMAIN="raw.${root_suffix}"
+  GIST_DOMAIN="gist.${root_suffix}"
+  ASSETS_DOMAIN="assets.${root_suffix}"
+  ARCHIVE_DOMAIN="archive.${root_suffix}"
+  DOWNLOAD_DOMAIN="download.${root_suffix}"
+else
+  RAW_DOMAIN="raw.${BASE_DOMAIN}"
+  GIST_DOMAIN="gist.${BASE_DOMAIN}"
+  ASSETS_DOMAIN="assets.${BASE_DOMAIN}"
+  ARCHIVE_DOMAIN="archive.${BASE_DOMAIN}"
+  DOWNLOAD_DOMAIN="download.${BASE_DOMAIN}"
+fi
 
 FAILURES=0
 WARNINGS=0
@@ -127,28 +134,28 @@ check_nginx_include() {
   fi
 }
 
-extract_cert_path() {
-  local line
-  line="$(grep -E '^ssl_certificate\s+' "$TLS_SNIPPET" | head -n 1 || true)"
-  line="${line#ssl_certificate}"
-  line="${line//;/}"
-  echo "$line" | xargs
+extract_live_cert_path() {
+  local site="$1"
+  local vhost_conf="/www/server/panel/vhost/nginx/${site}.conf"
+  if [[ ! -f "$vhost_conf" ]]; then
+    echo "MISSING_VHOST::$vhost_conf"
+    return
+  fi
+  python3 - "$vhost_conf" <<'PY'
+from pathlib import Path
+import re, sys
+text = Path(sys.argv[1]).read_text(encoding='utf-8')
+match = re.search(r'^\s*ssl_certificate\s+([^;]+);', text, flags=re.M)
+if match:
+    print(match.group(1).strip())
+else:
+    print('MISSING_DIRECTIVE::' + sys.argv[1])
+PY
 }
 
-check_tls_cert() {
-  if [[ ! -f "$TLS_SNIPPET" ]]; then
-    fail "TLS snippet missing: $TLS_SNIPPET"
-    return
-  fi
-  local cert_path
-  cert_path="$(extract_cert_path)"
-  if [[ -z "$cert_path" || ! -f "$cert_path" ]]; then
-    fail "TLS snippet certificate path missing or unreadable: ${cert_path:-<empty>}"
-    return
-  fi
-
-  local cert_json
-  cert_json="$(python3 - "$cert_path" <<'PY'
+print_cert_details() {
+  local cert_path="$1"
+  python3 - "$cert_path" <<'PY'
 import json, subprocess, sys, datetime
 cert_path = sys.argv[1]
 subject = subprocess.check_output(['openssl','x509','-in',cert_path,'-noout','-subject'], text=True).strip()
@@ -160,7 +167,27 @@ now = datetime.datetime.utcnow()
 days_left = int((expiry - now).total_seconds() // 86400)
 print(json.dumps({'subject': subject, 'issuer': issuer, 'enddate': enddate, 'days_left': days_left, 'san': san}, ensure_ascii=False))
 PY
-)"
+}
+
+check_tls_cert() {
+  local primary_site="$HUB_DOMAIN"
+  local cert_path
+  cert_path="$(extract_live_cert_path "$primary_site")"
+  if [[ "$cert_path" == MISSING_VHOST::* ]]; then
+    fail "live vhost missing for TLS check: ${cert_path#MISSING_VHOST::}"
+    return
+  fi
+  if [[ "$cert_path" == MISSING_DIRECTIVE::* ]]; then
+    fail "ssl_certificate directive missing in live vhost: ${cert_path#MISSING_DIRECTIVE::}"
+    return
+  fi
+  if [[ -z "$cert_path" || ! -f "$cert_path" ]]; then
+    fail "live vhost certificate path missing or unreadable: ${cert_path:-<empty>}"
+    return
+  fi
+
+  local cert_json
+  cert_json="$(print_cert_details "$cert_path")"
   local days_left
   days_left="$(python3 - <<'PY' "$cert_json"
 import json,sys
@@ -172,7 +199,7 @@ PY
   elif (( days_left < 30 )); then
     warn "TLS certificate expires soon (${days_left}d): $cert_path"
   else
-    pass "TLS certificate present with ${days_left}d remaining: $cert_path"
+    pass "TLS certificate present with ${days_left}d remaining (source: live vhost $primary_site): $cert_path"
   fi
   python3 - <<'PY' "$cert_json"
 import json,sys
