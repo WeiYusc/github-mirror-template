@@ -48,6 +48,24 @@
 
 应能找到对应 conf 文件。
 
+### 2.3.1 BaoTa SSL anchors 仍存在
+
+对每个镜像站点的 vhost，至少确认：
+
+- `#SSL-START` 仍在
+- `#error_page 404/404.html;` 仍在
+
+如果这两个锚点被替换掉，后续 BaoTa 站点级 SSL 管理容易失效或不可预测。
+
+### 2.3.2 站点级证书路径正确
+
+对每个镜像站点，至少确认其最终生效的 `ssl_certificate` / `ssl_certificate_key` 指向的是 BaoTa 站点级路径，例如：
+
+```text
+/www/server/panel/vhost/cert/<site>/fullchain.pem
+/www/server/panel/vhost/cert/<site>/privkey.pem
+```
+
 ### 2.4 本地站点数据存在（可选增强检查）
 
 如果你要做更强验证，可以检查 BaoTa 本地站点数据库和记录是否存在。
@@ -98,6 +116,7 @@ nginx -t
 - 返回成功
 - 无 include 路径错误
 - 无重复/冲突配置错误
+- 无重复 `ssl_certificate` / `ssl_certificate_key` / `ssl_protocols` / `ssl_ciphers` 之类的 SSL directive 冲突
 
 ---
 
@@ -108,6 +127,7 @@ nginx -t
 - HTTPS 能正常访问
 - 证书主题与域名匹配
 - 无明显浏览器证书错误
+- 证书真相来源以站点 vhost 中实际生效的 `ssl_certificate` 为准，而不是共享 `tls-common.conf`
 
 至少覆盖：
 

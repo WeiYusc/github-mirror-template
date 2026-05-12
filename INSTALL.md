@@ -126,6 +126,7 @@ LOG_DIR=/www/wwwlogs
 
 > 当前 flat-siblings 主线默认是 **6 个域名完整部署**：`github / raw / gist / assets / archive / download`。其中 `assets` 必须保留。
 > 当前 repo 默认也已内置 BaoTa 建站客户端；如需替换，可在 helper 路线显式传 `--bt-create-script <path>`。
+> 当前 BaoTa 主线还有一个很重要的 SSL 规则：渲染后的 vhost 必须保留 `#SSL-START` 与 `#error_page 404/404.html;` 这两个锚点，后续站点级证书绑定由 BaoTa 接管；不要再把共享 `snippets/tls-common.conf` 当成 BaoTa 站点 vhost 的长期 SSL 主承载方式。
 
 当前这套仓库有 3 条入口，建议先按你的目标选路：
 
@@ -320,6 +321,22 @@ bash tests/installer-doctor-golden.sh
 更完整的文档分层与阅读顺序，见：`docs/README.md`
 
 这份手册专门覆盖 `needs-attention` / `blocked` / `failed` / `cancelled` 的检查顺序、建议动作与禁止误操作说明。
+
+## 5.2.1 BaoTa SSL anchor / 巡检说明（当前主线）
+
+如果你的目标环境是 **BaoTa 已识别站点 + 外部渲染 vhost 接管业务规则**，请记住：
+
+- 渲染后的 BaoTa vhost 需要保留：
+  - `#SSL-START`
+  - `#error_page 404/404.html;`
+- 这两个锚点会被 `validate-rendered-config.sh` 和 `deploy-rendered-to-bt-panel.sh` 当作 BaoTa SSL 兼容前提
+- 站点最终实际生效的证书，应以 BaoTa 写入的站点级 `ssl_certificate` / `ssl_certificate_key` 为准
+- 不要再把共享 `snippets/tls-common.conf` 当成 BaoTa 站点 vhost 的长期 SSL 主承载方式，否则后续 BaoTa 重新绑证书时容易出现重复 SSL directives，导致 `nginx -t` 失败
+
+关于巡检脚本：
+
+- `scripts/check-live-mirror.sh` 现在优先检查 **live vhost 中实际声明的 `ssl_certificate`**
+- 它不再把共享 `tls-common.conf` 当成 BaoTa 主线的证书真相来源
 
 ## 5.3 保留入口：low-level renderer
 

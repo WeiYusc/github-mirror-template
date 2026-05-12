@@ -94,6 +94,7 @@ BASE_DOMAIN=github.example.com
 - [ ] 没有残留占位符
 - [ ] 关键 conf/snippets/errors 文件齐全
 - [ ] 域名引用正确
+- [ ] BaoTa vhost anchors 存在：`#SSL-START` 与 `#error_page 404/404.html;`
 - [ ] 没有未处理 TODO
 
 ---
@@ -147,6 +148,7 @@ BASE_DOMAIN=github.example.com
 - [ ] 已为镜像域名建站
 - [ ] 已为镜像域名绑定 HTTPS 证书
 - [ ] 已确认不会复用现有业务站点配置
+- [ ] 已明确本次 BaoTa 主线以站点级证书绑定为准，而不是继续依赖 shared `tls-common.conf`
 
 ---
 
@@ -158,6 +160,8 @@ BASE_DOMAIN=github.example.com
 - [ ] 已复制渲染后的 `html/errors/` 到 `ERROR_ROOT`
 - [ ] 已将渲染后的 `conf.d/*` 调整为目标服务器实际 conf 布局
 - [ ] 已按实际环境修正 conf 中的 `include` 路径
+- [ ] 已确认每个 BaoTa vhost 仍保留 `#SSL-START` 与 `#error_page 404/404.html;`
+- [ ] 已确认没有把共享 `tls-common.conf` 继续留在 BaoTa 站点 vhost 里做长期 SSL 主承载
 
 ---
 
@@ -185,6 +189,7 @@ BASE_DOMAIN=github.example.com
 
 - [ ] 已执行 `nginx -t`
 - [ ] `nginx -t` 通过
+- [ ] 已确认无重复 `ssl_certificate` / `ssl_certificate_key` / `ssl_protocols` / `ssl_ciphers` 冲突
 - [ ] 通过后才执行 reload
 
 命令：

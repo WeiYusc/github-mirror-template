@@ -130,6 +130,36 @@ http {
 
 ---
 
+## 5.5 BaoTa HTTPS 能开，但后续在宝塔里改/重绑证书后 `nginx -t` 失败
+
+### 现象
+
+- 站点原本能开
+- 但在 BaoTa 里重新启用 HTTPS、改绑证书或重新保存 SSL 后
+- `nginx -t` 报 SSL directives 重复
+
+### 典型原因
+
+- 渲染后的 vhost 没有保留 BaoTa SSL anchors
+- 或者虽然已经改成 BaoTa 站点级 SSL，但旧的共享 TLS 承载（例如 `snippets/tls-common.conf`）还残留在同一站点 vhost 里
+- BaoTa 再次注入站点级 `ssl_certificate` / `ssl_protocols` / `ssl_ciphers` 后，形成重复 directives
+
+### 优先检查
+
+- 该站点 vhost 是否仍保留：
+  - `#SSL-START`
+  - `#error_page 404/404.html;`
+- 该站点 vhost 中是否还残留旧 shared TLS 载体
+- 该站点最终生效的 `ssl_certificate` 是否已切到 `/www/server/panel/vhost/cert/<site>/...`
+
+### 修复方向
+
+- 保留 BaoTa SSL anchors
+- 移除 BaoTa 站点 vhost 中不再需要的 shared TLS 承载
+- 再次执行 BaoTa 站点级证书绑定并复查 `nginx -t`
+
+---
+
 ## 6. `nginx -t` 失败，提示 snippets include 找不到
 
 ### 现象
@@ -237,6 +267,26 @@ download 链路最容易因为“测试 URL 本身不存在”而误判。
 
 - 先恢复本次变更前的备份
 - 再重新检查哪些文件是镜像专属、哪些是全局修改
+
+---
+
+## 10.5 巡检脚本看到的证书与旧 shared TLS snippet 不一致
+
+### 这通常不是脚本错了
+
+当前 `scripts/check-live-mirror.sh` 已改为：
+
+- 优先读取 **live vhost 中实际声明的 `ssl_certificate`**
+- 不再把共享 `tls-common.conf` 当成 BaoTa 主线证书真相来源
+
+### 正确理解
+
+如果脚本显示的证书路径与旧 shared TLS snippet 不同，优先相信：
+
+- 站点 vhost 中实际生效的 `ssl_certificate`
+- 以及 live TLS handshake 结果
+
+而不是继续以 shared TLS snippet 作为判断依据。
 
 ---
 

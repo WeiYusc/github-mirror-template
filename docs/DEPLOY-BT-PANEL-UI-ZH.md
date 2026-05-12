@@ -132,6 +132,7 @@ github.example.com
 - 宝塔 UI 中 HTTPS 已启用
 - 证书确实覆盖这 6 个域名
 - 不要只给 `github.example.com` 绑证书，其他 5 个站也要能走 HTTPS
+- 如果你后续要用本仓库渲染后的 vhost 去覆盖宝塔默认 conf，记住最终应以 **BaoTa 站点级 SSL 绑定** 为准，而不是继续依赖共享 TLS snippet
 
 ---
 
@@ -223,6 +224,10 @@ cp deploy.example.yaml deploy.yaml
 - 先备份宝塔生成的原始 conf
 - 再用渲染后的 conf 替换
 - 不要去改与镜像无关的旧站点配置
+- **确认渲染后的 conf 仍保留 BaoTa SSL anchors：**
+  - `#SSL-START`
+  - `#error_page 404/404.html;`
+- 不要把共享 `snippets/tls-common.conf` 当作 BaoTa 站点 vhost 的长期 SSL 主承载方式；后续如果 BaoTa 再次注入站点级 SSL，旧的 shared TLS 承载很容易造成重复 directives
 
 ---
 
@@ -255,6 +260,12 @@ http {
 ## 13. nginx 检查与重载
 
 修改完成后执行：
+
+在 `nginx -t` 之前，建议再额外看一眼：
+
+- 站点 vhost 中是否仍保留 `#SSL-START` 和 `#error_page 404/404.html;`
+- 站点 conf 中最终生效的 `ssl_certificate` / `ssl_certificate_key` 是否仍指向 BaoTa 站点级证书路径
+- 是否存在重复的 `ssl_certificate` / `ssl_certificate_key` / `ssl_protocols` / `ssl_ciphers`
 
 ```bash
 nginx -t
