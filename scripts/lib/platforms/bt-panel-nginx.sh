@@ -5,7 +5,7 @@ platform_explain_bt_panel_nginx() {
   cat <<'EOF'
 bt-panel-nginx 平台说明：
 - 适用于宝塔面板管理的 nginx 环境
-- 常见目录包括 /www/server/panel/vhost/nginx 与 /www/server/nginx/snippets
+- 当前推荐主线目录包括 /www/server/panel/vhost/nginx 与 /www/server/nginx/conf/snippets
 - 当前 installer 已支持 dry-run / print-plan，以及显式确认后的保守式 real apply
 EOF
 }

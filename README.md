@@ -4,6 +4,7 @@
 
 > 文档导航与权威层级：见 `docs/README.md`
 > - 想快速部署：优先读 `README.md` + `INSTALL.md`
+> - 想按管理员教程落地：优先读 `docs/DEPLOY-BT-PANEL-UI-ZH.md` 或 `docs/DEPLOY-BT-PANEL-CLI-ZH.md`
 > - 想处理 installer 异常 run：优先读 runbook / state model / result contracts
 > - 想继续开发 installer：优先读 roadmap / backlog / handoff
 
@@ -55,9 +56,23 @@ cp deploy.example.yaml deploy.yaml
 
 1. 检查生成出来的 `dist/<deployment-name>/`
 2. 读一遍 `DEPLOY-STEPS.md` / `DNS-CHECKLIST.md`
-3. 按 `INSTALL.md` / `BT-PANEL-DEPLOYMENT-v1.md` 做人工落地
+3. 按 `docs/DEPLOY-BT-PANEL-UI-ZH.md` 或 `docs/DEPLOY-BT-PANEL-CLI-ZH.md` 做人工落地
 
 > 说明：`generate-from-config.sh` 当前依赖 `python3` 和 Python `PyYAML`。
+
+## 当前推荐阅读路径
+
+如果你的目标是“在宝塔里部署一个可识别、可维护的 GitHub 公共只读镜像站”，建议按下面顺序读：
+
+1. `INSTALL.md`：总入口、边界、选路
+2. `docs/DEPLOY-BT-PANEL-UI-ZH.md`：适合以宝塔 UI 为主的管理员
+3. `docs/DEPLOY-BT-PANEL-CLI-ZH.md`：适合 SSH / 脚本化部署
+4. `docs/BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`：验收清单
+5. `docs/BT-PANEL-TROUBLESHOOTING-ZH.md`：常见故障排查
+
+> 重要：当前 `flat-siblings` 主线是 **6 个域名一起部署**：`github / raw / gist / assets / archive / download`。
+> 其中 `assets` 不是可选装饰项，而是 HTML 页面资源链路的一部分。
+> 当前仓库也已经内置 BaoTa 建站客户端，`ensure-bt-panel-mirror-stack.sh` 默认不再依赖外部 Hermes 路径；如有需要仍可通过 `--bt-create-script` 覆盖。
 
 ## 可选：实验性中文交互 installer
 

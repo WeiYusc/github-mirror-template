@@ -25,7 +25,11 @@
    - 当前最适合第一次真正落地时按步骤跟的操作手册
    - 适合从“准备环境 → 选入口 → 生成部署包 → 人工落地/验证”一路顺着读
 
-如果你只想快速跑通主流程，通常这两份就够了。
+3. `DEPLOY-BT-PANEL-UI-ZH.md` / `DEPLOY-BT-PANEL-CLI-ZH.md`
+   - 当前面向管理员的直接执行手册
+   - 一个偏宝塔 UI，一个偏 SSH / 命令行
+
+如果你只想快速跑通主流程，通常 `README.md` + `INSTALL.md` + 对应的 UI/CLI 手册就够了。
 
 ---
 
@@ -37,10 +41,18 @@
 
 - `../INSTALL.md`
   - 生成与落地步骤主手册
+- `DEPLOY-BT-PANEL-UI-ZH.md`
+  - 宝塔 UI 主导的部署手册
+- `DEPLOY-BT-PANEL-CLI-ZH.md`
+  - SSH / 命令行主导的部署手册
+- `BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`
+  - 宝塔识别、HTTP 链路与上线验收清单
+- `BT-PANEL-TROUBLESHOOTING-ZH.md`
+  - 宝塔镜像部署常见故障排查
 - `../DEPLOY-CONFIG.md`
   - `deploy.yaml` 字段解释与配置方式
 - `../BT-PANEL-DEPLOYMENT-v1.md`
-  - 宝塔 / Nginx 部署指引
+  - 宝塔 / Nginx 部署背景说明与兼容参考
 - `../DEPLOY-CHECKLIST.md`
   - 上线前后检查清单
 
@@ -123,9 +135,21 @@
 
 1. `../README.md`
 2. `../INSTALL.md`
-3. `../DEPLOY-CONFIG.md`
-4. `../BT-PANEL-DEPLOYMENT-v1.md`
-5. `../DEPLOY-CHECKLIST.md`
+3. `DEPLOY-BT-PANEL-UI-ZH.md` 或 `DEPLOY-BT-PANEL-CLI-ZH.md`
+4. `BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`
+5. `BT-PANEL-TROUBLESHOOTING-ZH.md`
+6. `../DEPLOY-CONFIG.md`
+7. `../BT-PANEL-DEPLOYMENT-v1.md`
+
+### 我想让 agent 代工，但先了解当前能力边界
+
+按这个顺序读：
+
+1. `../README.md`
+2. `../INSTALL.md`
+3. `DEPLOY-BT-PANEL-CLI-ZH.md`
+4. `BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`
+5. `BT-PANEL-TROUBLESHOOTING-ZH.md`
 
 ### 我想使用实验 installer
 

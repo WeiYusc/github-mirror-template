@@ -2,6 +2,7 @@
 
 > 文档导航与权威层级：见 `docs/README.md`
 > - 第一次部署：优先按本文顺序读
+> - 想直接照教程落地：优先读 `docs/DEPLOY-BT-PANEL-UI-ZH.md` 或 `docs/DEPLOY-BT-PANEL-CLI-ZH.md`
 > - 想处理 experimental installer 异常 run：优先补读 runbook / state model / result contracts
 > - 想继续改 installer：优先补读 roadmap / backlog / handoff
 
@@ -114,6 +115,16 @@ LOG_DIR=/www/wwwlogs
 ---
 
 # 5. 先选入口：generator / experimental installer / low-level renderer
+
+如果你已经明确是 **BaoTa / 宝塔** 环境，建议把本文当成“总入口”，然后尽快分流到更具体的执行手册：
+
+- 以宝塔 UI 为主：`docs/DEPLOY-BT-PANEL-UI-ZH.md`
+- 以 SSH / 命令行为主：`docs/DEPLOY-BT-PANEL-CLI-ZH.md`
+- 上线前后验收：`docs/BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`
+- 常见问题排查：`docs/BT-PANEL-TROUBLESHOOTING-ZH.md`
+
+> 当前 flat-siblings 主线默认是 **6 个域名完整部署**：`github / raw / gist / assets / archive / download`。其中 `assets` 必须保留。
+> 当前 repo 默认也已内置 BaoTa 建站客户端；如需替换，可在 helper 路线显式传 `--bt-create-script <path>`。
 
 当前这套仓库有 3 条入口，建议先按你的目标选路：
 
@@ -473,6 +484,18 @@ cp deploy.example.yaml deploy.yaml
 
 把渲染结果中的 `snippets/` 放到你的 Nginx snippets 目录。
 
+对当前 BaoTa/Nginx 主线，推荐目标是：
+
+```text
+/www/server/nginx/conf/snippets
+```
+
+原因：当前仓库的 deploy helper 与 BaoTa vhost include 主线默认按 `nginx.conf` 同级 snippets 目录组织；如果你要改成别的目录，请保证：
+
+- 渲染结果里的 include 路径已经对应调整
+- `deploy-rendered-to-bt-panel.sh --snippets-target` 与实际目录一致
+- 主 nginx / vhost include 不会指向旧路径
+
 ## 11.2 errors
 
 把 `html/errors/` 放到 `ERROR_ROOT`。
@@ -482,6 +505,11 @@ cp deploy.example.yaml deploy.yaml
 把 `conf.d/*.conf` 中的逻辑整理到你的宝塔 vhost 文件里。
 
 > 注意：这里不是要求你机械覆盖，而是按目标环境路径修正 include 与日志位置后再落地。
+
+如果你希望把这一步做成更标准的 BaoTa 落地流程：
+
+- UI 主导：看 `docs/DEPLOY-BT-PANEL-UI-ZH.md`
+- CLI 主导：看 `docs/DEPLOY-BT-PANEL-CLI-ZH.md`
 
 ---
 

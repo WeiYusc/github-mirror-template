@@ -18,7 +18,9 @@ paths:
   output_dir: ./dist/github-mirror-prod
 
 nginx:
-  snippets_target_hint: /www/server/nginx/snippets
+  # 对当前 BaoTa/Nginx 主线，推荐与 nginx.conf 同级的 snippets 目录：
+  # /www/server/nginx/conf/snippets
+  snippets_target_hint: /www/server/nginx/conf/snippets
   vhost_target_hint: /www/server/panel/vhost/nginx
   include_redirect_whitelist_map: true
 

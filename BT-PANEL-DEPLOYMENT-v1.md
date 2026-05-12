@@ -3,6 +3,13 @@
 > 目标：在 **不影响服务器现有网站运行** 的前提下，在宝塔/Nginx 环境中部署 GitHub 公共只读镜像。
 >
 > 本文档适用于当前项目目录结构。
+>
+> **当前阅读建议：** 这份文档更适合作为“设计与落地背景说明”。
+> 如果你现在就要按步骤操作，请优先读：
+> - `docs/DEPLOY-BT-PANEL-UI-ZH.md`
+> - `docs/DEPLOY-BT-PANEL-CLI-ZH.md`
+> - `docs/BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`
+> - `docs/BT-PANEL-TROUBLESHOOTING-ZH.md`
 
 ---
 
@@ -190,6 +197,8 @@ BASE_DOMAIN=github.example.com
   - 常见：`/www/wwwroot/github-mirror-errors`
 - 日志目录：
   - 常见：`/www/wwwlogs`
+- snippets 目录：
+  - 当前推荐主线：`/www/server/nginx/conf/snippets`
 
 ---
 
@@ -236,7 +245,7 @@ BASE_DOMAIN=github.example.com
 建议为本项目单独建立一个 snippets 目录，例如：
 
 ```text
-/www/server/nginx/conf/github-mirror-snippets/
+/www/server/nginx/conf/snippets/
 ```
 
 把渲染输出中的：

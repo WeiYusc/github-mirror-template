@@ -230,6 +230,7 @@ PY
 helper_rendered_dir="$TMP_DIR/helper-rendered"
 cp -a "$ROOT_DIR/rendered-test" "$helper_rendered_dir"
 helper_dry_run="$TMP_DIR/helper-dry-run.txt"
+helper_create_log="$TMP_DIR/helper-create-log.jsonl"
 helper_snippets_target="$TMP_DIR/helper-snippets"
 helper_vhost_target="$TMP_DIR/helper-vhosts"
 helper_backup_dir="$TMP_DIR/helper-backups"
@@ -290,6 +291,83 @@ assert "--allow-bootstrap-vhosts" in dry_run, dry_run
 assert "--skip-http-include" in dry_run, dry_run
 assert "--apply" not in dry_run, dry_run
 assert "--reload" not in dry_run, dry_run
+PY
+
+helper_create_script="$TMP_DIR/helper-create-stub.py"
+cat > "$helper_create_script" <<'EOF'
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+log_path = Path(os.environ["BT_CREATE_LOG"])
+entry = {
+    "argv": sys.argv[1:],
+    "password_env": os.environ.get("BT_PANEL_PASSWORD"),
+}
+with log_path.open("a", encoding="utf-8") as fh:
+    fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+print(json.dumps({"status": True, "siteStatus": True, "stub": True}))
+EOF
+chmod 700 "$helper_create_script"
+
+STUB_OUTPUT="$helper_dry_run" BT_PANEL_PASSWORD="secret-pass" BT_CREATE_LOG="$helper_create_log" "$ROOT_DIR/ensure-bt-panel-mirror-stack.sh" \
+  --base-domain github.example.com \
+  --domain-mode nested \
+  --rendered-dir "$helper_rendered_dir" \
+  --deploy-script "$TMP_DIR/helper-deploy-stub.sh" \
+  --bt-create-script "$helper_create_script" \
+  --snippets-target "$helper_snippets_target" \
+  --vhost-target "$helper_vhost_target" \
+  --backup-dir "$helper_backup_dir" \
+  --error-root "$helper_error_root" \
+  --nginx-conf /www/server/nginx/conf/nginx.conf \
+  --nginx-test-cmd 'nginx -t' \
+  --nginx-reload-cmd 'nginx -s reload' \
+  --panel https://panel.example.com:37913 \
+  --entry /bt-entry \
+  --username bt-user \
+  --password-env BT_PANEL_PASSWORD \
+  --apply \
+  --allow-bootstrap-vhosts \
+  --skip-http-include \
+  >/dev/null 2>"$TMP_DIR/helper-apply.stderr"
+
+if [[ ! -f "$helper_create_log" ]]; then
+  echo "[FAIL] helper create log was not created" >&2
+  cat "$TMP_DIR/helper-apply.stderr" >&2 || true
+  exit 1
+fi
+
+python3 - "$helper_create_log" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+rows = [json.loads(line) for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines() if line.strip()]
+assert len(rows) == 6, rows
+domains = [row["argv"][row["argv"].index("--domain") + 1] for row in rows]
+assert sorted(domains) == sorted([
+    "github.example.com",
+    "raw.github.example.com",
+    "gist.github.example.com",
+    "assets.github.example.com",
+    "archive.github.example.com",
+    "download.github.example.com",
+]), domains
+for row in rows:
+    argv = row["argv"]
+    assert argv[:8] == [
+        "--panel", "https://panel.example.com:37913",
+        "--entry", "/bt-entry",
+        "--username", "bt-user",
+        "--password", "secret-pass",
+    ], argv
+    assert "--if-not-exists" in argv, argv
+    assert row["password_env"] == "secret-pass", row
 PY
 
 execute_name="smoke-exec-$(date +%s)-$$"
