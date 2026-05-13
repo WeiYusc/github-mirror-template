@@ -231,7 +231,7 @@ check_block_if_output_dir_hits_live_targets() {
   fi
 
   case "$output_dir" in
-    /etc/nginx|/etc/nginx/*|/www/server/nginx/snippets|/www/server/nginx/snippets/*|/www/server/panel/vhost/nginx|/www/server/panel/vhost/nginx/*)
+    /etc/nginx|/etc/nginx/*|/www/server/nginx/conf/snippets|/www/server/nginx/conf/snippets/*|/www/server/panel/vhost/nginx|/www/server/panel/vhost/nginx/*)
       check_add_blocker "paths.output_dir 看起来像 live nginx 目录：$output_dir；请改用 dist/ 下的审查输出目录"
       ;;
   esac

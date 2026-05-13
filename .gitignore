@@ -1,3 +1,4 @@
 dist/
 TASKS.md
 scripts/generated/
+.hermes/

@@ -120,7 +120,7 @@ set_platform_defaults() {
       DEFAULT_ERROR_ROOT="/www/wwwroot/github-mirror-errors"
       DEFAULT_LOG_DIR="/www/wwwlogs"
       DEFAULT_OUTPUT_DIR="./dist/${DEPLOYMENT_NAME}"
-      DEFAULT_NGINX_SNIPPETS_TARGET_HINT="/www/server/nginx/snippets"
+      DEFAULT_NGINX_SNIPPETS_TARGET_HINT="/www/server/nginx/conf/snippets"
       DEFAULT_NGINX_VHOST_TARGET_HINT="/www/server/panel/vhost/nginx"
       ;;
     plain-nginx)
