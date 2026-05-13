@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_DOMAIN="github.weiyusc.top"
+BASE_DOMAIN="github.example.com"
 NGINX_CONF="/www/server/nginx/conf/nginx.conf"
 LOG_LINES=120
 TIMEOUT=20
