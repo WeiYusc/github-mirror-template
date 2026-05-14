@@ -150,3 +150,30 @@ ui_print_execute_summary() {
   echo "- nginx 测试失败时不会自动回滚"
   echo "- 如需回滚，应按备份目录手工恢复"
 }
+
+ui_print_bt_panel_quick_check_hint() {
+  local base_domain="$1"
+  local domain_mode="$2"
+
+  if [[ -z "$base_domain" ]]; then
+    return 0
+  fi
+
+  echo
+  ui_section "BaoTa quick-check 建议"
+  echo "- 建议在 BaoTa / 宝塔环境的 apply / repair 之后，优先运行："
+  if [[ -n "$domain_mode" ]]; then
+    echo "  ./scripts/check-bt-panel-nginx-quick.sh --base-domain $base_domain --domain-mode $domain_mode"
+  else
+    echo "  ./scripts/check-bt-panel-nginx-quick.sh --base-domain $base_domain"
+  fi
+  if [[ "$domain_mode" == "nested" ]]; then
+    echo "- 当前域名模型为 nested，建议显式补：--domain-mode nested"
+  elif [[ "$domain_mode" == "flat-siblings" ]]; then
+    echo "- 当前域名模型为 flat-siblings；这里已显式带上 --domain-mode flat-siblings 以避免 auto 误判"
+  else
+    echo "- 如你的部署不是 flat-siblings，而是 nested hosts，请显式补：--domain-mode nested"
+  fi
+  echo "- 如需更完整的线上验收，再运行："
+  echo "  ./scripts/check-live-mirror.sh --base-domain $base_domain${domain_mode:+ --domain-mode $domain_mode}"
+}

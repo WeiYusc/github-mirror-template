@@ -1027,4 +1027,7 @@ else
 fi
 
 installer_finalize_completed_run
+if [[ "$PLATFORM" == "bt-panel-nginx" && "$INSTALLER_EXECUTE_STATUS" == "ok" ]]; then
+  ui_print_bt_panel_quick_check_hint "$BASE_DOMAIN" "$DOMAIN_MODE"
+fi
 ui_info "骨架阶段完成：已打通交互输入、配置生成、generator 调用，以及 apply dry-run / 保守式真实 apply 流程。"

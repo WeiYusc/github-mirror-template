@@ -27,6 +27,8 @@ ROOT_DIR="$SCRIPT_DIR"
 source "$ROOT_DIR/scripts/lib/apply-plan.sh"
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/state.sh"
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib/ui.sh"
 
 RESULT_JSON=""
 DRY_RUN="0"
@@ -560,6 +562,26 @@ cat <<EOF
 [repair] 最终状态：$REPAIR_FINAL_STATUS
 [repair] 下一步：$REPAIR_NEXT_STEP
 EOF
+
+BASE_DOMAIN_HINT=""
+DOMAIN_MODE_HINT=""
+if [[ -n "${STATE_JSON_PATH:-}" && -f "$STATE_JSON_PATH" ]]; then
+  IFS=$'\t' read -r BASE_DOMAIN_HINT DOMAIN_MODE_HINT < <(
+    python3 - "$STATE_JSON_PATH" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+data = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+inputs = data.get('inputs') or {}
+print((inputs.get('base_domain') or '').replace('\t', ' '), (inputs.get('domain_mode') or '').replace('\t', ' '), sep='\t')
+PY
+  )
+fi
+
+if [[ "$REPAIR_PLATFORM" == "bt-panel-nginx" && -n "$BASE_DOMAIN_HINT" ]]; then
+  ui_print_bt_panel_quick_check_hint "$BASE_DOMAIN_HINT" "$DOMAIN_MODE_HINT"
+fi
 
 if [[ "$EXECUTE" == "1" && "$REPAIR_FINAL_STATUS" == "blocked" ]]; then
   exit 6
