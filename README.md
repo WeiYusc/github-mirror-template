@@ -67,12 +67,15 @@ cp deploy.example.yaml deploy.yaml
 1. `INSTALL.md`：总入口、边界、选路
 2. `docs/DEPLOY-BT-PANEL-UI-ZH.md`：适合以宝塔 UI 为主的管理员
 3. `docs/DEPLOY-BT-PANEL-CLI-ZH.md`：适合 SSH / 脚本化部署
-4. `docs/BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`：验收清单
-5. `docs/BT-PANEL-TROUBLESHOOTING-ZH.md`：常见故障排查
-6. `scripts/check-live-mirror.sh`：本机线上巡检脚本（6 域名 / 证书 / nginx include / error log 关键字）
+4. `scripts/check-bt-panel-nginx-quick.sh`：BaoTa 升级 / reload 后的快速自检（snippets / map / 关键 URL）
+5. `docs/BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`：验收清单
+6. `docs/BT-PANEL-TROUBLESHOOTING-ZH.md`：常见故障排查
+7. `scripts/check-live-mirror.sh`：更完整的本机线上巡检脚本（8 endpoints / 证书 / nginx include / error log 关键字）
 
 > 重要：当前 `flat-siblings` 主线是 **6 个域名一起部署**：`github / raw / gist / assets / archive / download`。
 > 其中 `assets` 不是可选装饰项，而是 HTML 页面资源链路的一部分。
+> BaoTa / 宝塔环境下，建议把检查分成两层：先跑 `scripts/check-bt-panel-nginx-quick.sh` 做升级 / reload 后快速定类，再跑 `scripts/check-live-mirror.sh` 做更完整的 live mirror 验收。
+> 如果你的部署是 nested hosts（例如 `raw.github.example.com`），运行巡检脚本时记得补 `--domain-mode nested`。
 > 当前仓库也已经内置 BaoTa 建站客户端，`ensure-bt-panel-mirror-stack.sh` 默认不再依赖外部 Hermes 路径；如有需要仍可通过 `--bt-create-script` 覆盖。
 
 ## 可选：实验性中文交互 installer

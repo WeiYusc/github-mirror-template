@@ -120,11 +120,14 @@ LOG_DIR=/www/wwwlogs
 
 - 以宝塔 UI 为主：`docs/DEPLOY-BT-PANEL-UI-ZH.md`
 - 以 SSH / 命令行为主：`docs/DEPLOY-BT-PANEL-CLI-ZH.md`
+- BaoTa 升级 / reload 后快速自检：`scripts/check-bt-panel-nginx-quick.sh`
 - 上线前后验收：`docs/BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`
 - 常见问题排查：`docs/BT-PANEL-TROUBLESHOOTING-ZH.md`
-- 本机线上巡检：`scripts/check-live-mirror.sh`
+- 本机线上完整巡检：`scripts/check-live-mirror.sh`
 
 > 当前 flat-siblings 主线默认是 **6 个域名完整部署**：`github / raw / gist / assets / archive / download`。其中 `assets` 必须保留。
+> BaoTa / 宝塔环境下，建议把检查分成两层：先跑 `scripts/check-bt-panel-nginx-quick.sh` 做升级 / reload 后快速定类，再跑 `scripts/check-live-mirror.sh` 做更完整的 live mirror 验收。
+> 如果你的部署是 nested hosts（例如 `raw.github.example.com`），运行巡检脚本时记得补 `--domain-mode nested`。
 > 当前 repo 默认也已内置 BaoTa 建站客户端；如需替换，可在 helper 路线显式传 `--bt-create-script <path>`。
 > 当前 BaoTa 主线还有一个很重要的 SSL 规则：渲染后的 vhost 必须保留 `#SSL-START` 与 `#error_page 404/404.html;` 这两个锚点，后续站点级证书绑定由 BaoTa 接管；不要再把共享 `snippets/tls-common.conf` 当成 BaoTa 站点 vhost 的长期 SSL 主承载方式。
 

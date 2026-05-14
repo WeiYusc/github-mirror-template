@@ -49,6 +49,10 @@
   - 宝塔识别、HTTP 链路与上线验收清单
 - `BT-PANEL-TROUBLESHOOTING-ZH.md`
   - 宝塔镜像部署常见故障排查
+- `../scripts/check-bt-panel-nginx-quick.sh`
+  - BaoTa 升级 / reload 后快速自检（snippets / map / 关键 URL）
+- `../scripts/check-live-mirror.sh`
+  - 更完整的线上巡检（8 endpoints / 证书 / nginx include / error log 关键字）
 - `../DEPLOY-CONFIG.md`
   - `deploy.yaml` 字段解释与配置方式
 - `../BT-PANEL-DEPLOYMENT-v1.md`
