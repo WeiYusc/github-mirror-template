@@ -32,6 +32,12 @@ Examples:
   # Apply and reload only after nginx -t passes
   ./deploy-rendered-to-bt-panel.sh --rendered-dir ./rendered/github-mirror --apply --reload
 
+  # After BaoTa apply/reload, run the quick post-upgrade check
+  ./scripts/check-bt-panel-nginx-quick.sh --base-domain github.example.com
+
+  # Nested-host deployments may need an explicit domain mode
+  ./scripts/check-bt-panel-nginx-quick.sh --base-domain github.example.com --domain-mode nested
+
 Notes:
   - --error-root is only accepted when it matches the rendered package value.
     To change error root, rerender first.
@@ -670,3 +676,4 @@ else
 fi
 
 info "Apply completed successfully. Backups and manifest stored in: $BACKUP_DIR"
+info "Recommended next step (BaoTa quick post-upgrade check): ./scripts/check-bt-panel-nginx-quick.sh --base-domain ${BASE_DOMAIN} [--domain-mode nested]"

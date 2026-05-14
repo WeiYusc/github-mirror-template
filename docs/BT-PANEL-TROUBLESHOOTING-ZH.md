@@ -8,11 +8,12 @@
 
 遇到问题时，建议先按这个顺序走：
 
-1. 看 `nginx -t`
-2. 看对应站点 error log
-3. 看 BaoTa 站点列表和站点设置页
-4. 看目标 conf / snippets 是否真的落到了预期目录
-5. 再看具体业务链路（gist / assets / download 等）
+1. 先跑 BaoTa 升级后快速自检：`./scripts/check-bt-panel-nginx-quick.sh --base-domain <你的主域名>`
+2. 看 `nginx -t`
+3. 看对应站点 error log
+4. 看 BaoTa 站点列表和站点设置页
+5. 看目标 conf / snippets 是否真的落到了预期目录
+6. 再看具体业务链路（gist / assets / download 等）
 
 ---
 
@@ -271,6 +272,16 @@ download 链路最容易因为“测试 URL 本身不存在”而误判。
 ---
 
 ## 10.5 巡检脚本看到的证书与旧 shared TLS snippet 不一致
+
+本仓库提供了两个不同粒度的在线检查入口：
+
+- `./scripts/check-bt-panel-nginx-quick.sh --base-domain <主域名>`
+  - 面向 BaoTa / 宝塔升级后、Nginx reload 后的**快速诊断**
+  - 优先判断 snippets / redirect whitelist map / 关键 URL 是否断链
+- `./scripts/check-live-mirror.sh --base-domain <主域名>`
+  - 面向更完整的 live mirror 验收与持续巡检
+
+当你遇到“宝塔升级后 nginx 起不来”或“nginx -t 通过但镜像站行为异常”时，优先跑 quick-check，再决定是否进入 full live-check。
 
 ### 这通常不是脚本错了
 

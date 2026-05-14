@@ -232,6 +232,8 @@ nginx -t
 - BaoTa UI 中存在并可管理 6 个站点
 - `nginx -t` 通过
 - HTTPS 正常
+- `./scripts/check-bt-panel-nginx-quick.sh --base-domain <主域名>` 无硬失败
+- 如需完整验收，`./scripts/check-live-mirror.sh --base-domain <主域名>` 通过核心检查
 - hub/raw/gist/assets/archive/download 的最小链路都可验证
 - 只读边界正常
 - 未影响旧站点

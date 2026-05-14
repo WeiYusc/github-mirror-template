@@ -2,6 +2,7 @@
 set -euo pipefail
 
 BASE_DOMAIN="github.example.com"
+DOMAIN_MODE="auto"
 NGINX_CONF="/www/server/nginx/conf/nginx.conf"
 LOG_LINES=120
 TIMEOUT=20
@@ -9,13 +10,20 @@ TIMEOUT=20
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/check-live-mirror.sh [--base-domain github.example.com] [--log-lines 120]
+  ./scripts/check-live-mirror.sh [--base-domain github.example.com] [--domain-mode auto|flat-siblings|nested] [--log-lines 120]
+  ./scripts/check-bt-panel-nginx-quick.sh [--base-domain github.example.com] [--domain-mode auto|flat-siblings|nested]
 
 What it checks:
-  - 6 live mirror URLs (hub/raw/gist/gist-raw/archive/download/assets)
+  - 8 live mirror endpoints (hub/raw/gist/gist-raw/archive/download/assets + repo page)
   - nginx http include for http-redirect-whitelist-map.conf
   - live vhost certificate source + expiry + SANs
   - recent site error logs for high-signal keywords
+
+Quick check companion:
+  - For BaoTa / 宝塔 Nginx 升级后快速判断 snippets / map / 关键链路是否断开，优先运行:
+    ./scripts/check-bt-panel-nginx-quick.sh --base-domain github.example.com
+  - If your deployment uses nested hosts under the hub domain, add:
+    --domain-mode nested
 
 Exit codes:
   0 = all hard checks passed (warnings may still exist)
@@ -59,6 +67,11 @@ while [[ $# -gt 0 ]]; do
       BASE_DOMAIN="$2"
       shift 2
       ;;
+    --domain-mode)
+      require_value "$1" "${2-}"
+      DOMAIN_MODE="$2"
+      shift 2
+      ;;
     --log-lines)
       require_value "$1" "${2-}"
       LOG_LINES="$2"
@@ -76,7 +89,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 BASE_DOMAIN="$(trim_trailing_slash "$BASE_DOMAIN")"
+[[ "$BASE_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "--base-domain contains invalid characters" >&2; exit 2; }
 [[ "$BASE_DOMAIN" == *.* ]] || { echo "--base-domain must be a hostname like github.example.com" >&2; exit 2; }
+[[ "$BASE_DOMAIN" != .* && "$BASE_DOMAIN" != *..* && "$BASE_DOMAIN" != *. ]] || { echo "--base-domain has invalid hostname shape" >&2; exit 2; }
+
+case "$DOMAIN_MODE" in
+  auto|flat-siblings|nested) ;;
+  *) echo "--domain-mode must be auto, flat-siblings, or nested" >&2; exit 2 ;;
+esac
 
 root_suffix="${BASE_DOMAIN#*.}"
 if [[ "$root_suffix" == "$BASE_DOMAIN" || -z "$root_suffix" ]]; then
@@ -85,7 +105,19 @@ if [[ "$root_suffix" == "$BASE_DOMAIN" || -z "$root_suffix" ]]; then
 fi
 
 HUB_DOMAIN="$BASE_DOMAIN"
-if [[ "$BASE_DOMAIN" == *.*.* ]]; then
+if [[ "$DOMAIN_MODE" == "flat-siblings" ]]; then
+  RAW_DOMAIN="raw.${root_suffix}"
+  GIST_DOMAIN="gist.${root_suffix}"
+  ASSETS_DOMAIN="assets.${root_suffix}"
+  ARCHIVE_DOMAIN="archive.${root_suffix}"
+  DOWNLOAD_DOMAIN="download.${root_suffix}"
+elif [[ "$DOMAIN_MODE" == "nested" ]]; then
+  RAW_DOMAIN="raw.${BASE_DOMAIN}"
+  GIST_DOMAIN="gist.${BASE_DOMAIN}"
+  ASSETS_DOMAIN="assets.${BASE_DOMAIN}"
+  ARCHIVE_DOMAIN="archive.${BASE_DOMAIN}"
+  DOWNLOAD_DOMAIN="download.${BASE_DOMAIN}"
+elif [[ "$BASE_DOMAIN" == *.*.* ]]; then
   RAW_DOMAIN="raw.${root_suffix}"
   GIST_DOMAIN="gist.${root_suffix}"
   ASSETS_DOMAIN="assets.${root_suffix}"
