@@ -579,7 +579,7 @@ PY
   )
 fi
 
-if [[ "$REPAIR_PLATFORM" == "bt-panel-nginx" && -n "$BASE_DOMAIN_HINT" ]]; then
+if [[ "$REPAIR_PLATFORM" == "bt-panel-nginx" && "$EXECUTE" == "1" && -n "$BASE_DOMAIN_HINT" ]]; then
   ui_print_bt_panel_quick_check_hint "$BASE_DOMAIN_HINT" "$DOMAIN_MODE_HINT"
 fi
 
