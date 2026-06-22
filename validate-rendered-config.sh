@@ -200,6 +200,12 @@ check_contains "$RENDERED_DIR/conf.d/archive.example.com.conf" "$ARCHIVE_DOMAIN"
 check_contains "$RENDERED_DIR/conf.d/download.example.com.conf" "$DOWNLOAD_DOMAIN" "download domain"
 pass "expected domains appear in rendered conf files"
 
+check_contains "$RENDERED_DIR/conf.d/hub.example.com.conf" 'git-upload-pack' "hub Git upload-pack read endpoint"
+check_contains "$RENDERED_DIR/conf.d/hub.example.com.conf" 'git-receive-pack' "hub Git receive-pack deny endpoint"
+check_contains "$RENDERED_DIR/conf.d/hub.example.com.conf" '0:post:upload-pack' "hub POST allowlist is limited to upload-pack"
+check_contains "$RENDERED_DIR/conf.d/hub.example.com.conf" 'include snippets/mirror-block-sensitive-paths.conf;' "hub sensitive path deny include"
+pass "hub Git smart HTTP read-only guard exists"
+
 for conf in   "$RENDERED_DIR/conf.d/hub.example.com.conf"   "$RENDERED_DIR/conf.d/raw.example.com.conf"   "$RENDERED_DIR/conf.d/gist.example.com.conf"   "$RENDERED_DIR/conf.d/assets.example.com.conf"   "$RENDERED_DIR/conf.d/archive.example.com.conf"   "$RENDERED_DIR/conf.d/download.example.com.conf"; do
   check_contains "$conf" '#SSL-START' "BaoTa SSL anchor (#SSL-START)"
   check_contains "$conf" '#error_page 404/404.html;' "BaoTa SSL anchor (#error_page 404/404.html;)"
