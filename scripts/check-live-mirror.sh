@@ -15,6 +15,7 @@ Usage:
 
 What it checks:
   - 8 live mirror endpoints (hub/raw/gist/gist-raw/archive/download/assets + repo page)
+  - Git smart HTTP read path works (`git ls-remote`) while receive-pack/session writes stay blocked
   - nginx http include for http-redirect-whitelist-map.conf
   - live vhost certificate source + expiry + SANs
   - recent site error logs for high-signal keywords
@@ -153,6 +154,51 @@ check_status_200() {
   fi
 }
 
+fetch_status_get() {
+  local url="$1"
+  local status
+  status="$(curl -s --max-time "$TIMEOUT" -o /dev/null -w '%{http_code}' "$url" || true)"
+  printf '%s\n' "$status"
+}
+
+fetch_status_method_no_redirect() {
+  local method="$1"
+  local url="$2"
+  local status
+  status="$(curl -s --max-redirs 0 --max-time "$TIMEOUT" -o /dev/null -w '%{http_code}' -X "$method" "$url" || true)"
+  printf '%s\n' "$status"
+}
+
+check_git_smart_http_readonly() {
+  local repo_url="https://${HUB_DOMAIN}/torvalds/linux.git"
+  local head_line receive_status session_status
+
+  if ! command -v git >/dev/null 2>&1; then
+    warn "git command not found; skipping Git smart HTTP read check"
+    return
+  fi
+
+  if head_line="$(git ls-remote "$repo_url" HEAD 2>/dev/null | head -n 1)" && [[ "$head_line" == *$'\tHEAD' ]]; then
+    pass "git smart HTTP upload-pack read -> HEAD resolved"
+  else
+    fail "git smart HTTP upload-pack read failed ($repo_url)"
+  fi
+
+  receive_status="$(fetch_status_get "${repo_url}/info/refs?service=git-receive-pack")"
+  if [[ "$receive_status" == "401" || "$receive_status" == "403" ]]; then
+    pass "git receive-pack discovery remains blocked -> $receive_status"
+  else
+    fail "git receive-pack discovery expected 401/403, got ${receive_status:-<empty>}"
+  fi
+
+  session_status="$(fetch_status_method_no_redirect POST "https://${HUB_DOMAIN}/session")"
+  if [[ "$session_status" == "403" ]]; then
+    pass "hub session POST remains blocked -> $session_status"
+  else
+    fail "hub session POST expected 403, got ${session_status:-<empty>}"
+  fi
+}
+
 check_nginx_include() {
   local needle='include /www/server/nginx/conf/snippets/http-redirect-whitelist-map.conf;'
   if [[ ! -f "$NGINX_CONF" ]]; then
@@ -283,6 +329,8 @@ check_status_200 "gist raw" "https://${GIST_DOMAIN}/gist-githubusercontent/octoc
 check_status_200 "archive tarball" "https://${ARCHIVE_DOMAIN}/torvalds/linux/archive/refs/heads/master.tar.gz"
 check_status_200 "download release asset" "https://${DOWNLOAD_DOMAIN}/cli/cli/releases/download/v2.92.0/gh_2.92.0_linux_amd64.tar.gz"
 check_status_200 "assets css" "https://${ASSETS_DOMAIN}/assets/light-2ff56e1b36116ee2.css"
+
+check_git_smart_http_readonly
 
 echo
 for site in "$HUB_DOMAIN" "$RAW_DOMAIN" "$GIST_DOMAIN" "$ASSETS_DOMAIN" "$ARCHIVE_DOMAIN" "$DOWNLOAD_DOMAIN"; do
