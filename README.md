@@ -16,6 +16,7 @@
 - `archive` 源码包下载
 - `release download` 下载链路
 - GitHub 静态资源镜像
+- 匿名 Git smart HTTP 读操作：`git clone` / `git fetch` / `git ls-remote`
 
 适用场景包括：
 
@@ -70,7 +71,7 @@ cp deploy.example.yaml deploy.yaml
 4. `scripts/check-bt-panel-nginx-quick.sh`：BaoTa 升级 / reload 后的快速自检（snippets / map / 关键 URL）
 5. `docs/BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`：验收清单
 6. `docs/BT-PANEL-TROUBLESHOOTING-ZH.md`：常见故障排查
-7. `scripts/check-live-mirror.sh`：更完整的本机线上巡检脚本（8 endpoints / 证书 / nginx include / error log 关键字）
+7. `scripts/check-live-mirror.sh`：更完整的本机线上巡检脚本（8 endpoints / Git smart HTTP 读路径 / 证书 / nginx include / error log 关键字）
 
 > 重要：当前 `flat-siblings` 主线是 **6 个域名一起部署**：`github / raw / gist / assets / archive / download`。
 > 其中 `assets` 不是可选装饰项，而是 HTML 页面资源链路的一部分。
@@ -377,6 +378,7 @@ bash tests/installer-doctor-golden.sh
 - 源码归档下载（archive / codeload）
 - release 下载链路代理
 - GitHub 静态资源域镜像
+- 匿名 Git smart HTTP 读操作：`git clone` / `git fetch` / `git ls-remote`
 
 ## 明确不支持的能力
 
@@ -386,7 +388,7 @@ bash tests/installer-doctor-golden.sh
 - 任何账号态功能
 - star / fork / watch / sponsor
 - 新建 issue / PR / discussion
-- push / 写入 / 上传
+- push / 写入 / 上传（包括 `git-receive-pack`）
 - PAT / token / SSH 凭据代理
 - 账户设置、通知、dashboard
 
@@ -397,8 +399,9 @@ bash tests/installer-doctor-golden.sh
 - `GET`
 - `HEAD`
 - `OPTIONS`
+- 仅限 Git smart HTTP 读路径的 `POST /<owner>/<repo>.git/git-upload-pack`
 
-其他方法统一拒绝。
+其他方法统一拒绝；`git-receive-pack`、登录/session、star/fork/issue/PR 等写路径仍然拒绝。
 
 ---
 

@@ -21,11 +21,12 @@
 在继续之前，先确认你部署的是：
 
 - GitHub **公共只读镜像**
+- 支持公共仓库匿名 `git clone` / `git fetch` / `git ls-remote`
 - 不是完整 GitHub 替代品
 - 不是登录代理
 - 不是私有仓库网关
 
-如果你的目标是登录、写入、私有仓库、账号态交互，这套东西不适合。
+如果你的目标是登录、写入、push、私有仓库、账号态交互，这套东西不适合。
 
 ---
 
@@ -123,7 +124,7 @@ LOG_DIR=/www/wwwlogs
 - BaoTa 升级 / reload 后快速自检：`scripts/check-bt-panel-nginx-quick.sh`
 - 上线前后验收：`docs/BT-PANEL-ACCEPTANCE-CHECKLIST-ZH.md`
 - 常见问题排查：`docs/BT-PANEL-TROUBLESHOOTING-ZH.md`
-- 本机线上完整巡检：`scripts/check-live-mirror.sh`
+- 本机线上完整巡检：`scripts/check-live-mirror.sh`（包含 Git smart HTTP 读路径和写路径阻断检查）
 
 > 当前 flat-siblings 主线默认是 **6 个域名完整部署**：`github / raw / gist / assets / archive / download`。其中 `assets` 必须保留。
 > BaoTa / 宝塔环境下，建议把检查分成两层：先跑 `scripts/check-bt-panel-nginx-quick.sh` 做升级 / reload 后快速定类，再跑 `scripts/check-live-mirror.sh` 做更完整的 live mirror 验收。
@@ -600,10 +601,13 @@ nginx -s reload
 
 ## 安全边界
 
+- `git ls-remote https://<hub>/<owner>/<repo>.git HEAD` 可解析公共仓库 HEAD
+- `git clone` / `git fetch` 可通过 Git smart HTTP 读路径工作
+- `git-receive-pack` / push 相关请求被拒绝或要求认证，不应走成功流程
 - `/login` 应进入登录禁用提示页
 - `/settings/profile` 应进入登录禁用提示页或拒绝访问
 - `/octocat/Hello-World/fork` 应进入只读限制提示页
-- POST 请求应被拒绝
+- 普通非 Git 写入 POST 请求应被拒绝
 
 ---
 

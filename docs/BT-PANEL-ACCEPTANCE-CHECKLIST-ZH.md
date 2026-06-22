@@ -186,9 +186,12 @@ nginx -t
 
 至少验证：
 
+- `git ls-remote https://<hub>/<owner>/<repo>.git HEAD` 可解析公共仓库 HEAD
+- `git clone` / `git fetch` 可通过 Git smart HTTP 读路径工作
+- `git-receive-pack` / push 相关请求被拒绝或要求认证，不应走成功流程
 - `/login` 进入登录禁用页
 - `/settings/profile` 被拒绝或进入禁用页
-- POST 请求被拒绝
+- 普通非 Git 写入 POST 请求被拒绝
 - fork / issue / PR 等写路径不应走成功流程
 
 ---
