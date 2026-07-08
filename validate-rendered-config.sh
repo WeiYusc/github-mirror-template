@@ -112,6 +112,7 @@ required_files=(
   "$RENDERED_DIR/conf.d/download.example.com.conf"
   "$RENDERED_DIR/snippets/tls-common.conf"
   "$RENDERED_DIR/snippets/proxy-common.conf"
+  "$RENDERED_DIR/snippets/mirror-resolver.conf"
   "$RENDERED_DIR/snippets/mirror-security.conf"
   "$RENDERED_DIR/snippets/mirror-robots-deny.conf"
   "$RENDERED_DIR/snippets/mirror-readonly-methods.conf"
@@ -204,6 +205,8 @@ check_contains "$RENDERED_DIR/conf.d/hub.example.com.conf" 'git-upload-pack' "hu
 check_contains "$RENDERED_DIR/conf.d/hub.example.com.conf" 'git-receive-pack' "hub Git receive-pack deny endpoint"
 check_contains "$RENDERED_DIR/conf.d/hub.example.com.conf" '0:post:upload-pack' "hub POST allowlist is limited to upload-pack"
 check_contains "$RENDERED_DIR/conf.d/hub.example.com.conf" 'include snippets/mirror-block-sensitive-paths.conf;' "hub sensitive path deny include"
+check_contains "$RENDERED_DIR/snippets/mirror-resolver.conf" 'resolver ' "runtime DNS resolver snippet"
+check_contains "$RENDERED_DIR/snippets/mirror-resolver.conf" 'resolver_timeout' "runtime DNS resolver timeout"
 pass "hub Git smart HTTP read-only guard exists"
 
 for conf in   "$RENDERED_DIR/conf.d/hub.example.com.conf"   "$RENDERED_DIR/conf.d/raw.example.com.conf"   "$RENDERED_DIR/conf.d/gist.example.com.conf"   "$RENDERED_DIR/conf.d/assets.example.com.conf"   "$RENDERED_DIR/conf.d/archive.example.com.conf"   "$RENDERED_DIR/conf.d/download.example.com.conf"; do
